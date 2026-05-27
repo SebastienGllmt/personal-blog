@@ -154,8 +154,7 @@
   <mark name="file-encoding"/>
   It's not tiny - the zero-knowledge proofs dominate, so a simple offer runs to
   about sixteen thousand characters. Too big for a QR code. But it's just text, so you
-  can paste it in a chat, drop it in a file, or host it at a URL. No wallet, no website,
-  no chain required to *make* one.
+  can paste it in a chat, drop it in a file, or host it at a URL. No complex setup required
   <mark name="file-invalidate"/>
   And it stays live until one of two things happens: the maker spends the coins it was
   built from, or its time-to-live expires. Both of those are things you check against
@@ -182,7 +181,7 @@
   <mark name="celestia-retention"/>
   One honest caveat: Celestia guarantees the data was *published*, not that it's stored forever.
   Light clients keep roughly a week of history - but that's not really a limitation here, because
-  Midnight's L1 enforces a one-week time-to-live on offers anyway, so a live offer never outlives that
+  Midnight's L1 enforces a two-week time-to-live on offers anyway, so a live offer never outlives that
   window. And if you want a durable archive of old ones, the application arranges that itself.
 </script>
 
@@ -878,7 +877,7 @@
         is just text:
         <code class="offer-sample">zswapoffer1qpzry9x8gf2tvdw0s3jn54khce6mua7l…</code>
         You can paste it into a chat, attach it as a file, or host it behind a URL.
-        No wallet, website, or chain is needed to <em>create</em> one.
+        No complex setup rquired.
       </p>
       <p id="file-invalidate">
         An Offer File stays valid until one of two things happens: the maker
@@ -984,7 +983,7 @@
         One honest caveat: data availability guarantees the blob was
         <em>published</em>, not that it is stored forever. Light clients retain
         roughly a <strong>7-day</strong> window - but that isn't a real limitation here, because
-        Midnight's L1 enforces a global <strong>one-week time-to-live</strong> on offers anyway, so a
+        Midnight's L1 enforces a global <strong>two-week time-to-live</strong> on offers anyway, so a
         live offer never outlives the window. Durable history of old offers is something the
         application arranges itself (a pinned namespace, snapshots, or a paid archive).
       </p>
