@@ -1,0 +1,2353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="author-email" content="sebastiengllmt@gmail.com" />
+<title>Offer Files: shared liquidity without a chain</title>
+<link rel="stylesheet" href="../engine/client/base.css" />
+<link rel="stylesheet" href="../engine/client/narrator.css" />
+<link rel="stylesheet" href="../engine/client/comments.css" />
+<link rel="stylesheet" href="../figures/offerMerge.css" />
+<link rel="stylesheet" href="../figures/offerLifecycle.css" />
+<link rel="stylesheet" href="../figures/utxoSwap.css" />
+<link rel="stylesheet" href="../figures/marketMaker.css" />
+<link rel="stylesheet" href="../figures/viewingKey.css" />
+<link rel="stylesheet" href="../figures/sequencerProof.css" />
+<link rel="stylesheet" href="../figures/hotPath.css" />
+<link rel="stylesheet" href="../figures/consensusSpectrum.css" />
+<link rel="stylesheet" href="../figures/intentCompare.css" />
+<link rel="stylesheet" href="../figures/fileWrap.css" />
+<link rel="stylesheet" href="../figures/dualIndexer.css" />
+<link rel="stylesheet" href="../figures/batcherFlow.css" />
+<link rel="stylesheet" href="../figures/sharedLiquidity.css" />
+<link rel="stylesheet" href="../figures/discordFlow.css" />
+<link rel="stylesheet" href="../figures/namespaceSync.css" />
+<link rel="stylesheet" href="../figures/trustModel.css" />
+<link rel="stylesheet" href="../figures/privacyTradeoff.css" />
+<link rel="stylesheet" href="../figures/daAbstraction.css" />
+<link rel="stylesheet" href="../figures/offboardOffer.css" />
+<link rel="stylesheet" href="../figures/nullifierGrowth.css" />
+<link rel="stylesheet" href="../figures/feeOrdering.css" />
+<link rel="stylesheet" href="../figures/timeToMarket.css" />
+<script type="module" src="../engine/client/narrator.ts"></script>
+<script type="module" src="../engine/client/comments.ts"></script>
+<script type="module" src="../figures/offerMerge.ts"></script>
+<script type="module" src="../figures/offerLifecycle.ts"></script>
+<script type="module" src="../figures/utxoSwap.ts"></script>
+<script type="module" src="../figures/marketMaker.ts"></script>
+<script type="module" src="../figures/viewingKey.ts"></script>
+<script type="module" src="../figures/sequencerProof.ts"></script>
+<script type="module" src="../figures/hotPath.ts"></script>
+<script type="module" src="../figures/consensusSpectrum.ts"></script>
+<script type="module" src="../figures/intentCompare.ts"></script>
+<script type="module" src="../figures/fileWrap.ts"></script>
+<script type="module" src="../figures/dualIndexer.ts"></script>
+<script type="module" src="../figures/batcherFlow.ts"></script>
+<script type="module" src="../figures/sharedLiquidity.ts"></script>
+<script type="module" src="../figures/discordFlow.ts"></script>
+<script type="module" src="../figures/namespaceSync.ts"></script>
+<script type="module" src="../figures/trustModel.ts"></script>
+<script type="module" src="../figures/privacyTradeoff.ts"></script>
+<script type="module" src="../figures/daAbstraction.ts"></script>
+<script type="module" src="../figures/offboardOffer.ts"></script>
+<script type="module" src="../figures/nullifierGrowth.ts"></script>
+<script type="module" src="../figures/feeOrdering.ts"></script>
+<script type="module" src="../figures/timeToMarket.ts"></script>
+
+<!-- Pronunciation lexicon for this post's technical terms now lives in the shared
+     posts/common-terms.pls, merged in by the generator. -->
+
+<script type="text/narration" data-chapter-id="intro" data-chapter-title="Welcome">
+  <mark name="title"/>
+  Hi everyone, and welcome to today's talk.
+  <mark name="lede"/>
+  I want to tell you about an idea that's been catching on in the Midnight
+  ecosystem - a way to trade assets where the order book itself never
+  touches a blockchain. They're called Offer Files.
+</script>
+
+<script type="text/narration" data-chapter-id="problem" data-chapter-title="The throughput wall">
+  <mark name="problem-heading"/>
+  Let's start with the problem, because it's one every zero-knowledge chain runs into.
+  <mark name="problem-body"/>
+  Privacy comes with a computational cost - you have to generate proofs - and
+  that compute comes with a throughput cost. So a chain like Midnight will never have the
+  transactions-per-second of a chain that does no private computation at all. And that squeezes
+  exchanges from both sides. The classic design, an order book, wants to put every single order on
+  chain - place an order, that's a transaction; cancel it, another - and most of those orders never
+  even get filled, so it's a lot of precious block space spent on intentions that go nowhere. The
+  usual escape is an automated market maker, which keeps the order flow off chain - but an AMM is a
+  general-purpose smart contract, and on a privacy chain a general contract means a heavy proof, far
+  more expensive than just placing an order. Either way, the naive exchange is costly here.
+  <mark name="problem-intents"/>
+  The modern answer to this is intents. You broadcast what you *want* off chain,
+  and the chain is only touched when someone actually fills it. Offer Files are
+  exactly that pattern - but with a twist that makes them unusually clean on Midnight.
+</script>
+
+<script type="text/narration" data-chapter-id="zswap" data-chapter-title="zSwap: swaps in the L1">
+  <mark name="zswap-heading"/>
+  And the twist is a primitive called zSwap.
+  <mark name="zswap-body"/>
+  Most chains make you write a smart contract to swap two assets. Midnight doesn't.
+  Atomic swaps are built directly into the base layer. The unit you work with is an
+  offer, and the key thing to understand is that an offer is a deliberately
+  *unbalanced* transaction. It puts some assets in, and it takes other assets out,
+  and on its own it doesn't add up.
+  <mark name="zswap-delta"/>
+  Concretely, an offer carries a little ledger of signed numbers - one per token.
+  Alice's offer says: plus five NIGHT, minus three ROCK. The chain will only ever accept
+  a transaction where every one of those numbers nets to zero. So an offer alone is
+  never valid. It's half of a trade, waiting for its other half.
+  <mark name="merge-figure"/>
+  Here's where it gets fun. Look at the figure. Alice posted the offer on the left.
+  You assemble the matching half on the right - you take the NIGHT she's giving,
+  and you give the ROCK she wants. Watch the merged ledger in the middle: when your half
+  exactly mirrors hers, every token snaps to zero, and suddenly we have a single,
+  balanced, submittable transaction. Try nudging the amounts and you'll see it fall
+  out of balance again.
+  <mark name="zswap-merge"/>
+  That merge is the magic trick. Two offers combine by just unioning their pieces and
+  adding up those signed numbers. And because each offer already carries its own
+  zero-knowledge proof inside it, nobody has to re-prove anything to combine them.
+  The taker doesn't even need a proving system. It's completely non-interactive.
+  <mark name="zswap-trustless"/>
+  It's also tamper-proof. Change a single byte of someone's offer and its proof no
+  longer verifies, so it's worthless. You can hand an offer to a complete stranger and
+  the worst they can do is throw it away - they can never alter your terms, and
+  they can never peel off your coins for some other trade.
+</script>
+
+<script type="text/narration" data-chapter-id="offer-anatomy" data-chapter-title="zSwap vs. a zSwap Offer">
+  <mark name="anatomy-heading"/>
+  Quick aside on names, because the Midnight codebase is precise about this and it matters for what's coming.
+  <mark name="anatomy-naming"/>
+  zSwap, lowercase z, is the whole system - the shielded, private token machinery. A zSwap Offer is one
+  thing inside it: that concrete bundle of inputs, outputs, and the deltas, which encodes the difference
+  between the two.
+  <mark name="offer-anatomy-figure"/>
+  Now the privacy model, which is the part that surprises people. At the level of an individual coin, zSwap hides
+  everything - not just who owns it, but the asset type and the amount too, all sealed inside commitments.
+  The only person who can read what an output actually contains is the receiver, through an encrypted note meant
+  just for them.
+  <mark name="anatomy-deltas"/>
+  So how does anyone know what's being traded? One field is public, by necessity: the deltas. The chain has to see
+  the net imbalance per token to check the offer balances, so deltas sits there in plaintext - plus five of
+  this, minus three of that. The trade terms, and nothing else: not the funding coins, not the parties, not your
+  other holdings.
+</script>
+
+<script type="text/narration" data-chapter-id="offer-file" data-chapter-title="From swap to file">
+  <mark name="file-heading"/>
+  So here's the leap. If an offer is a self-contained, tamper-proof, mergeable object
+  - why keep it on the chain at all?
+  <mark name="file-body"/>
+  You don't have to. You serialize that proven offer, wrap it in an encoding called
+  bech32, and what you get is a plain text string. That string *is* the Offer File,
+  and it has a built-in checksum so a copy-paste typo can't silently corrupt it.
+  <mark name="file-public"/>
+  And here's why it's safe to share, which isn't obvious. Remember the trade terms live in the public deltas, while
+  the coins and the parties stay private. So the file says what's on offer - gives five NIGHT, wants three
+  ROCK - and nothing else. You can post it in the open and let anyone match it, without leaking who you are
+  or what else you hold.
+  <mark name="file-encoding"/>
+  It's not tiny - the zero-knowledge proofs dominate, so a simple offer runs to
+  about sixteen thousand characters. Too big for a QR code. But it's just text, so you
+  can paste it in a chat, drop it in a file, or host it at a URL. No wallet, no website,
+  no chain required to *make* one.
+  <mark name="file-invalidate"/>
+  And it stays live until one of two things happens: the maker spends the coins it was
+  built from, or its time-to-live expires. Both of those are things you check against
+  the current chain state - which, as we'll see, is exactly half of the indexing problem.
+</script>
+
+<script type="text/narration" data-chapter-id="celestia" data-chapter-title="Where offers live">
+  <mark name="celestia-heading"/>
+  So where do offer files actually go? Well, the simplest answer is: anywhere you like.
+  <mark name="celestia-body"/>
+  You can keep one private and hand it straight to a friend - and that's already useful.
+  Remember NFT mania, when people traded by posting in Discord? That needed a trusted escrow,
+  because either side could back out. An offer file gives you that same casual trade with no
+  escrow and more privacy. But peer to peer, only the people you message can see it. The bigger
+  prize is shared liquidity - getting your offer in front of as many takers as possible.
+  And for that, our reference design uses Celestia as a public bulletin board. Celestia is a
+  data-availability layer: a chain whose only job is to take a blob of data and guarantee
+  everyone can download it. It doesn't execute the data, it just makes it available.
+  <mark name="celestia-namespace"/>
+  And the feature that makes it perfect here is namespaces. Every app gets its own labelled
+  lane in the data. So a wallet can sync *only* the Offer-File namespace - not the whole
+  chain - and still get a cryptographic guarantee that it's seeing every offer that was
+  posted, with nothing hidden from it. That's full-node-grade assurance from a light node.
+  <mark name="celestia-retention"/>
+  One honest caveat: Celestia guarantees the data was *published*, not that it's stored forever.
+  Light clients keep roughly a week of history - but that's not really a limitation here, because
+  Midnight's L1 enforces a one-week time-to-live on offers anyway, so a live offer never outlives that
+  window. And if you want a durable archive of old ones, the application arranges that itself.
+</script>
+
+<script type="text/narration" data-chapter-id="plumbing" data-chapter-title="Two hard parts">
+  <mark name="plumbing-heading"/>
+  Beautiful in theory. In practice there are two genuinely hard parts, and our reference
+  implementation is built around solving exactly these two.
+  <mark name="plumbing-index"/>
+  The first: to show a correct order book, you have to watch *two* chains at once. Celestia tells
+  you which offers were *created*. But Midnight tells you which offers are *dead* - because
+  the moment any coin an offer was built from gets spent, that offer can never be filled. So you
+  index Celestia for the new offers, and you index Midnight for the spends that invalidate them.
+  A framework called EffectStream lets a single program watch both chains as one unified stream,
+  which is what makes this tractable.
+  <mark name="plumbing-batcher"/>
+  The second: posting to Celestia costs a fee, paid in Celestia's own token. But your users are
+  Midnight users, so most of them won't hold Celestia tokens at all. So EffectStream ships a
+  batcher. The user hands their offer to the batcher, and the batcher posts it and pays the fee on
+  their behalf. The user never has to know Celestia exists.
+  <mark name="lifecycle-figure"/>
+  Now that all the pieces are on the table, let me play the whole journey end to end. An offer is
+  created and proven in your wallet, encoded into that text string, and posted to Celestia
+  with the batcher covering the fee. EffectStream indexes both chains to track it, it shows up in a
+  shared order book, and finally a taker matches it and settles the trade on Midnight. Press play,
+  or click any step to walk through it yourself.
+</script>
+
+<script type="text/narration" data-chapter-id="liquidity" data-chapter-title="Shared liquidity">
+  <mark name="liquidity-heading"/>
+  So step back and look at what this gives us.
+  <mark name="liquidity-body"/>
+  Every exchange, every NFT marketplace built this way is reading from the *same* pool of Offer
+  Files. The trades don't live inside any one app. An app becomes just two things: a filter that
+  picks which offers to show, and a frontend to show them. Liquidity that one site attracts is
+  liquidity every other site can match against. The network effect stops being captured by a
+  single venue.
+  <mark name="liquidity-forward"/>
+  Now, that's the technical payoff - but elegant architecture isn't the same as a thing people will
+  actually use. Whether any of this gets real traction is a separate question, and an important one. There's
+  even a real-world experiment that speaks to it - a chain called Chia ran this exact shape for years
+  - but it deserves an honest look rather than a victory lap, so I've saved the whole business case for
+  the very end. Hold that thought; first, let's finish the design.
+</script>
+
+<script type="text/narration" data-chapter-id="orderbook" data-chapter-title="Building the order book">
+  <mark name="orderbook-heading"/>
+  So let's actually build a DEX with this. The order book almost falls out for free: every offer file is a
+  resting order. A taker browses them, picks one, and settles it with a single on-chain transaction. Listing
+  and updating orders costs nothing on-chain at all.
+  <mark name="orderbook-body"/>
+  But there's a catch, and to see it you need one fact about how Midnight works underneath. A zSwap offer is
+  built from a specific coin - what's called a UTXO, an unspent output. The offer stays valid only for
+  as long as that coin stays unspent.
+  <mark name="utxo-figure"/>
+  Play with the figure. Creating and sharing the offer is free - it's just a file, so copies can be
+  anywhere. When a taker fills it, settling spends that coin on-chain. Fine. But now try to cancel it.
+  <mark name="cancel-cost"/>
+  Cancelling also costs an on-chain transaction - and that isn't a detail we can optimize away, it's
+  fundamental. Copies of your offer are already out in the world. The only way to make every one of them
+  un-fillable is to spend the coin they all point at. Off-chain there is no undo; on a UTXO chain a cancel
+  is a spend, and a spend is a transaction.
+</script>
+
+<script type="text/narration" data-chapter-id="market-making" data-chapter-title="The market-maker wall">
+  <mark name="mm-heading"/>
+  Here's why that one fact decides whether your DEX lives or dies. A good order book needs market makers
+  - the people who quote both a buy price and a sell price and earn the small spread between them.
+  <mark name="mm-spread"/>
+  When two offers cross - someone selling a touch cheap, someone buying a touch high - a market
+  maker fills both and pockets the difference. Do that all day and you get tight prices and deep liquidity.
+  That's the whole reason exchanges court market makers.
+  <mark name="mm-figure"/>
+  But drag the fair price in the figure. The instant the market moves, the maker's entire ladder of quotes is
+  mispriced and has to be cancelled and re-posted. Real market makers do this constantly - they cancel
+  far more orders than they ever fill.
+  <mark name="mm-bottleneck"/>
+  And every one of those cancels is an on-chain transaction. A zero-knowledge chain like Midnight clears only
+  a handful of transactions a second, with slow finality. A market maker who needs to re-quote dozens of times
+  a second simply can't keep up. The cancel cost quietly makes serious market making impossible.
+  <mark name="l2-teaser"/>
+  So that's the missing piece. Offer files give us a shared, off-chain order book and real settlement on the
+  base layer - but to make it a venue market makers can actually work, cancels have to be fast and nearly
+  free. The answer is a layer two, purpose-built for offer files. So let's design it.
+</script>
+
+<script type="text/narration" data-chapter-id="l2-design" data-chapter-title="Designing the L2">
+  <mark name="l2-design-heading"/>
+  When you build a layer two on a privacy chain, two questions dominate everything else.
+  <mark name="l2-axes"/>
+  First, integrity: under what assumptions can someone prove a balance on the layer two and withdraw it back
+  to the layer one? And second, privacy: who, if anyone, gets to see the state of the layer two? On Midnight,
+  privacy isn't optional - it's the whole point - so both questions are live at once.
+  <mark name="l2-midnightcity"/>
+  There's a great reference point. Another Midnight project, Midnight City, already built a layer two. For
+  privacy they use a proof system called Ligero; for the chain itself they use the Sovereign SDK; and for
+  integrity they run the sequencer inside a trusted execution environment - a secure hardware enclave
+  - and settle to a Midnight contract.
+  <mark name="l2-crypto"/>
+  That's a perfectly reasonable design. But our use-case is financial, and for money we don't want to settle
+  for hardware trust. A trusted enclave is one disclosed vulnerability away from forged withdrawals. We want
+  cryptographic integrity: a proof, not a promise from a chip. And that, it turns out, is genuinely hard here.
+</script>
+
+<script type="text/narration" data-chapter-id="balance-proof" data-chapter-title="Proving a private balance">
+  <mark name="balance-heading"/>
+  Here's why it's hard, and it comes straight from how zSwap works.
+  <mark name="balance-body"/>
+  On a zSwap chain, balances are private. They live as commitments and nullifiers that nobody can attribute to
+  an owner just by looking. So when you want to withdraw, the layer two can't simply vouch for your balance -
+  the sequencer genuinely does not know it. The proof has to come from you.
+  <mark name="viewingkey-figure"/>
+  Midnight gives you a tool for this: a viewing key. It lets you, and only you, tell which swaps involved your
+  address. Look at the grid - every swap is opaque, until your viewing key lights up the handful that are
+  yours.
+  <mark name="balance-scan"/>
+  But here's the trap. To prove your balance, it's not enough to point at your five swaps. You have to prove,
+  for every other swap too, that it is not yours - otherwise you could be hiding deposits or inventing them.
+  So your proof has to sweep the entire history of the layer two.
+  <mark name="balance-infeasible"/>
+  Drag the throughput up and watch. Even a modest layer two produces more swaps in a day than any user could
+  ever fold into a single proof, recursive SNARKs and all. You'd only ever be able to prove the last few minutes
+  of history. At any real throughput, this approach is simply dead.
+  <mark name="solution-teaser"/>
+  So that's the corner we've painted ourselves into: cryptographic integrity demands a proof, privacy means only
+  you can build it, and building it naively means re-proving the whole chain for every user. Fortunately, there's
+  a clever way out.
+</script>
+
+<script type="text/narration" data-chapter-id="solution" data-chapter-title="One proof for everyone">
+  <mark name="solution-heading"/>
+  Here's the trick. The problem was that every user has to prove their own balance, and each of those proofs has
+  to sweep the whole history. So stop making users do it. Have the sequencer prove it once, for everyone at the
+  same time.
+  <mark name="solution-keys"/>
+  But to compute everyone's balance, the prover needs everyone's viewing key - the very thing that's
+  supposed to stay private. So this is where the trusted enclave comes back, in a much smaller role. Each user
+  sends their viewing key into the sequencer's TEE. Inside that sealed box the keys can be used, but the operator
+  running the machine can never read them out.
+  <mark name="sequencer-proof-figure"/>
+  And now look what becomes possible. Inside the enclave, a single recursive SNARK folds the entire swap history
+  exactly once, and because it's inside the TEE it can see every user's balance. Out comes one succinct proof
+  that covers all of them at once. Drag the user count: proving separately means thousands of proofs; batched in
+  the enclave, it's always just one. That's the only thing that scales.
+  <mark name="solution-succinct"/>
+  And because the proof is succinct, it reveals none of those balances. It just commits to them - and each
+  user can later open their own slice of that commitment to withdraw, without ever re-proving the whole chain.
+  <mark name="solution-trust"/>
+  Here's the part I love. Notice what the enclave is and isn't doing. It is not vouching for the money -
+  the proof does that, cryptographically. The TEE only keeps the keys private. So unlike a design that trusts
+  hardware for integrity, if our enclave is ever broken, you lose privacy, but you can never forge a withdrawal.
+  Integrity is math; the hardware is only guarding the curtain.
+  <mark name="solution-closing"/>
+  So we've got integrity and privacy: one proof in an enclave settles the whole L2 back to Midnight,
+  cryptographically and without revealing a thing. But that same proof does one more job worth pausing on
+  - it's also how you get your funds back out.
+</script>
+
+<script type="text/narration" data-chapter-id="offboard" data-chapter-title="Offboarding to the L1">
+  <mark name="offboard-heading"/>
+  Which raises the obvious question: once your funds live on the L2, how do you get them back out to the L1?
+  <mark name="offboard-lock"/>
+  On the L2 you've got more than just create-offer and cancel-offer. There's a third move: offboard. An offboard
+  is an unbalanced swap that locks the funds you want to withdraw and makes them unspendable on the L2. That
+  imbalance - funds leaving with nothing coming back - is exactly your exit amount.
+  <mark name="offboard-figure"/>
+  And here's the neat part. That offboard is part of the L2 state, so it's baked into the very same recursive proof
+  we post to the L1. The L1 contract reads the proof, sees that this address offboarded this much, and completes
+  the other half by paying those funds to the same address on the L1.
+  <mark name="offboard-claim"/>
+  Same address on both sides is the whole security. Only the address that locked the funds on the L2 can claim
+  them on the L1, so nobody can intercept your exit. Try claiming as someone else in the figure and the L1 simply refuses.
+  <mark name="offboard-frame"/>
+  And step back - it's an offer file again, just split across two layers. One half lives on the L2, the other
+  on the L1, bound together by a shared address. The very pattern we opened with is also how you leave. With that
+  the core design is complete, and all that's left is making it fast.
+</script>
+
+<script type="text/narration" data-chapter-id="hot-path" data-chapter-title="Scaling: the TEE off the hot path">
+  <mark name="hotpath-heading"/>
+  Here's something reassuring about that enclave: it isn't in the way of anyone actually using the system.
+  <mark name="hotpath-body"/>
+  Remember that an offer file shows the assets and amounts in the clear - it only hides the addresses. So
+  the everyday path needs no enclave at all. A user hands their offer file to an ordinary sequencer, which orders
+  it and shows it on explorers and order books right away. Fast, simple, no special hardware.
+  <mark name="hotpath-figure"/>
+  The TEE lives off to the side, as a separate system. Every so often it pulls the latest swaps from the indexer,
+  decrypts them with the viewing keys, runs that one big proof, and posts it to the L1. It's the prover, not the
+  gatekeeper - nothing waits on it.
+  <mark name="hotpath-optional"/>
+  Keeping the enclave off the hot path is a choice, not a requirement - you could run the whole sequencer
+  inside a TEE if you wanted. But the less code that has to run inside an enclave, the simpler the whole thing is
+  to build and audit, so we keep the trusted part small.
+  <mark name="visible-stats"/>
+  And it's worth being clear about what we keep public here, because it's the quiet reason this can work at all.
+  An offer file hides the addresses but shows the amounts - so a DEX built on it can display real volume,
+  liquidity, and prices, while never revealing who traded. That's deliberate. The fully private DEXs that hid the
+  amounts too have struggled to find a market, for three reasons that stack up: traders actually want to see
+  liquidity and price, so total privacy fights the very people it's meant to help; hiding amounts usually drags in
+  MPC or FHE, a huge jump in complexity; and producing trustworthy liquidity statistics without leaking the
+  private state is genuinely hard to do. Public amounts with hidden addresses sidesteps all three.
+  <mark name="privacy-figure"/>
+  The figure makes this tangible. Flip the two switches over the order book: hide just the addresses and the
+  market stays fully readable while the traders go anonymous - that's our design. Now also hide the
+  amounts and watch the whole book black out, with the checklist flipping red. What you hide is the whole game.
+</script>
+
+<script type="text/narration" data-chapter-id="consensus" data-chapter-title="Scaling: consensus">
+  <mark name="consensus-heading"/>
+  The next piece is consensus - how the L2 orders transactions and finalizes them.
+  <mark name="consensus-decouple"/>
+  And here's what makes this easy: because our security is cryptographic - it's a ZK rollup, the proof
+  guarantees correctness - consensus doesn't have to provide security at all. It only has to order
+  transactions. That frees us to choose it purely for speed and for keeping MEV low.
+  <mark name="consensus-figure"/>
+  So we can run a Byzantine-fault-tolerant system, and pick anywhere along a spectrum. At one end, a single
+  sequencer: fastest and simplest, but it can stall or censor. In the middle, round-robin, where the proposer
+  rotates through a known set, so there's no single point of failure. And at the far end, a proper BFT like
+  Simplex, where a committee agrees each block and a BLS threshold signature certifies the result in one tiny
+  signature the L1 can check.
+  <mark name="consensus-why"/>
+  Three reasons BFT is the right fit. Security is already cryptographic, so consensus is free to optimize for
+  something else. We care about performance, and BFT gives fast, deterministic finality by design. And we want to
+  minimize MEV - and a known committee with threshold signing is a good foundation to build that on. Things
+  like fair ordering or encrypted mempools could be layered on top, though to be clear that's real extra
+  engineering, not something the consensus hands you for free.
+</script>
+
+<script type="text/narration" data-chapter-id="da" data-chapter-title="Scaling: abstracting the data layer">
+  <mark name="da-heading"/>
+  The last piece is the data layer. Remember, the original Offer File proposal posts the files to Celestia, and
+  everyone reads them from there.
+  <mark name="da-problem"/>
+  That's a fine starting point, but it puts two frictions right in front of users. Celestia today has roughly
+  six-second blocks and doesn't give you instant finality - sluggish for a live order book. And it drags a
+  foreign token into the experience: to post an offer you need Celestia's token, or you lean on a batcher to pay it
+  for you. Either way, the data layer is something users and developers have to think about.
+  <mark name="da-figure"/>
+  The L2 quietly dissolves both. Once the L2 exists, tools just sync the L2 directly - and by construction it
+  already contains every offer and every fill, so there's no separate namespace to scan and no special token in the
+  user's face. Look at the figure: the top panel, what users and developers see, never changes.
+  <mark name="da-abstract"/>
+  And underneath? The L2 can still use Celestia for data availability, or swap in a different layer, or just post to
+  Midnight itself. Click through the options - the user's view stays identical every time. The data layer has
+  become an implementation detail the sequencers choose, not a concern anyone building or using the DEX has to carry.
+</script>
+
+<script type="text/narration" data-chapter-id="open-q1" data-chapter-title="Open question: nullifier growth">
+  <mark name="openq-intro"/>
+  That's the core design. But I want to end honestly, with a few problems we <em>haven't</em> solved. Here's the first.
+  <mark name="oq1-what"/>
+  Most zero-knowledge systems, Midnight included, stop double-spends with something called a nullifier. On a normal
+  UTXO chain you'd just mark a spent output as spent. zSwap wants the same guarantee - each UTXO spent at most
+  once - but without revealing which UTXO it was. So instead of marking the UTXO directly, spending it
+  publishes a nullifier: a private, deterministic tag derived from that UTXO that reveals nothing about it. The
+  ledger keeps the set of nullifiers - effectively, the set of spent UTXOs - and rejects any it has
+  already seen. Same UTXO, same nullifier, so it can't be spent twice.
+  <mark name="nullifier-figure"/>
+  Play with the figure. Spend a UTXO and its nullifier joins the set; try to spend it again and you're rejected,
+  because the same UTXO always produces the same nullifier. But here's the catch: nullifiers are <em>never</em>
+  removed. A spent UTXO stays spent forever, so the nullifier set only ever grows.
+  <mark name="oq1-problem"/>
+  On the base layer that's fine. But the whole point of our L2 is high throughput - and every single swap adds
+  a nullifier that never goes away. Drag the throughput up: at real volumes that set balloons into the billions, and
+  every proof has to be made against it. Keeping that state from blowing up, without giving up the privacy the
+  nullifiers buy us, is a genuinely open problem.
+</script>
+
+<script type="text/narration" data-chapter-id="open-q2" data-chapter-title="Open question: fees and ordering">
+  <mark name="oq2-what"/>
+  Open question number two: how should the L2 price and order transactions? Fees, first-come, something else? It
+  sounds mundane, but three forces pull against each other and there's no obvious right answer.
+  <mark name="oq2-forces"/>
+  First, MEV and ordering. If there are no fees, you tend to get off-chain backroom deals - people quietly
+  paying block producers to jump the queue. A trusted committee mitigates that, but only because you're trusting
+  them. Second, market makers. Real exchanges charge makers and takers differently precisely so makers aren't
+  punished - and makers cancel and replace orders constantly, so any meaningful fee bleeds them dry. And third,
+  spam: set fees to zero and you invite junk transactions, which slow proofs and - remember the last problem
+  - balloon the nullifier set permanently.
+  <mark name="fee-figure"/>
+  Play with the knobs. Push fees up and the market makers leave; drop them to zero and spam takes over; switch
+  ordering to fee-priority and you've built an MEV auction. The closest you get is a low flat fee with first-come
+  ordering - and even then, ordering stays a caveat, not a clean win, because first-come is only fair on-chain.
+  <mark name="oq2-dilemma"/>
+  But even the best setting - a low flat fee with first-come ordering - isn't clean. First-come only
+  stops bidding for position on-chain; off-chain, you're still trusting the committee not to take a bribe to reorder. And a single flat fee can't do what exchanges do with
+  separate maker and taker fees. So how fees and ordering should really work on this L2 is still open.
+</script>
+
+<script type="text/narration" data-chapter-id="open-q3" data-chapter-title="Open question: time to market">
+  <mark name="oq3-what"/>
+  And the last open question isn't really technical at all - it's about timing. How much complexity do we
+  actually want to build? A perfect system takes longer, and the catch is that this whole L2 has a shelf life.
+  <mark name="oq3-window"/>
+  Two things could make it unnecessary. One: Midnight's base layer keeps improving, and it runs general-purpose
+  zero-knowledge smart contracts, not just zSwaps - so if the L1 itself gets fast enough, you don't need this
+  L2 at all. Two: Nightstream, a more general Midnight L2 built as a full zero-knowledge virtual machine. Once that
+  matures, the case for a zSwap-specific network shrinks. But neither is here yet: it's unclear how long until the
+  L1 matches a purpose-built zSwap L2, and Nightstream has no clear path to connect to the L1 today and is far
+  slower than this L2 would be.
+  <mark name="ttm-figure"/>
+  So there's a window where this L2 is genuinely useful - but nobody knows how wide it is. Drag the build
+  scope: ship something lean and you're comfortably inside the window; chase perfection and you risk spending the
+  whole window building, and launching just as it closes.
+  <mark name="oq3-takeaway"/>
+  Which points to a clear answer, even if it's an uncomfortable one for engineers: don't aim for perfect. Get
+  something good to market soon, while the window is open. That's the design, and the honest open questions that
+  come with it. But there's one more question I promised to come back to - the one that decides whether any
+  of this was worth building at all.
+</script>
+
+<script type="text/narration" data-chapter-id="business-intro" data-chapter-title="Will anyone trade?">
+  <mark name="business-heading"/>
+  So let's switch hats. Everything up to now was engineering - how to build offer files, and how to make
+  them fast.
+  <mark name="business-lead"/>
+  That's the easy half to feel good about, and the dangerous half to stop at, because a protocol that's elegant
+  and unused is just a clever way to spend a budget. So put on the investor's hat and ask the only question that
+  really decides things: will people actually trade on this? We can't prove the future - but we're not
+  guessing in the dark either, because this exact shape already ran as a live experiment for four and a half years.
+  <mark name="business-precedent"/>
+  That experiment was Chia.
+  <mark name="bp-real"/>
+  A marketplace called dexie shipped a nearly identical offer-file system, and it's the closest thing the industry
+  has to a controlled test of the idea. The headline is reassuring: it worked. Over four and a half years and
+  several boom-and-bust waves, it settled close to a million real, on-chain trades, all carried by offer files. I
+  pulled and analyzed eight hundred thirty-three thousand of them - there's a whole companion post on the data.
+  <mark name="adoption-figure"/>
+  And here's the shape of it - completed offers per month, ramping through 2022 and then sustained for
+  years, wave after wave. Real, durable use - not a launch-day spike.
+  <mark name="precedent-figure"/>
+  Now the same record on one card: real and durable on the left, small and retail on the right. Both true at once.
+  <mark name="bp-small"/>
+  But read the same numbers the other way and they sting. To avoid a misleading dollar figure on a chain whose
+  token collapsed, the honest number is coin-denominated: the median trade held around a fifth of an XCH (Chia's native coin) - the whole
+  way through - worth about thirty-four dollars at 2022 prices, but under a dollar today. The busiest pair cleared
+  maybe eight hundred dollars a day. After four and a half years, the honest word is a retail bazaar
+  - real, durable, and small. The optimist says scale is a property of the ecosystem, not the primitive. The
+  pessimist replies that Midnight is a young ecosystem too.
+</script>
+
+<script type="text/narration" data-chapter-id="business-evidence" data-chapter-title="The receipts">
+  <mark name="business-proven"/>
+  So what did four years of receipts actually prove the primitive does well?
+  <mark name="bproven-body"/>
+  Several things - and they carry over to Midnight, because they're properties of the offer itself, not of
+  Chia. Settlement is trustless and atomic. Offers bundle many assets at once.
+  They compose safely into an aggregator, because the worst case of routing through a stranger is simply that
+  nothing happens. And the stream of settled prices is a free price oracle. Even NFT royalties got stronger, not
+  weaker - though that one leans on Chia's particular NFT design.
+  <mark name="usecases-figure"/>
+  And it wasn't one niche keeping the lights on - NFTs, memecoins, and entire game economies all ran on
+  offer files. The one serious financial use-case, stablecoins, stayed small.
+  <mark name="business-warning"/>
+  Now the warnings - and these are about the market, not the mechanism.
+  <mark name="bwarn-body"/>
+  Given total freedom, the market converged on exactly the thing offer files were built to avoid. Two-thirds of
+  fills ended up taken by a single automated market maker, and discovery re-centralized on one aggregator. Worse
+  for anyone hoping to provide liquidity: a resting offer is a free option you write to arbitrage bots, and the
+  mispriced ones get picked off in seconds. So makers couldn't earn a spread by sitting still; they churned eight
+  or nine wasted quotes for every trade that settled, and the liquidity that did appear had to be rented with a
+  token subsidy - which then shrank five-fold.
+  <mark name="amm-figure"/>
+  You can watch it happen: the share of fills taken by that one automated market maker climbs past half and toward
+  two-thirds - and that's only the bot we can actually label.
+  <mark name="outcomes-figure"/>
+  And step back to the whole lifecycle: of every offer file ever created, only about one in eight ever settles
+  - the rest, millions of them, are cancelled or expired. On a UTXO chain every one of those cancels costs a
+  transaction - exactly the cost our layer two exists to crush.
+</script>
+
+<script type="text/narration" data-chapter-id="business-midnight" data-chapter-title="The Midnight lens">
+  <mark name="business-midnight"/>
+  Here's where our specific chain changes the math - in both directions.
+  <mark name="bmid-lead"/>
+  Those last points were argued without picking a chain. Midnight is not neutral about them.
+  <mark name="scorecard-figure"/>
+  Look at the three columns: where Midnight helps, where it adds a cost Chia never paid, and where it's genuinely
+  unresolved.
+  <mark name="bmid-helps"/>
+  Midnight's biggest lever lands right on the bear case's strongest pillar - but it's a lever, not a cure.
+  The maker-killer on Chia was that cancelling an order costs an on-chain transaction. The layer two makes cancels
+  fast and nearly free, which removes the cost of churning. What it doesn't remove is the cause: a stale quote still
+  gets picked off in the moment before you pull it, and here every fresh quote still has to be proven -
+  so proving, not cancelling, may be what matters more, unless proofs get cheap. So the layer two makes
+  market-making cheaper to attempt, not
+  automatically profitable; that still hangs on its unsolved fee design. What does carry over cleanly is privacy
+  - hidden traders over public prices - which Chia simply can't offer.
+  <mark name="bmid-hurts"/>
+  And Midnight imports a cost Chia never paid. Here the proof is still an expensive part - sixteen thousand
+  characters per offer, only a handful of transactions a second, and a nullifier set that never stops growing.
+  Those costs are real. But notice the shape of the bet: in ZK the hard part is rarely the idea, it's finding one
+  cheap enough to run today - and an offer file is about as light as a useful primitive gets. That it consumed
+  a fraction of Chia's compute is actually encouraging, because it's exactly what zSwap can afford now, where a
+  general contract can't. The cost is genuine, but it's also why this primitive is the buildable bet.
+  <mark name="bmid-unknown"/>
+  Then the AMM - the relationship most people read backwards. Chia's market became one big automated market
+  maker. But look at how - the pool didn't replace offer files, it plugged into them, filling offers on the same rail.
+  So the market becoming a pool isn't offer files losing, it's offer files succeeding as the substrate. On
+  Midnight that's the likelier shape too: offer files give you a working market now and let pools arrive gradually,
+  as the technology allows, with the offer chain always underneath as a fallback rather than a cliff. And since a
+  new pool can bootstrap its liquidity from the shared offer pool, this may even soften the winner-take-all tendency of
+  pooled exchanges. The one caveat: if pools never get cheap enough, offer files have to carry liquidity alone.
+  <mark name="bmid-demand"/>
+  And under all of it: who is this for? Public prices with hidden traders is a specific want - over-the-counter
+  desks, treasuries dodging front-running, anyone allergic to MEV. Not Chia's couple-of-dollars retail trader, so be careful
+  extrapolating. But that cuts the other way too: maybe the bigger players never came to Chia precisely because it
+  was fully transparent - the thing Midnight fixes. If so, privacy isn't a different user, it's a larger
+  market Chia couldn't reach. Whether that demand actually shows up - more than any throughput number -
+  is the real, still-unmeasured question under all of this.
+</script>
+
+<script type="text/narration" data-chapter-id="business-verdict" data-chapter-title="The honest verdict">
+  <mark name="business-verdict"/>
+  So - the honest verdict.
+  <mark name="bverdict-bull"/>
+  The optimist's case, in one breath: the shape is proven to clear real trades for years; our layer two directly
+  attacks the defect that crippled market-making on Chia by making cancels cheap; privacy is a real edge no
+  transparent exchange has; and while pooled exchanges stay hard to build here, offer files may be the natural first
+  liquidity primitive rather than a detour. And maybe the Chia-to-pool story just doesn't repeat here, because a
+  pool would struggle to offer hidden traders over public prices - so for the buyer who wants exactly that,
+  there's little pool to lose to. If that reading holds, the move is the one the timing question already pointed to - ship
+  something lean, and catch the window before it closes.
+  <mark name="bverdict-bear"/>
+  The skeptic's case, just as honest: the proven shape proved small - a couple-of-dollars-median bazaar -
+  and it drifted to a pooled market maker and a central aggregator anyway, no matter how trustless the rail
+  underneath was. Chia's data is silent on the cold start, and Chia still had to rent liquidity with a subsidy -
+  so a younger Midnight, where every fresh quote also costs a proof, plausibly bootstraps harder, not easier. The
+  maker economics hang on a layer two whose fee and ordering questions are open. And the pick-off cheap cancels
+  don't fully remove already has a rival answer shipping elsewhere - batch-auction designs like Penumbra that
+  clear in sealed batches instead of letting quotes rest. Though a competitor existing cuts both ways: a sharper
+  rival, but also a sign the demand is real. By this reading the bar is higher on Midnight than it ever was on Chia.
+  <mark name="bverdict-close"/>
+  Both readings are built from the same receipts, and that's the point. The evidence is strong enough to justify
+  building something, and honest enough that nobody should pretend the traction is guaranteed. What it really turns
+  on is a demand no one has measured yet: whether enough people want a market that's transparent in its prices and
+  private in its traders to bring real liquidity to it. The architecture, we've shown, can be built. Whether it
+  should be is a bet - but now, at least, it's a bet you make with four and a half years of someone else's
+  data in hand. Thanks for following along.
+</script>
+</head>
+<body>
+  <article data-narration-src="/generated/offer-files/manifest.json"
+           data-narration-title="Offer Files: shared liquidity without a chain"
+           data-narration-artist="presidocs">
+    <h1 id="title">Offer Files</h1>
+    <p id="lede" class="lede">
+      How offer files turn a private swap into a plain text file you can paste
+      anywhere - and let a whole ecosystem share one pool of liquidity
+      that never lives inside any single app.
+    </p>
+
+    <section>
+      <h2 id="problem-heading">The throughput wall</h2>
+      <p id="problem-body">
+        Privacy comes with a computational cost - you have to generate proofs
+        - and that computational cost comes with a throughput cost. Every
+        zero-knowledge chain - Midnight included - trades raw
+        transactions-per-second for the ability to compute privately. That squeezes an exchange from
+        both sides. The classic <strong>order-book</strong> design puts <em>every</em> order on
+        chain: placing an order is a transaction, cancelling it is another, and the large majority of
+        resting orders are never filled at all - a lot of block space spent on intentions. The usual
+        way out is an <strong>automated market maker</strong>, which keeps order flow off chain - but
+        an AMM is a general-purpose smart contract, and on a privacy chain a general contract means a
+        far heavier proof than simply placing an order. Either way, the naive exchange is expensive here.
+      </p>
+      <p id="problem-intents">
+        The modern fix is the <strong>intent</strong>: you broadcast what you want
+        <em>off</em> chain, and the chain is only touched when a solver actually
+        fills it. Offer Files are this pattern - with a twist that makes them
+        unusually clean on Midnight.
+      </p>
+
+      <figure id="intent-figure">
+        <!-- Enhanced into an interactive two-tab comparison by client/figures/intentCompare.ts. -->
+        <svg class="intent-static" viewBox="0 0 520 150" role="img" aria-label="Fully on-chain: every order is a transaction, so many transactions for one trade. Intent: orders are broadcast off-chain for free, and only the actual fill is a transaction.">
+          <g font-family="system-ui, sans-serif" font-size="12">
+            <rect x="10" y="20" width="240" height="110" rx="8" fill="#fbeaea" stroke="#e0a1a1"/>
+            <text x="130" y="42" text-anchor="middle" font-weight="700" fill="#b23b3b">Fully on-chain</text>
+            <text x="130" y="66" text-anchor="middle">every order = a tx</text>
+            <text x="130" y="92" text-anchor="middle" font-family="ui-monospace,monospace" font-size="18" font-weight="700" fill="#b23b3b">7 txs</text>
+            <text x="130" y="112" text-anchor="middle" fill="#888">for 1 actual trade</text>
+            <rect x="270" y="20" width="240" height="110" rx="8" fill="#e9f5ee" stroke="#8fcfa8"/>
+            <text x="390" y="42" text-anchor="middle" font-weight="700" fill="#2f7d4d">Intent</text>
+            <text x="390" y="66" text-anchor="middle">broadcast off-chain, free</text>
+            <text x="390" y="92" text-anchor="middle" font-family="ui-monospace,monospace" font-size="18" font-weight="700" fill="#2f7d4d">1 tx</text>
+            <text x="390" y="112" text-anchor="middle" fill="#888">only the fill settles</text>
+          </g>
+        </svg>
+        <figcaption>
+          Two ways to run an exchange. The fully on-chain design spends a transaction on
+          every order you place; the intent model broadcasts orders off-chain for free and
+          only touches the chain when a trade actually happens.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2 id="zswap-heading">zSwap: swaps live in the L1</h2>
+      <p id="zswap-body">
+        On most chains, swapping two assets means deploying a smart contract.
+        Midnight builds <strong>atomic swaps directly into the base layer</strong>
+        via a primitive called <em>zSwap</em>. The unit you hold is an
+        <strong>offer</strong>, and an offer is a deliberately <em>imbalanced</em>
+        transaction: it contributes some assets and withdraws others, and on its own
+        it does not add up.
+      </p>
+      <p id="zswap-delta">
+        Concretely, every offer carries a signed amount per token - its
+        <code>deltas</code> map. Alice's offer might read
+        <code>{ NIGHT: +5, ROCK: &minus;3 }</code>: it contributes five NIGHT and
+        withdraws three ROCK. The ledger only accepts a transaction whose every
+        token nets to <strong>zero</strong>, so an offer alone is never valid. It is
+        one half of a trade, waiting for the other half.
+      </p>
+
+      <figure id="merge-figure">
+        <!-- Static SVG = no-JS fallback / initial frame. Enhanced into an
+             interactive delta-balancer by client/figures/offerMerge.ts. -->
+        <svg class="merge-static" viewBox="0 0 520 200" role="img" aria-label="Two imbalanced offers merge into one balanced transaction whose token deltas net to zero.">
+          <g font-family="system-ui, sans-serif" font-size="12">
+            <rect x="10" y="30" width="150" height="90" rx="8" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="22" y="50" font-weight="600">Alice's offer</text>
+            <text x="22" y="74">gives 5 🌙 NIGHT</text>
+            <text x="22" y="96">wants 3 🪨 ROCK</text>
+
+            <text x="178" y="80" font-size="22" fill="#888">+</text>
+
+            <rect x="200" y="30" width="150" height="90" rx="8" fill="#f7f7fb" stroke="#c8c8d4"/>
+            <text x="212" y="50" font-weight="600">Your half</text>
+            <text x="212" y="74">take 5 🌙 NIGHT</text>
+            <text x="212" y="96">give 3 🪨 ROCK</text>
+
+            <text x="368" y="80" font-size="22" fill="#3a9b5c">=</text>
+
+            <rect x="392" y="30" width="118" height="90" rx="8" fill="#fff" stroke="#5bb87a"/>
+            <text x="404" y="50" font-weight="600" fill="#2f7d4d">balanced</text>
+            <text x="404" y="74">NIGHT Δ = 0</text>
+            <text x="404" y="96">ROCK Δ = 0</text>
+
+            <text x="10" y="158" fill="#555">A maker's offer and a taker's mirror merge into a single transaction</text>
+            <text x="10" y="176" fill="#555">that settles atomically - only when every token's Δ nets to zero.</text>
+          </g>
+        </svg>
+        <figcaption>
+          An offer is an imbalanced transaction. The taker's matching half is just
+          Alice's offer <em>flipped</em> - she gives NIGHT and wants ROCK, so the
+          taker takes NIGHT and gives ROCK. <strong>Press the steppers to unbalance it</strong>
+          and watch the merged &Delta; leave zero: the trade stops settling. Mirror her
+          exactly and the two halves snap into one submittable transaction.
+        </figcaption>
+      </figure>
+
+      <p id="zswap-merge">
+        Two offers <strong>merge</strong> by unioning their inputs and outputs and
+        summing their <code>deltas</code> element-wise. Crucially, each offer already
+        embeds its own zero-knowledge proof, so combining them re-proves nothing:
+        the taker needs no proving system, and the merge is fully
+        <strong>non-interactive</strong>. Complementary halves cancel to a balanced
+        whole that the chain accepts in one shot.
+      </p>
+      <p id="zswap-trustless">
+        It is tamper-proof by construction. Altering any byte of an offer breaks the
+        embedded proof, rendering it unusable, and the homomorphic commitments binding
+        the pieces together mean no one can strip your coins out for a different trade.
+        You can hand an Offer File to a stranger; the worst they can do is discard it.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="anatomy-heading">zSwap vs. a <code>ZswapOffer</code></h2>
+      <p id="anatomy-naming">
+        A quick naming aside, because the Midnight codebase is precise about it and the
+        distinction matters here. <strong>zSwap</strong> (lowercase <em>z</em>) is the
+        whole <em>system</em> - the shielded, private token machinery, UTXO-like but
+        backed by commitment and nullifier sets you can never directly enumerate. A
+        <strong><code>ZswapOffer</code></strong> is one concrete structure <em>inside</em>
+        the Midnight codebase: a bundle of <code>inputs</code> (coins spent), <code>outputs</code>
+        (coins created), <code>transients</code>, and a <code>deltas</code> map. It's the
+        unit that gets merged, balanced, and ultimately submitted as part of a transaction.
+      </p>
+
+      <figure id="offer-anatomy-figure">
+        <svg viewBox="0 0 600 264" role="img" aria-label="A ZswapOffer: its inputs, outputs (whose contents only the receiver can read), and transients are all private - only the deltas map is public, declaring the net trade terms.">
+          <g font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#444">
+            <rect x="6" y="8" width="588" height="248" rx="12" fill="#fbfbfe" stroke="#d8d4e6"/>
+            <text x="24" y="32" font-weight="700" fill="#4b3b8f">a ZswapOffer</text>
+            <!-- private rows -->
+            <rect x="20" y="44" width="560" height="32" rx="7" fill="#f6f3fb" stroke="#d8d0ea"/>
+            <text x="36" y="64">🔒 <tspan font-weight="600">inputs</tspan> <tspan fill="#999">- coins spent</tspan></text>
+            <rect x="500" y="50" width="68" height="20" rx="10" fill="#fbe8e8" stroke="#d98a8a"/><text x="534" y="64" text-anchor="middle" font-size="9" font-weight="700" fill="#b23b3b">PRIVATE</text>
+            <rect x="20" y="82" width="560" height="32" rx="7" fill="#f6f3fb" stroke="#d8d0ea"/>
+            <text x="36" y="102">🔒 <tspan font-weight="600">outputs</tspan> <tspan fill="#999">- coins created (contents readable only by the receiver)</tspan></text>
+            <rect x="500" y="88" width="68" height="20" rx="10" fill="#fbe8e8" stroke="#d98a8a"/><text x="534" y="102" text-anchor="middle" font-size="9" font-weight="700" fill="#b23b3b">PRIVATE</text>
+            <rect x="20" y="120" width="560" height="32" rx="7" fill="#f6f3fb" stroke="#d8d0ea"/>
+            <text x="36" y="140">🔒 <tspan font-weight="600">transients</tspan> <tspan fill="#999">- spent within the same transaction</tspan></text>
+            <rect x="500" y="126" width="68" height="20" rx="10" fill="#fbe8e8" stroke="#d98a8a"/><text x="534" y="140" text-anchor="middle" font-size="9" font-weight="700" fill="#b23b3b">PRIVATE</text>
+            <!-- public row -->
+            <rect x="20" y="160" width="560" height="76" rx="8" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="36" y="186" font-weight="700" fill="#2f7d4d">deltas&nbsp;&nbsp;{ 🌙 NIGHT: +5,&nbsp;&nbsp;🪨 ROCK: &minus;3 }</text>
+            <text x="36" y="210" fill="#3a7d55" font-size="11">the net trade terms (gives 5 NIGHT, wants 3 ROCK) - the chain</text>
+            <text x="36" y="227" fill="#3a7d55" font-size="11">needs it to verify the offer balances, so it can't be hidden.</text>
+            <rect x="500" y="172" width="68" height="20" rx="10" fill="#d9f0e1" stroke="#5bb87a"/><text x="534" y="186" text-anchor="middle" font-size="9" font-weight="700" fill="#2f7d4d">PUBLIC</text>
+          </g>
+        </svg>
+        <figcaption>
+          Anatomy of a <code>ZswapOffer</code>. Its inputs, outputs, and transients are all
+          private - owner, asset type, and amount are sealed in commitments, and an
+          output's contents are encrypted to its receiver alone. The one public field is
+          <code>deltas</code>: the net imbalance per token, which <em>is</em> the trade
+          terms and nothing more.
+        </figcaption>
+      </figure>
+
+      <p id="anatomy-deltas">
+        The privacy model is stronger than people expect. At the level of an individual
+        coin, zSwap hides <em>everything</em>: there are no addresses (ownership is proven
+        in zero-knowledge), and even the asset <em>type</em> and <em>amount</em> are sealed
+        away inside cryptographic commitments. The only party who can read what an output
+        actually holds is its receiver, through a note encrypted just for them. So how does
+        anyone learn what's being traded? <strong>One thing is public, by necessity: the
+        offer's <code>deltas</code></strong> - its net imbalance per token
+        (<code>{ NIGHT: +5, ROCK: &minus;3 }</code>), declared in the clear. The chain
+        <em>must</em> see it to confirm the offer balances, so it can't be hidden.
+      </p>
+
+      <details id="anatomy-aside" class="aside">
+        <summary>Technical aside - how a value can stay hidden yet still be checkable (most readers can skip this)</summary>
+        <p>
+          The commitments that hide each coin's value are a form of
+          <strong>semi-homomorphic encryption</strong>: you can't read the hidden value,
+          but you <em>can</em> add two commitments together and get a valid commitment to
+          the sum. That is the whole reason the chain can confirm an offer balances -
+          add up the committed inputs, subtract the outputs and the public
+          <code>deltas</code>, and check that the result cancels to zero - without
+          ever seeing a single amount.
+        </p>
+        <p>
+          <strong>Pedersen commitments</strong> are one common implementation of this
+          (typically over an elliptic curve, as Midnight uses): a value becomes a curve
+          point, blinded by a random factor so it reveals nothing, yet two such points
+          still add. It's worth flagging because that additive structure is exactly what
+          the <a href="#solution-heading">L2's recursive proof</a> later leans on - it
+          lets the prover fold and aggregate these commitments across every swap, rather
+          than re-deriving balances from scratch.
+        </p>
+      </details>
+
+    </section>
+
+    <section>
+      <h2 id="file-heading">From a swap to a file</h2>
+      <p id="file-body">
+        If an offer is a self-contained, tamper-proof, mergeable object, why keep it
+        on chain? You don't. The
+        <a href="https://github.com/midnightntwrk/midnight-improvement-proposals/pull/50">Offer Files MIP</a>
+        serializes a <em>proven</em> offer and encodes it with <strong>bech32m</strong>,
+        producing a plain ASCII string. That string <em>is</em> the Offer File. It
+        carries a checksum so a copy-paste error can't silently corrupt it.
+      </p>
+
+      <p id="file-public">
+        And here's why that string is safe to share: an offer's trade terms live in its
+        public <code>deltas</code>, while the coins and the parties stay private. So an
+        Offer File reveals <em>what's on offer</em> - "gives 5 NIGHT, wants 3 ROCK"
+        - and nothing else. You can post it in the open and let anyone match it,
+        without leaking who you are or what else you hold. <strong>Open trade terms,
+        private everything else</strong> - that's the property the rest of this
+        system is built on.
+      </p>
+
+      <figure id="filewrap-figure">
+        <!-- Enhanced into a looping wrap-and-hand-off animation by client/figures/fileWrap.ts. -->
+        <svg class="fw-static" viewBox="0 0 520 120" role="img" aria-label="A proven swap is serialized and bech32m-encoded into a single zswapoffer1 string, which can then be handed to another person.">
+          <g font-family="system-ui, sans-serif" font-size="12">
+            <rect x="14" y="40" width="96" height="40" rx="8" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="62" y="64" text-anchor="middle">proven swap</text>
+            <text x="124" y="64" fill="#999">&rarr;</text>
+            <rect x="146" y="40" width="150" height="40" rx="8" fill="#fff" stroke="#9a82d8"/>
+            <text x="221" y="64" text-anchor="middle" font-family="ui-monospace,monospace" fill="#4b3b8f">zswapoffer1…</text>
+            <text x="310" y="64" fill="#999">&rarr;</text>
+            <text x="360" y="58" font-size="22">👤</text>
+            <text x="404" y="64" fill="#888">another person</text>
+          </g>
+        </svg>
+        <figcaption>
+          A proven swap is serialized and wrapped in a checksummed <code>zswapoffer1…</code>
+          string - one copy-pasteable file you can hand to anyone. (Loops.)
+        </figcaption>
+      </figure>
+      <p id="file-encoding">
+        It is not small - the proofs dominate, so a minimal offer is roughly
+        <strong>16,000 characters</strong> (too large for a standard QR code). But it
+        is just text:
+        <code class="offer-sample">zswapoffer1qpzry9x8gf2tvdw0s3jn54khce6mua7l…</code>
+        You can paste it into a chat, attach it as a file, or host it behind a URL.
+        No wallet, website, or chain is needed to <em>create</em> one.
+      </p>
+      <p id="file-invalidate">
+        An Offer File stays valid until one of two things happens: the maker
+        <strong>spends the coins</strong> it was built from, or its
+        <strong>time-to-live</strong> expires. Both are judged against current chain
+        state - which turns out to be exactly half of the indexing problem we
+        hit later.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="celestia-heading">Where do offers live?</h2>
+      <p id="celestia-body">
+        You can absolutely keep an offer file private and hand it straight to someone
+        - and that alone is useful. Think back to NFT mania, when people traded by
+        posting in Discord: that needed a trusted escrow, because either side could renege.
+        An offer file gives you that same casual peer-to-peer trade with no escrow and more
+        privacy - paste it to a friend and the swap either settles atomically or not
+        at all.
+      </p>
+
+      <figure id="discord-figure">
+        <!-- Enhanced into a looping Discord peer-to-peer flow by client/figures/discordFlow.ts. -->
+        <svg class="dc-static" viewBox="0 0 520 180" role="img" aria-label="User A creates an offer in their wallet and posts it to a Discord channel; User B takes it from Discord into their wallet, and it settles - no escrow.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <rect x="170" y="10" width="180" height="26" rx="13" fill="#5865F2"/>
+            <text x="260" y="27" text-anchor="middle" fill="#fff" font-weight="700"># offers (Discord)</text>
+            <g text-anchor="middle">
+              <text x="70" y="78" font-size="20">👤</text><text x="70" y="96" fill="#888">User A</text>
+              <rect x="34" y="108" width="72" height="30" rx="6" fill="#f3f0fb" stroke="#b9a9e6"/>
+              <text x="70" y="128">👛 wallet</text>
+              <text x="450" y="78" font-size="20">👤</text><text x="450" y="96" fill="#888">User B</text>
+              <rect x="414" y="108" width="72" height="30" rx="6" fill="#f3f0fb" stroke="#b9a9e6"/>
+              <text x="450" y="128">👛 wallet</text>
+            </g>
+            <path d="M106 70 Q150 40 188 32" fill="none" stroke="#5865F2" stroke-width="1.5" marker-end="url(#dcarr)"/>
+            <path d="M332 32 Q380 40 414 70" fill="none" stroke="#5865F2" stroke-width="1.5" marker-end="url(#dcarr)"/>
+            <text x="150" y="58" fill="#5865F2" font-size="10">post offer →</text>
+            <text x="360" y="58" fill="#5865F2" font-size="10">→ take offer</text>
+            <defs><marker id="dcarr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5865F2"/></marker></defs>
+          </g>
+        </svg>
+        <figcaption>
+          The simplest path: User A builds an offer in their wallet and pastes it into a
+          Discord channel; User B copies it out and takes it - peer-to-peer, no
+          escrow, more private. (Loops.)
+        </figcaption>
+      </figure>
+
+      <p id="celestia-shared">
+        But peer-to-peer means only the people you send it to can see it. The bigger
+        prize is <em>shared</em> liquidity: making your offer visible to as many takers as
+        possible. For that our reference design uses <strong>Celestia</strong> as a public
+        bulletin board - a <em>data-availability layer</em> whose only job is to accept
+        a blob of data and guarantee everyone can download it. It never <em>executes</em> the
+        data - there are no smart contracts here - it merely makes it available.
+      </p>
+      <p id="celestia-namespace">
+        The killer feature is <strong>namespaces</strong>. Block data is partitioned
+        into per-application lanes via a namespaced Merkle tree, so a client can sync
+        <em>only</em> the Offer-File namespace rather than the whole chain - and,
+        thanks to the tree's range labelling, still verify that it received
+        <em>every</em> offer in that lane, with none omitted. Combined with data
+        availability sampling, a <strong>light node</strong> gets close to full-node
+        assurance that the offers are real and complete.
+      </p>
+
+      <figure id="namespace-figure">
+        <!-- Enhanced into an Ethereum-vs-Celestia sync contrast by client/figures/namespaceSync.ts. -->
+        <svg class="ns-static" viewBox="0 0 520 190" role="img" aria-label="On Ethereum a client must sync the whole chain to read its app's data; on Celestia it syncs only its own namespace lane.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <text x="130" y="20" text-anchor="middle" font-weight="700">Ethereum</text>
+            <text x="130" y="36" text-anchor="middle" fill="#888">sync everything &rarr; GBs</text>
+            <g>
+              <rect x="70" y="46" width="120" height="16" rx="3" fill="#e6e6ee"/>
+              <rect x="70" y="66" width="120" height="16" rx="3" fill="#d8d4e6"/>
+              <rect x="70" y="86" width="120" height="16" rx="3" fill="#e6e6ee"/>
+              <rect x="70" y="106" width="120" height="16" rx="3" fill="#d8d4e6"/>
+              <rect x="70" y="126" width="120" height="16" rx="3" fill="#e6e6ee"/>
+              <rect x="70" y="146" width="120" height="16" rx="3" fill="#d8d4e6"/>
+            </g>
+            <text x="390" y="20" text-anchor="middle" font-weight="700">Celestia</text>
+            <text x="390" y="36" text-anchor="middle" fill="#888">sync just your namespace &rarr; tiny</text>
+            <g opacity="0.4">
+              <rect x="330" y="46" width="120" height="16" rx="3" fill="#ececf1"/>
+              <rect x="330" y="86" width="120" height="16" rx="3" fill="#ececf1"/>
+              <rect x="330" y="106" width="120" height="16" rx="3" fill="#ececf1"/>
+              <rect x="330" y="146" width="120" height="16" rx="3" fill="#ececf1"/>
+            </g>
+            <rect x="330" y="66" width="120" height="16" rx="3" fill="#6a4fb0"/>
+            <rect x="330" y="126" width="120" height="16" rx="3" fill="#6a4fb0"/>
+            <text x="456" y="79" fill="#6a4fb0" font-size="9">your lane</text>
+          </g>
+        </svg>
+        <figcaption>
+          On a monolithic chain you sync everything just to read your app's data; with
+          Celestia's namespaces you pull only the Offer-File lane and ignore the rest -
+          full-node-grade assurance from a light node.
+        </figcaption>
+      </figure>
+
+      <p id="celestia-retention">
+        One honest caveat: data availability guarantees the blob was
+        <em>published</em>, not that it is stored forever. Light clients retain
+        roughly a <strong>7-day</strong> window - but that isn't a real limitation here, because
+        Midnight's L1 enforces a global <strong>one-week time-to-live</strong> on offers anyway, so a
+        live offer never outlives the window. Durable history of old offers is something the
+        application arranges itself (a pinned namespace, snapshots, or a paid archive).
+      </p>
+    </section>
+
+    <section>
+      <h2 id="plumbing-heading">Two genuinely hard parts</h2>
+      <p>
+        The theory is clean; two practical problems are not, and the reference
+        implementation exists mainly to solve them.
+      </p>
+
+      <div class="use-card" id="plumbing-index">
+        <h3>1. You must watch two chains at once</h3>
+        <p>
+          A correct order book needs both halves of the story. <strong>Celestia</strong>
+          tells you which offers were <em>created</em>. <strong>Midnight</strong> tells
+          you which are <em>dead</em>: the instant any coin an offer was built from is
+          spent, that offer can never be filled. So you index Celestia for new offers
+          and Midnight for the spends that invalidate them. The reference build uses
+          <a href="https://github.com/effectstream/effectstream"><strong>EffectStream</strong></a>,
+          a framework that lets one program consume both chains as a single ordered stream
+          - new-offer events from Celestia, spent-output events from Midnight -
+          reconciling them into one live book. (The full worked example is its
+          <a href="https://github.com/effectstream/effectstream/tree/v-next/templates/zswap-da">zSwap-DA template</a>.)
+        </p>
+        <figure id="indexer-figure">
+          <!-- Enhanced into an animated dual-chain indexer by client/figures/dualIndexer.ts. -->
+          <svg class="idx-static" viewBox="0 0 520 150" role="img" aria-label="EffectStream consumes two chains: Celestia's new offers and Midnight's spent UTXOs, reconciling them into one live order book where spent offers are struck through.">
+            <g font-family="system-ui, sans-serif" font-size="11">
+              <rect x="10" y="20" width="150" height="34" rx="6" fill="#efeafb" stroke="#9a82d8"/>
+              <text x="85" y="41" text-anchor="middle">Celestia: new offers</text>
+              <rect x="10" y="96" width="150" height="34" rx="6" fill="#eaf0f6" stroke="#7fa8cf"/>
+              <text x="85" y="117" text-anchor="middle">Midnight: spent UTXOs</text>
+              <text x="172" y="60" fill="#999">&rarr;</text>
+              <text x="172" y="104" fill="#999">&rarr;</text>
+              <rect x="196" y="48" width="120" height="54" rx="8" fill="#f3f0fb" stroke="#6a4fb0"/>
+              <text x="256" y="79" text-anchor="middle" font-weight="700" fill="#4b3b8f">EffectStream</text>
+              <text x="330" y="78" fill="#999">&rarr;</text>
+              <rect x="356" y="28" width="154" height="94" rx="8" fill="#fff" stroke="#ccc"/>
+              <text x="433" y="46" text-anchor="middle" font-weight="600">live order book</text>
+              <text x="370" y="68">offer A</text><text x="370" y="86">offer B</text>
+              <text x="370" y="104" fill="#b23b3b" text-decoration="line-through">offer C (spent)</text>
+            </g>
+          </svg>
+          <figcaption>
+            One program watches both chains as a single stream: Celestia tells it which
+            offers were created, Midnight tells it which were spent (and so are dead), and
+            it reconciles them into one live book.
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="use-card" id="plumbing-batcher">
+        <h3>2. Users don't hold Celestia's token</h3>
+        <p>
+          Posting a blob to Celestia costs a fee paid in <strong>TIA</strong>. But a
+          Midnight user holds Midnight assets - expecting them to acquire TIA just to
+          advertise an offer is a non-starter. So EffectStream ships a
+          <strong>batcher</strong> that stands in the middle: the user hands it the offer,
+          and the batcher submits the blob and pays the TIA fee on their behalf. The user
+          never has to know Celestia is involved.
+        </p>
+        <figure id="batcher-figure">
+          <!-- Enhanced into an animated user → batcher → Celestia flow by client/figures/batcherFlow.ts. -->
+          <svg class="bat-static" viewBox="0 0 520 110" role="img" aria-label="The user hands their offer to the batcher, which attaches the TIA fee and posts the blob to Celestia on the user's behalf.">
+            <g font-family="system-ui, sans-serif" font-size="11">
+              <rect x="10" y="34" width="120" height="44" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
+              <text x="70" y="52" text-anchor="middle">👤 user</text>
+              <text x="70" y="70" text-anchor="middle" fill="#888">no TIA</text>
+              <text x="142" y="58" fill="#999">offer &rarr;</text>
+              <rect x="196" y="34" width="120" height="44" rx="8" fill="#fdf1e0" stroke="#e0a13a"/>
+              <text x="256" y="52" text-anchor="middle">🧰 batcher</text>
+              <text x="256" y="70" text-anchor="middle" fill="#9a5b1e">pays the TIA fee</text>
+              <text x="328" y="58" fill="#999">+fee &rarr;</text>
+              <rect x="386" y="34" width="124" height="44" rx="8" fill="#efeafb" stroke="#6a4fb0"/>
+              <text x="448" y="52" text-anchor="middle">🟪 Celestia</text>
+              <text x="448" y="70" text-anchor="middle" fill="#888">offer posted ✓</text>
+            </g>
+          </svg>
+          <figcaption>
+            The user hands the offer to the batcher; the batcher attaches the TIA fee and
+            posts the blob to Celestia. The user never needs Celestia's token.
+          </figcaption>
+        </figure>
+      </div>
+
+      <figure id="lifecycle-figure">
+        <!-- Static fallback; enhanced into an animated, steppable sequence by
+             client/figures/offerLifecycle.ts. -->
+        <svg class="lifecycle-static" viewBox="0 0 640 110" role="img" aria-label="An offer's lifecycle: created and proven in a wallet, encoded, posted to Celestia, indexed off both chains, surfaced in a shared order book, then matched and settled on Midnight.">
+          <g font-family="system-ui, sans-serif" font-size="10" text-anchor="middle">
+            <g>
+              <rect x="6"   y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
+              <text x="52" y="44" font-size="20">👛</text>
+              <text x="52" y="68" font-weight="600">Create &amp; prove</text>
+            </g>
+            <g>
+              <rect x="116" y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
+              <text x="162" y="44" font-size="20">🔡</text>
+              <text x="162" y="68" font-weight="600">Encode</text>
+            </g>
+            <g>
+              <rect x="226" y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
+              <text x="272" y="44" font-size="20">🟪</text>
+              <text x="272" y="68" font-weight="600">Post to Celestia</text>
+            </g>
+            <g>
+              <rect x="336" y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
+              <text x="382" y="44" font-size="20">🛰️</text>
+              <text x="382" y="68" font-weight="600">Index both</text>
+            </g>
+            <g>
+              <rect x="446" y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
+              <text x="492" y="44" font-size="20">📖</text>
+              <text x="492" y="68" font-weight="600">Order book</text>
+            </g>
+            <g>
+              <rect x="556" y="20" width="78" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
+              <text x="595" y="44" font-size="20">🤝</text>
+              <text x="595" y="68" font-weight="600">Settle</text>
+            </g>
+            <text x="320" y="100" fill="#555">Created off chain · settled on chain only when matched.</text>
+          </g>
+        </svg>
+        <figcaption>
+          Now that all the pieces are on the table, here's an offer end to end: created and
+          proven in the wallet, encoded, posted to a Celestia namespace (the batcher paying
+          the fee), indexed off both chains by EffectStream, surfaced in a shared book, then
+          merged and settled on Midnight. Press play, or click any step.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2 id="liquidity-heading">The payoff: shared liquidity</h2>
+      <p id="liquidity-body">
+        Put it together and the trades stop living inside any one application. Every
+        DEX and every NFT marketplace built this way reads from the <em>same</em> pool
+        of Offer Files. An app reduces to two things: a <strong>filter</strong> over the
+        shared offers and a <strong>frontend</strong> to present them. Liquidity one site
+        attracts is liquidity every other site can match against - the network
+        effect is no longer captured by a single venue.
+      </p>
+
+      <figure id="sharedliquidity-figure">
+        <!-- Enhanced into an animated fan-in/fan-out diagram by client/figures/sharedLiquidity.ts. -->
+        <svg class="sl-static" viewBox="0 0 520 170" role="img" aria-label="Offer files from many sources fan in to one shared Celestia pool, which fans out to many dApps reading the same liquidity.">
+          <g font-family="system-ui, sans-serif" font-size="10">
+            <g text-anchor="middle">
+              <rect x="8" y="14" width="92" height="24" rx="6" fill="#f7f7fb" stroke="#c8c8d4"/><text x="54" y="30">Wallet</text>
+              <rect x="8" y="64" width="92" height="24" rx="6" fill="#f7f7fb" stroke="#c8c8d4"/><text x="54" y="80">DEX A</text>
+              <rect x="8" y="114" width="92" height="24" rx="6" fill="#f7f7fb" stroke="#c8c8d4"/><text x="54" y="130">NFT app</text>
+            </g>
+            <line x1="100" y1="26" x2="214" y2="78" stroke="#bbb"/><line x1="100" y1="76" x2="214" y2="80" stroke="#bbb"/><line x1="100" y1="126" x2="214" y2="84" stroke="#bbb"/>
+            <rect x="214" y="58" width="92" height="48" rx="8" fill="#efeafb" stroke="#6a4fb0"/>
+            <text x="260" y="80" text-anchor="middle" font-weight="700" fill="#4b3b8f">🟪 Celestia</text>
+            <text x="260" y="96" text-anchor="middle" fill="#888">one shared pool</text>
+            <line x1="306" y1="82" x2="420" y2="26" stroke="#bbb"/><line x1="306" y1="82" x2="420" y2="68" stroke="#bbb"/><line x1="306" y1="82" x2="420" y2="110" stroke="#bbb"/><line x1="306" y1="82" x2="420" y2="152" stroke="#bbb"/>
+            <g text-anchor="middle">
+              <rect x="420" y="14" width="92" height="24" rx="6" fill="#e9f5ee" stroke="#8fcfa8"/><text x="466" y="30">DEX</text>
+              <rect x="420" y="56" width="92" height="24" rx="6" fill="#e9f5ee" stroke="#8fcfa8"/><text x="466" y="72">NFT market</text>
+              <rect x="420" y="98" width="92" height="24" rx="6" fill="#e9f5ee" stroke="#8fcfa8"/><text x="466" y="114">Portfolio</text>
+              <rect x="420" y="140" width="92" height="24" rx="6" fill="#e9f5ee" stroke="#8fcfa8"/><text x="466" y="156">Aggregator</text>
+            </g>
+          </g>
+        </svg>
+        <figcaption>
+          Offer files from many sources fan <em>in</em> to one shared Celestia pool, which
+          fans <em>out</em> to every dApp - each just a filter and a frontend over the
+          same liquidity.
+        </figcaption>
+      </figure>
+      <p id="liquidity-forward">
+        That's the technical payoff - one shared pool of liquidity that no single venue
+        owns. But shipping a clean architecture is not the same as earning real trading:
+        &ldquo;we <em>can</em> build it&rdquo; and &ldquo;people will <em>use</em> it&rdquo; are
+        different claims. The second one deserves an honest answer rather than a hand-wave, and
+        - unusually for a new design - there's a real-world experiment to answer it
+        with. So we <a href="#business-heading">return to the business case at the very end</a>,
+        once the design is complete.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="orderbook-heading">Now build a DEX with it</h2>
+      <p id="orderbook-body">
+        An order book almost falls out of offer files for free: each file <em>is</em> a
+        resting order, and a marketplace is just a filter over them. For a taker it's
+        ideal - browse, pick one, settle with a single on-chain transaction; listing
+        and re-listing orders costs nothing. The catch hides in how Midnight represents a
+        swap. An offer is built from a specific coin - a <strong>UTXO</strong>
+        (unspent transaction output) - and the offer is valid only while that coin
+        stays unspent.
+      </p>
+
+      <figure id="utxo-figure">
+        <!-- Enhanced into an interactive lifecycle by client/figures/utxoSwap.ts. -->
+        <svg class="utxo-static" viewBox="0 0 520 160" role="img" aria-label="An offer is built from a coin (a UTXO). Creating and sharing is off-chain and free; filling and cancelling are both on-chain transactions.">
+          <g font-family="system-ui, sans-serif" font-size="12">
+            <rect x="10" y="18" width="130" height="52" rx="8" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="75" y="40" text-anchor="middle">maker's coin</text>
+            <text x="75" y="58" text-anchor="middle" font-weight="700">5 🌙 NIGHT · UTXO</text>
+            <text x="150" y="48" font-size="11" fill="#999">backs &rarr;</text>
+            <rect x="208" y="16" width="150" height="24" rx="6" fill="#fff" stroke="#aab" stroke-dasharray="3 3"/>
+            <text x="216" y="32" font-family="ui-monospace,monospace" font-size="11" fill="#4b3b8f">zswapoffer1… copy</text>
+            <rect x="208" y="46" width="150" height="24" rx="6" fill="#fff" stroke="#aab" stroke-dasharray="3 3"/>
+            <text x="216" y="62" font-family="ui-monospace,monospace" font-size="11" fill="#4b3b8f">zswapoffer1… copy</text>
+            <rect x="10" y="112" width="158" height="30" rx="15" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="89" y="131" text-anchor="middle" fill="#2f7d4d">create &amp; share - free</text>
+            <rect x="180" y="112" width="120" height="30" rx="15" fill="#fdf1e0" stroke="#e0a13a"/>
+            <text x="240" y="131" text-anchor="middle" fill="#9a5b1e">fill - on-chain</text>
+            <rect x="312" y="112" width="146" height="30" rx="15" fill="#fdf1e0" stroke="#e0a13a"/>
+            <text x="385" y="131" text-anchor="middle" fill="#9a5b1e">cancel - on-chain</text>
+          </g>
+        </svg>
+        <figcaption>
+          An offer is built from one coin (a UTXO) and is live only while that coin is
+          unspent. Creating and sharing is off-chain and free; both filling and
+          cancelling spend the coin, so each is an on-chain transaction. Click through
+          the lifecycle and watch the transaction counter.
+        </figcaption>
+      </figure>
+
+      <p id="cancel-cost">
+        So the lifecycle is lopsided. Creating and sharing an offer is free and off-chain.
+        A fill is one on-chain transaction (settlement spends the coin). But a
+        <strong>cancel is also an on-chain transaction</strong> - and that is
+        fundamental, not a missing optimization. Once copies of your offer are loose in
+        the world, the only way to make every one un-fillable is to spend the coin they
+        all reference. There is no off-chain &ldquo;unsend&rdquo;: on a UTXO chain,
+        cancelling is spending, and spending is a transaction.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="mm-heading">The market-maker wall</h2>
+      <p id="mm-spread">
+        A casual order book is one thing; a <em>good</em> one needs <strong>market
+        makers</strong> - participants who quote a buy price and a sell price at once
+        and earn the small spread between them. When two offers cross (someone selling a
+        touch cheap, someone buying a touch high), a market maker fills both and pockets
+        the difference. Repeat that continuously and you get tight prices and deep
+        liquidity - the entire reason exchanges court market makers.
+      </p>
+
+      <figure id="mm-figure">
+        <!-- Enhanced into an animated "chasing the price" demo by client/figures/marketMaker.ts. -->
+        <svg class="mm-static" viewBox="0 0 520 180" role="img" aria-label="A market maker keeps a buy quote below and a sell quote above the moving price; when the price moves the quotes must be cancelled and re-posted, and on a slow chain the lagging quotes get picked off.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <text x="20" y="22" fill="#b23b3b" font-family="ui-monospace,monospace">- sell quote (above)</text>
+            <path d="M20 60 H180 V44 H320 V72 H500" fill="none" stroke="#d96b6b" stroke-width="2"/>
+            <path d="M20 90 H180 V74 H320 V102 H500" fill="none" stroke="#6a4fb0" stroke-width="2" stroke-dasharray="4 3"/>
+            <text x="330" y="96" fill="#6a4fb0" font-family="ui-monospace,monospace">fair price (moving)</text>
+            <path d="M20 120 H180 V104 H320 V132 H500" fill="none" stroke="#4fae72" stroke-width="2"/>
+            <text x="20" y="150" fill="#2f7d4d" font-family="ui-monospace,monospace">- buy quote (below)</text>
+            <text x="20" y="172" fill="#7a2e2e">Each price move = cancel + re-post (on-chain). On a slow chain the quotes lag and get picked off.</text>
+          </g>
+        </svg>
+        <figcaption>
+          A market maker keeps a buy quote just below and a sell quote just above the
+          moving price, earning the spread. Each time the price moves, both quotes must be
+          cancelled and re-posted - an on-chain transaction every time. Toggle the
+          chain speed: on a slow ZK chain the quotes lag and get picked off at stale prices.
+        </figcaption>
+      </figure>
+
+      <p id="mm-bottleneck">
+        But quoting is never set-and-forget. The fair price moves constantly, and the
+        moment it does, a maker's whole ladder is mispriced and must be cancelled and
+        re-posted. Professional makers cancel far more orders than they ever fill -
+        cancel-to-fill ratios above 90% are routine. On Midnight every one of those
+        cancels is an on-chain transaction, and a ZK L1 clears only a handful per second
+        with slow finality. A maker who needs to re-quote dozens of times a second simply
+        can't - so serious market making is, quietly, impossible.
+      </p>
+
+      <p id="l2-teaser">
+        And that is the missing piece. Offer files give us a shared, off-chain order book
+        and real settlement on the base layer - but for it to be a venue market
+        makers can actually work, cancellation has to be fast and nearly free. The fix is
+        a <strong>layer-2 (L2) built specifically for offer files</strong>. So let's
+        design it.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="l2-design-heading">Designing the L2: integrity vs privacy</h2>
+      <p id="l2-axes">
+        Building an L2 on a privacy chain forces two questions to the front. First,
+        <strong>integrity</strong>: under what assumptions can someone prove they hold a
+        balance on the L2 and withdraw it back to the L1? Second,
+        <strong>privacy</strong>: who, if anyone, may see the L2's state? On Midnight
+        privacy isn't a feature you bolt on - it's the premise - so both
+        questions are in play simultaneously, and they pull against each other.
+      </p>
+      <p id="l2-midnightcity">
+        There's a useful reference point. Another Midnight project,
+        <strong>Midnight City</strong>, already shipped an L2: they use the
+        <strong>Ligero</strong> proof system for privacy, the <strong>Sovereign SDK</strong>
+        to build the chain, and for integrity they run the sequencer inside a
+        <strong>TEE</strong> (a trusted execution environment - a secure hardware
+        enclave) that settles to a Midnight L1 contract. The L1 trusts the enclave's
+        attestation that the L2 transitioned correctly.
+      </p>
+      <p id="l2-crypto">
+        That's a sound design - but ours is <em>financial</em>, and for money we
+        don't want to rest withdrawals on hardware trust. A TEE is one disclosed side-channel
+        away from forged exits. We want <strong>cryptographic integrity</strong>: a proof,
+        not a promise from a chip. And on a private chain, that is genuinely hard -
+        for a reason that comes straight out of how zSwap works.
+      </p>
+
+      <figure id="trustmodel-figure">
+        <!-- Enhanced into a two-column wrapped-trust contrast by client/figures/trustModel.ts. -->
+        <svg class="tm-static" viewBox="0 0 520 200" role="img" aria-label="Midnight City wraps cryptographic privacy inside TEE integrity, so a TEE breach forges funds. zSwap's L2 wraps a TEE for privacy inside cryptographic integrity, so a TEE breach costs only privacy.">
+          <g font-family="system-ui, sans-serif" font-size="11" text-anchor="middle">
+            <text x="130" y="18" font-weight="700">Midnight City</text>
+            <rect x="40" y="28" width="180" height="96" rx="10" fill="#fdf1e0" stroke="#c08a1e"/>
+            <text x="130" y="44" fill="#9a5b1e" font-size="10">Integrity: TEE (trust hardware)</text>
+            <rect x="66" y="54" width="128" height="58" rx="8" fill="#efeafb" stroke="#6a4fb0"/>
+            <text x="130" y="78" fill="#4b3b8f" font-size="10">Privacy:</text>
+            <text x="130" y="92" fill="#4b3b8f" font-size="10">Ligero proofs</text>
+            <text x="130" y="140" fill="#b23b3b" font-size="10">TEE breach &rArr; forged funds</text>
+            <text x="390" y="18" font-weight="700">zSwap L2 (ours)</text>
+            <rect x="300" y="28" width="180" height="96" rx="10" fill="#efeafb" stroke="#6a4fb0"/>
+            <text x="390" y="44" fill="#4b3b8f" font-size="10">Integrity: SNARK (math)</text>
+            <rect x="326" y="54" width="128" height="58" rx="8" fill="#fdf1e0" stroke="#c08a1e"/>
+            <text x="390" y="78" fill="#9a5b1e" font-size="10">Privacy:</text>
+            <text x="390" y="92" fill="#9a5b1e" font-size="10">TEE-sealed keys</text>
+            <text x="390" y="140" fill="#2f7d4d" font-size="10">TEE breach &rArr; lost privacy, never funds</text>
+          </g>
+        </svg>
+        <figcaption>
+          Same two tools, opposite arrangement. Midnight City puts the <strong>TEE</strong>
+          on the outside (integrity), with crypto inside for privacy - so a TEE breach
+          forges funds. We put the <strong>cryptographic proof</strong> on the outside
+          (integrity) and use a TEE only inside for privacy - so a TEE breach costs
+          privacy, never funds.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2 id="balance-heading">The hard part: proving a private balance</h2>
+      <p id="balance-body">
+        On a zSwap chain, balances are <em>private</em>: they live as commitments and
+        nullifiers that nobody can attribute to an owner just by looking. So when you go to
+        withdraw, the L2 can't vouch for your balance - the
+        <strong>sequencer genuinely doesn't know it</strong>. The proof has to come from
+        <em>you</em>.
+      </p>
+      <p id="balance-scan">
+        Midnight gives you the tool to start: a <strong>viewing key</strong>, which lets
+        you (and only you) detect which swaps involved your address. But detecting your
+        swaps isn't the same as <em>proving</em> your balance. To prove it, you must show
+        - for <em>every other</em> swap as well - that it is <em>not</em> yours;
+        otherwise you could understate deposits or invent them. Your proof therefore has to
+        sweep the L2's <strong>entire history</strong>, not just your handful of swaps.
+      </p>
+
+      <figure id="viewingkey-figure">
+        <!-- Enhanced into an interactive grid by client/figures/viewingKey.ts. -->
+        <svg class="vk-static" viewBox="0 0 520 150" role="img" aria-label="The L2's swaps are opaque commitments; a viewing key reveals the few that are yours, but proving your balance requires accounting for every swap, which is infeasible at non-trivial throughput.">
+          <g font-family="ui-monospace, monospace" font-size="11" fill="#b8b8c2">
+            <text x="10" y="16" font-family="system-ui,sans-serif" font-size="12" fill="#555">L2 swap history - opaque to everyone (even the sequencer):</text>
+          </g>
+          <g>
+            <!-- a sample row of cells; a few "yours" highlighted -->
+            <!-- generated visually: 4 rows x 16 -->
+            <g fill="#ececf1"></g>
+          </g>
+          <g font-family="system-ui,sans-serif" font-size="12">
+            <rect x="10" y="28" width="500" height="58" rx="6" fill="#f6f6fa" stroke="#e6e6ee"/>
+            <text x="20" y="50" fill="#4b3b8f" font-weight="700">▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ ▦ …</text>
+            <text x="20" y="72" fill="#777">your viewing key reveals only a few are yours - the rest stay hidden</text>
+            <text x="10" y="116" fill="#7a2e2e">To prove your balance you must account for <tspan font-weight="700">every</tspan> swap, not just yours -</text>
+            <text x="10" y="134" fill="#7a2e2e">a circuit over the whole history. At any real throughput, that's infeasible for a user.</text>
+          </g>
+        </svg>
+        <figcaption>
+          Every L2 swap is an opaque commitment - even the sequencer can't attribute
+          it. Your <em>viewing key</em> reveals the handful that are yours; but proving your
+          balance means proving, for <em>all</em> the others, that they aren't. Drag the
+          throughput and watch how fast that sweep outruns any user-feasible proof.
+        </figcaption>
+      </figure>
+
+      <p id="balance-infeasible">
+        Even a modest L2 produces more swaps in a day than a user could ever fold into one
+        proof - recursive SNARKs and all. You'd be able to prove only the last few
+        <em>minutes</em> of history before the work explodes; the chain, meanwhile, runs
+        forever. At any real throughput, the naive approach is simply dead.
+      </p>
+
+      <p id="solution-teaser">
+        So here's the corner: cryptographic integrity demands a proof, privacy means only
+        <em>you</em> can build it, and building it naively means re-proving the entire
+        chain <em>for every user</em>. It looks like a dead end - but there's a
+        clever way out.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="solution-heading">One proof for everyone</h2>
+      <p id="solution-keys">
+        The trick is to stop making users prove their own balances. Have the
+        <strong>sequencer prove once, for everyone at the same time</strong>. The catch:
+        to compute everyone's balance the prover needs everyone's <em>viewing key</em>
+        - exactly what must stay private. So the trusted enclave returns, in a far
+        smaller role: each user sends their viewing key <strong>into the sequencer's
+        TEE</strong>, where the keys can be <em>used</em> but the operator can never
+        <em>read</em> them.
+      </p>
+
+      <figure id="sequencer-proof-figure">
+        <!-- Enhanced into an interactive diagram by client/figures/sequencerProof.ts. -->
+        <svg class="sp-static" viewBox="0 0 640 170" role="img" aria-label="Users send viewing keys into the sequencer's TEE; inside, one recursive SNARK folds the whole swap history into a single succinct proof plus a balances commitment, without revealing balances.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <text x="10" y="20" font-weight="600">L2 users</text>
+            <text x="10" y="40">👤🔑 👤🔑 👤🔑 …</text>
+            <text x="120" y="34" fill="#999">keys &rarr;</text>
+            <rect x="180" y="14" width="220" height="118" rx="12" fill="#f3f0fb" stroke="#9a82d8" stroke-width="2"/>
+            <text x="290" y="36" text-anchor="middle" font-weight="700" fill="#4b3b8f">🔒 sequencer TEE</text>
+            <rect x="200" y="48" width="180" height="44" rx="8" fill="#fff" stroke="#c8bdec"/>
+            <text x="290" y="68" text-anchor="middle" font-weight="600" fill="#4b3b8f">recursive SNARK</text>
+            <text x="290" y="84" text-anchor="middle" fill="#8a7bbf" font-size="10">folds every swap once · sees all balances</text>
+            <text x="290" y="120" text-anchor="middle" fill="#888" font-size="10">keys sealed inside - operator can't read them</text>
+            <text x="410" y="34" fill="#999">&rarr;</text>
+            <rect x="430" y="30" width="150" height="30" rx="8" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="505" y="49" text-anchor="middle" font-weight="700" fill="#2f7d4d">1 succinct proof</text>
+            <rect x="430" y="66" width="150" height="28" rx="8" fill="#eef" stroke="#aab"/>
+            <text x="505" y="84" text-anchor="middle" font-weight="600" fill="#44557a" font-size="10">balances commitment</text>
+            <text x="505" y="112" text-anchor="middle" fill="#888" font-size="10">balances stay hidden</text>
+          </g>
+        </svg>
+        <figcaption>
+          Users send viewing keys into the sequencer's TEE; inside, a single recursive
+          SNARK folds the whole swap history once and emits <em>one</em> succinct proof
+          for all users plus a balances commitment. Drag the user count to see proving go
+          from N proofs to 1. Integrity is the proof (cryptographic); the TEE only keeps
+          the keys private.
+        </figcaption>
+      </figure>
+
+      <p id="solution-succinct">
+        Inside the enclave, that one recursive SNARK can read every balance, so it folds
+        the entire history <strong>exactly once</strong> into a single proof covering all
+        users - the whole-history scan that was hopeless per-user now happens
+        <em>once for everyone</em>. And because the proof is <strong>succinct</strong>, it
+        reveals none of those balances: it only <em>commits</em> to them, and each user
+        can later open their own slice of that commitment to withdraw, without re-proving
+        anything.
+      </p>
+
+      <p id="solution-trust">
+        And here is the elegant part - the trust split. The enclave is <em>not</em>
+        vouching for the money; the <strong>proof</strong> does that, cryptographically,
+        and is unforgeable even if the hardware fails. The TEE's only job is to keep the
+        viewing keys private. So where Midnight City's design trusts hardware for
+        integrity (a breach forges funds), here a broken enclave costs you
+        <strong>privacy, never funds</strong>. Integrity is math; the hardware is only
+        guarding the curtain.
+      </p>
+
+      <p id="solution-closing">
+        So we have integrity and privacy: one proof in an enclave settles the whole L2 back
+        to Midnight, cryptographically and without revealing a balance. That same proof does
+        one more job worth pausing on - it's also how you get your funds back out.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="offboard-heading">Getting your funds back out</h2>
+      <p id="offboard-lock">
+        One question remains: once your funds live on the L2, how do you get them <em>out</em>,
+        back to the L1? On the L2 you have more than <code>create offer</code> and
+        <code>cancel offer</code> - there's a third move, <strong>offboard</strong>. An
+        offboard is an <strong>unbalanced swap</strong> that locks the funds you want to withdraw
+        and makes them <strong>unspendable on the L2</strong>. That imbalance - funds
+        leaving with nothing coming back - <em>is</em> your exit amount.
+      </p>
+
+      <figure id="offboard-figure">
+        <!-- Enhanced into an interactive two-layer view by client/figures/offboardOffer.ts. -->
+        <svg class="ob-static" viewBox="0 0 480 250" role="img" aria-label="Offboarding is an offer file split across two layers: the L2 half locks funds (unspendable on the L2); the L1 half pays them out to the same address; the shared address prevents anyone else from claiming.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <text x="240" y="16" text-anchor="middle" fill="#999" font-size="10">offboarding = one offer file, split across two layers</text>
+            <rect x="10" y="28" width="460" height="64" rx="9" fill="#f6f3fc" stroke="#b9a9e6"/>
+            <text x="24" y="46" font-weight="700" fill="#4b3b8f">L2 - offboard offer: lock</text>
+            <text x="24" y="66" fill="#333">Lock 5 🌙 NIGHT - now unspendable on the L2 (an unbalanced swap)</text>
+            <text x="24" y="84" fill="#777" font-family="ui-monospace, monospace" font-size="10">locked by 0x9f…a1</text>
+            <text x="240" y="116" text-anchor="middle" fill="#6a4fb0" font-size="10">↓ carried inside the one recursive proof → posted to the L1</text>
+            <text x="240" y="132" text-anchor="middle" fill="#2f7d4d" font-size="10">🔗 same address on both sides - 0x9f…a1</text>
+            <rect x="10" y="144" width="460" height="64" rx="9" fill="#f5fbf7" stroke="#5bb87a"/>
+            <text x="24" y="162" font-weight="700" fill="#2f7d4d">L1 - payout</text>
+            <text x="24" y="182" fill="#333">✓ Release 5 🌙 NIGHT to 0x9f…a1 (the address that locked them)</text>
+            <text x="24" y="200" fill="#b23b3b" font-size="10">a different address claiming → blocked</text>
+            <text x="10" y="232" fill="#555">The shared address is the whole security: only the locker can claim the exit.</text>
+          </g>
+        </svg>
+        <figcaption>
+          Offboarding is an <strong>offer file split across two layers</strong>: the L2 half
+          <strong>locks</strong> your funds (unspendable there); the L1 half <strong>pays them
+          out</strong> - but only to the <em>same address</em> that locked them. Toggle
+          "claim as" to a different address and the L1 refuses. That shared address is what
+          stops anyone intercepting your exit.
+        </figcaption>
+      </figure>
+
+      <p id="offboard-claim">
+        Because the offboard is part of the L2 state, it rides inside the <strong>same recursive
+        proof</strong> the sequencer posts to the L1. The L1 contract reads the proof, sees that
+        this address offboarded this much, and completes the other half by <strong>paying the
+        funds to the same address on the L1</strong>. Same address on both sides is the entire
+        security: only the address that locked the funds can claim them, so no one can intercept
+        your exit.
+      </p>
+
+      <p id="offboard-frame">
+        Step back and it's an <strong>offer file</strong> again - just split across two
+        layers. One half lives on the L2 (lock and declare), the other on the L1 (pay out), bound
+        together by a shared address. The pattern that opened this talk is also how you leave it.
+        (Onboarding is simply the mirror image: lock on the L1, credit the same address on the
+        L2.) With the exit covered, the core design is complete - and what's left is making
+        it fast.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="hotpath-heading">Scaling, part 1: the TEE off the hot path</h2>
+      <p id="hotpath-body">
+        Reassuringly, the enclave isn't in the way of anyone <em>using</em> the system. Recall
+        that an offer file is transparent about the assets and amounts in a swap - it
+        hides only the <em>addresses</em>. So the everyday path needs no enclave at all: a user
+        hands their offer file to an ordinary <strong>sequencer</strong>, which orders it and
+        surfaces it on explorers and order books <strong>right away</strong>. No special
+        hardware on the path every user touches.
+      </p>
+
+      <figure id="hotpath-figure">
+        <!-- Enhanced into an animated branch diagram by client/figures/hotPath.ts. -->
+        <svg class="hp-static" viewBox="0 0 600 210" role="img" aria-label="Users send offer files to a sequencer, which publishes them to the order book / explorer instantly and also feeds an indexer; every so often a bundle goes from the indexer into the TEE, which proves it and settles to the Midnight L1.">
+          <defs><marker id="hp-arr-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bbb"/></marker></defs>
+          <g font-family="system-ui, sans-serif" font-size="11" fill="#444">
+            <line x1="104" y1="50" x2="136" y2="50" stroke="#bbb" marker-end="url(#hp-arr-s)"/>
+            <line x1="266" y1="50" x2="326" y2="50" stroke="#5bb87a" stroke-width="1.5" marker-end="url(#hp-arr-s)"/>
+            <text x="296" y="42" text-anchor="middle" font-size="9" fill="#2f7d4d">instant</text>
+            <line x1="204" y1="68" x2="204" y2="146" stroke="#bbb" marker-end="url(#hp-arr-s)"/>
+            <text x="212" y="112" font-size="9" fill="#999">feeds</text>
+            <line x1="262" y1="166" x2="296" y2="166" stroke="#9a82d8" stroke-width="1.5" marker-end="url(#hp-arr-s)"/>
+            <text x="279" y="142" text-anchor="middle" font-size="9" fill="#6a4fb0">now &amp; then</text>
+            <line x1="470" y1="166" x2="498" y2="166" stroke="#9a82d8" stroke-width="1.5" marker-end="url(#hp-arr-s)"/>
+            <text x="484" y="158" text-anchor="middle" font-size="9" fill="#6a4fb0">proof</text>
+            <rect x="18" y="34" width="86" height="32" rx="7" fill="#fff" stroke="#c8c8d4"/><text x="61" y="54" text-anchor="middle" font-weight="600">👤 user</text>
+            <rect x="138" y="32" width="128" height="36" rx="7" fill="#fff" stroke="#c8c8d4"/><text x="202" y="48" text-anchor="middle" font-weight="600">sequencer</text><text x="202" y="61" text-anchor="middle" font-size="9" fill="#999">orders &middot; no enclave</text>
+            <rect x="328" y="30" width="212" height="40" rx="7" fill="#f5fbf7" stroke="#bfe3cd"/><text x="434" y="48" text-anchor="middle" font-weight="600" fill="#2f7d4d">order book / explorer</text><text x="434" y="61" text-anchor="middle" font-size="9" fill="#7aa98c">no TEE on this path</text>
+            <rect x="150" y="148" width="112" height="36" rx="7" fill="#fff" stroke="#c8c8d4"/><text x="206" y="170" text-anchor="middle" font-weight="600">indexer</text>
+            <rect x="298" y="144" width="172" height="44" rx="7" fill="#f3f0fb" stroke="#9a82d8"/><text x="384" y="162" text-anchor="middle" font-weight="600" fill="#4b3b8f">🔒 TEE</text><text x="384" y="176" text-anchor="middle" font-size="9" fill="#8a7bbf">decrypts w/ viewing keys &middot; SNARK</text>
+            <rect x="500" y="148" width="90" height="36" rx="7" fill="#fff" stroke="#c8c8d4"/><text x="545" y="170" text-anchor="middle" font-weight="600">Midnight L1</text>
+          </g>
+        </svg>
+        <figcaption>
+          The sequencer is the fork: it publishes each offer to the <strong>order book /
+          explorer instantly</strong> (no enclave - offer files reveal the amounts, only
+          addresses are hidden) <em>and</em> feeds the <strong>indexer</strong>. Every so often
+          the <strong>TEE</strong> pulls a bundle from the indexer, decrypts it with the viewing
+          keys, proves it, and settles to the L1 - so it's never in anyone's way. Press
+          play to watch the cadences.
+        </figcaption>
+      </figure>
+
+      <p id="hotpath-optional">
+        The TEE sits off to the side as a <strong>separate</strong> system: every so often it
+        pulls the latest swaps from the indexer, decrypts them with the viewing keys, runs the
+        single recursive proof, and posts it to the L1. It's the prover, not the gatekeeper
+        - nothing waits on it. Keeping it off the hot path is a <em>choice</em>, not a
+        requirement (you could run the whole sequencer inside a TEE), but the less code that
+        must be enclave-compatible, the simpler the system is to build and audit - so we
+        keep the trusted surface small.
+      </p>
+
+      <p id="visible-stats">
+        It's worth pausing on <em>what</em> this design keeps public, because it's the quiet
+        reason a zSwap DEX can actually work. Offer files reveal the assets and amounts and hide
+        only the addresses - so a marketplace can show real <strong>volume, liquidity, and
+        prices</strong> while never exposing <em>who</em> traded. That middle ground is
+        deliberate. Earlier &ldquo;fully private&rdquo; DEXs hid the amounts too, and they've
+        struggled to find a market for three compounding reasons: traders actively <em>want</em>
+        to see how much liquidity is available and what the current price is, so total privacy
+        works against the very people it's meant to serve; hiding amounts usually forces you into
+        <strong>MPC</strong> or <strong>FHE</strong> machinery, a steep jump in complexity and
+        cost; and producing trustworthy liquidity statistics - the thing users actually
+        want - <em>without</em> leaking the private state is genuinely hard to do
+        cryptographically. Public amounts with hidden addresses sidesteps all three: the stats
+        fall out for free, and the only thing guarded is identity.
+      </p>
+
+      <figure id="privacy-figure">
+        <!-- Enhanced into an interactive switch panel by client/figures/privacyTradeoff.ts. -->
+        <svg class="pt-static" viewBox="0 0 640 200" role="img" aria-label="Hiding addresses only keeps a DEX usable (volume, liquidity and price stay visible) while hiding who traded; hiding amounts too makes the market invisible, forces MPC/FHE, and breaks public stats.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <text x="10" y="18" font-weight="700" fill="#555">What you hide decides whether the DEX is usable:</text>
+            <rect x="10" y="32" width="200" height="150" rx="9" fill="#fff" stroke="#d2d2dc"/>
+            <text x="110" y="52" text-anchor="middle" font-weight="700" fill="#555">transparent</text>
+            <text x="110" y="72" text-anchor="middle" fill="#888" font-size="10">amounts ✓ · who ✓</text>
+            <text x="110" y="96" text-anchor="middle" fill="#2f7d4d" font-size="10">usable</text>
+            <text x="110" y="114" text-anchor="middle" fill="#b23b3b" font-size="10">no privacy</text>
+            <rect x="222" y="32" width="200" height="150" rx="9" fill="#f5fbf7" stroke="#5bb87a" stroke-width="2"/>
+            <text x="322" y="52" text-anchor="middle" font-weight="800" fill="#2f7d4d">zSwap-based offer files</text>
+            <text x="322" y="72" text-anchor="middle" fill="#888" font-size="10">amounts ✓ · who 🕶 hidden</text>
+            <text x="322" y="96" text-anchor="middle" fill="#2f7d4d" font-size="10">usable: volume/liquidity/price</text>
+            <text x="322" y="114" text-anchor="middle" fill="#2f7d4d" font-size="10">private: identities hidden</text>
+            <text x="322" y="138" text-anchor="middle" fill="#2f7d4d" font-size="11" font-weight="700">★ the sweet spot</text>
+            <rect x="434" y="32" width="196" height="150" rx="9" fill="#fbf3ea" stroke="#e0a13a"/>
+            <text x="532" y="52" text-anchor="middle" font-weight="700" fill="#9a5b1e">fully private</text>
+            <text x="532" y="72" text-anchor="middle" fill="#888" font-size="10">amounts 🕶 · who 🕶</text>
+            <text x="532" y="96" text-anchor="middle" fill="#b23b3b" font-size="10">traders blind</text>
+            <text x="532" y="114" text-anchor="middle" fill="#b23b3b" font-size="10">needs MPC/FHE</text>
+            <text x="532" y="132" text-anchor="middle" fill="#b23b3b" font-size="10">stats break</text>
+          </g>
+        </svg>
+        <figcaption>
+          <strong>What you hide</strong> decides whether the DEX is usable. Toggle the two
+          switches: hiding <em>addresses</em> only (the zSwap choice) keeps volume, liquidity
+          and prices visible while concealing <em>who</em> traded - private and usable.
+          Also hiding <em>amounts</em> blanks the order book, forces MPC/FHE, and breaks public
+          stats. The four switch-combinations are the four DEX archetypes.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2 id="consensus-heading">Scaling, part 2: consensus without trust</h2>
+      <p id="consensus-decouple">
+        Start with consensus - how the L2 orders transactions and finalizes them. What
+        makes this easy: because security is <strong>cryptographic</strong> (it's a ZK
+        rollup - the proof guarantees correctness), <strong>consensus doesn't have to
+        provide security at all</strong>. It only has to <em>order</em> transactions and
+        agree they're final. A misbehaving validator can stall or reorder, but it can never
+        <em>forge</em> state - the proof catches that. So we're free to choose
+        consensus purely for performance and for keeping MEV low.
+      </p>
+
+      <figure id="consensus-figure">
+        <!-- Enhanced into an interactive spectrum by client/figures/consensusSpectrum.ts. -->
+        <svg class="cns-static" viewBox="0 0 640 150" role="img" aria-label="A consensus spectrum from single sequencer to round-robin to a BFT committee with a BLS threshold signature; integrity stays cryptographic regardless of the choice.">
+          <g font-family="system-ui, sans-serif" font-size="12">
+            <rect x="10" y="12" width="620" height="24" rx="6" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="20" y="29" fill="#2f7d4d" font-size="11">Integrity = the ZK proof (cryptographic). Consensus only orders - it can never forge state.</text>
+            <rect x="10" y="54" width="190" height="80" rx="8" fill="#fafafc" stroke="#d2d2dc"/>
+            <text x="105" y="80" text-anchor="middle" font-weight="700" fill="#4b3b8f">single sequencer</text>
+            <text x="105" y="100" text-anchor="middle" fill="#888" font-size="10">fastest &middot; centralized</text>
+            <rect x="225" y="54" width="190" height="80" rx="8" fill="#fafafc" stroke="#d2d2dc"/>
+            <text x="320" y="80" text-anchor="middle" font-weight="700" fill="#4b3b8f">round-robin</text>
+            <text x="320" y="100" text-anchor="middle" fill="#888" font-size="10">rotating proposer</text>
+            <rect x="440" y="54" width="190" height="80" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
+            <text x="535" y="80" text-anchor="middle" font-weight="700" fill="#4b3b8f">BFT &middot; Simplex + BLS</text>
+            <text x="535" y="100" text-anchor="middle" fill="#888" font-size="10">committee &middot; threshold sig</text>
+            <text x="535" y="118" text-anchor="middle" fill="#2f7d4d" font-size="10">best liveness &amp; MEV-mitigation base</text>
+          </g>
+        </svg>
+        <figcaption>
+          A spectrum of orderers: single sequencer (fastest, centralized) &rarr; round-robin
+          &rarr; a BFT committee like <a href="https://simplex.blog/">Simplex</a>, whose
+          agreed state is certified by one compact BLS threshold signature. Click along it;
+          note the green banner - integrity never depends on the choice.
+        </figcaption>
+      </figure>
+
+      <p id="consensus-why">
+        Three reasons a <strong>BFT</strong> system is the right fit here:
+      </p>
+      <ol>
+        <li><strong>Security is already cryptographic</strong>, so consensus is free to optimize for
+          something other than safety.</li>
+        <li><strong>We care about performance</strong>, and BFT gives fast, deterministic finality by
+          design - no waiting out probabilistic confirmations.</li>
+        <li><strong>We want to minimize MEV</strong>, and a known committee with threshold signing is
+          a good <em>foundation</em> to build that on - MEV-mitigation schemes like fair ordering or
+          encrypted mempools <em>could</em> be layered on top, though that's significant extra
+          engineering, not something the consensus gives you for free.</li>
+      </ol>
+      <p>
+        Concretely you can sit anywhere on the spectrum above: a single sequencer to start,
+        round-robin to decentralize cheaply, or a protocol like
+        <a href="https://simplex.blog/">Simplex</a> where a <strong>BLS threshold
+        signature</strong> lets the L1 - and anyone - verify the agreed L2 state
+        from a single small signature.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="da-heading">Scaling, part 3: abstracting away the data layer</h2>
+      <p id="da-problem">
+        The original Offer File proposal posts the files to <strong>Celestia</strong>, and
+        everyone reads them from its namespace. That's a reasonable starting point, but it puts
+        two frictions right in front of users. Celestia today has roughly <strong>6-second
+        blocks</strong> and no instant finality - sluggish for a live order book. And it
+        drags a <strong>foreign token</strong> into the experience: to post an offer you need
+        Celestia's TIA, or you lean on a batcher to pay it for you. Either way, the data layer is
+        something users and dApp developers have to reason about.
+      </p>
+
+      <p id="da-bridge">
+        Our L2 makes that whole concern disappear - the data layer drops out of view for
+        everyone except the sequencers. Here's the shape of it:
+      </p>
+
+      <figure id="da-figure">
+        <!-- Enhanced into an interactive backend selector by client/figures/daAbstraction.ts. -->
+        <svg class="da-static" viewBox="0 0 460 250" role="img" aria-label="With an L2, users sync the L2 directly; the data-availability backend (Celestia, EigenDA, Avail, or Midnight itself) is a swappable choice made by the sequencers, invisible to users.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <rect x="10" y="10" width="440" height="56" rx="9" fill="#f5fbf7" stroke="#bfe3cd"/>
+            <text x="22" y="30" font-weight="700" fill="#2f7d4d">what users &amp; dApps see - never changes</text>
+            <text x="22" y="50" fill="#333">sync the L2 directly · no namespace to scan · no foreign token</text>
+            <text x="230" y="84" text-anchor="middle" fill="#aaa" font-size="10">↓ syncs</text>
+            <rect x="150" y="92" width="160" height="34" rx="9" fill="#f3f0fb" stroke="#9a82d8"/>
+            <text x="230" y="114" text-anchor="middle" font-weight="700" fill="#4b3b8f">L2 - sequencers</text>
+            <text x="230" y="146" text-anchor="middle" fill="#aaa" font-size="10">↓ DA under the hood (sequencer's choice)</text>
+            <g font-family="ui-monospace, monospace" font-size="10">
+              <rect x="14" y="158" width="100" height="28" rx="7" fill="#efeafb" stroke="#9a82d8"/><text x="64" y="176" text-anchor="middle" fill="#4b3b8f">Celestia</text>
+              <rect x="122" y="158" width="100" height="28" rx="7" fill="#fff" stroke="#c8c8d4"/><text x="172" y="176" text-anchor="middle" fill="#666">EigenDA</text>
+              <rect x="230" y="158" width="100" height="28" rx="7" fill="#fff" stroke="#c8c8d4"/><text x="280" y="176" text-anchor="middle" fill="#666">Avail</text>
+              <rect x="338" y="158" width="108" height="28" rx="7" fill="#fff" stroke="#c8c8d4"/><text x="392" y="176" text-anchor="middle" fill="#666">Midnight L1</text>
+            </g>
+            <text x="10" y="214" font-family="system-ui, sans-serif" fill="#555">The user-facing layer is identical whatever the sequencers pick - so</text>
+            <text x="10" y="232" font-family="system-ui, sans-serif" fill="#555">Celestia's 6s blocks and TIA fees never reach the people using the DEX.</text>
+          </g>
+        </svg>
+        <figcaption>
+          With an L2, tools sync the <strong>L2</strong> directly - it already holds every
+          offer and fill, so there's no namespace to scan and no foreign token to hold. The
+          <strong>DA backend</strong> (Celestia, or anything else) becomes a swappable choice the
+          sequencers make. Click the options - the top "what users see" panel never moves.
+        </figcaption>
+      </figure>
+
+      <p id="da-abstract">
+        Once the L2 exists, this all dissolves. Tools <strong>sync the L2 state directly</strong>,
+        and by construction that state already contains every offer and every fill - so
+        there's no Celestia namespace to scan and no DA token in a user's wallet. The L2
+        <em>could</em> still use Celestia under the hood for availability, or swap in another DA
+        layer, or simply post its data to <strong>Midnight itself</strong>. That's now an
+        <strong>implementation detail the sequencers own</strong>, not something users or
+        developers ever touch - and the speed worry moves to the L2's own fast finality from
+        <a href="#consensus-heading">part 2</a>, which we control.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="openq-intro">Open questions</h2>
+      <p id="openq-lead">
+        That's the core design end to end - but it would be dishonest to stop without the
+        problems we <em>haven't</em> solved. Three of them are worth stating plainly.
+      </p>
+
+      <h3 id="oq1-what">#1 - the nullifier set never shrinks</h3>
+      <p>
+        Most zero-knowledge systems, Midnight included, prevent double-spends with
+        <strong>nullifiers</strong>. On a transparent UTXO chain you'd simply mark a spent output as
+        spent. zSwap wants the same guarantee - each UTXO spent at most once - but
+        <em>without</em> revealing which UTXO it was. So rather than marking the UTXO directly,
+        spending it publishes a <strong>nullifier</strong>: a deterministic, private tag derived
+        from that UTXO that reveals nothing about it. The ledger keeps the set of nullifiers
+        - effectively <strong>the set of spent UTXOs</strong> - and rejects any
+        nullifier it has already seen. The same UTXO always yields the same nullifier, so it can
+        never be spent twice, and no observer can tell which UTXO a nullifier came from.
+      </p>
+
+      <figure id="nullifier-figure">
+        <!-- Enhanced into an interactive demo by client/figures/nullifierGrowth.ts. -->
+        <svg class="nf-static" viewBox="0 0 480 200" role="img" aria-label="Spending a UTXO publishes its nullifier, a private 'spent' marker, into the nullifier set (the set of spent UTXOs). That set only ever grows, so on a high-throughput L2 it balloons without bound.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <rect x="10" y="14" width="120" height="44" rx="8" fill="#fafafc" stroke="#d2d2dc"/>
+            <text x="70" y="34" text-anchor="middle" font-weight="600">🪙 a UTXO</text>
+            <text x="70" y="50" text-anchor="middle" fill="#888" font-size="9">spend it →</text>
+            <rect x="170" y="10" width="200" height="52" rx="8" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="270" y="30" text-anchor="middle" font-weight="700" fill="#4b3b8f">nullifier</text>
+            <text x="270" y="48" text-anchor="middle" fill="#888" font-size="9">a private “this UTXO is spent” marker</text>
+            <text x="10" y="92" font-weight="600" fill="#555">nullifier set - the spent UTXOs - only ever grows:</text>
+            <g font-family="ui-monospace, monospace" font-size="9" fill="#4b3b8f">
+              <text x="10" y="112">🔒 a3f1  🔒 b7c2  🔒 9e04  🔒 1d8a  🔒 6f33  🔒 c0b9  🔒 22ae  🔒 e5d7  …</text>
+            </g>
+            <text x="10" y="150" fill="#b23b3b">At high L2 throughput this set balloons into the billions -</text>
+            <text x="10" y="168" fill="#b23b3b">and every proof must be made against it. Nothing is ever removed.</text>
+          </g>
+        </svg>
+        <figcaption>
+          A nullifier is a private &ldquo;this UTXO is spent&rdquo; marker. Spend a UTXO and its
+          nullifier joins the set; spend it again and you're rejected (same UTXO → same nullifier).
+          But <strong>nullifiers are never removed</strong> - drag the throughput slider to
+          watch the set balloon over a year. That unbounded growth is the open problem.
+        </figcaption>
+      </figure>
+
+      <p id="oq1-problem">
+        On the base layer that's tolerable. But the entire point of the L2 is
+        <strong>high throughput</strong> - and every swap adds a nullifier that is
+        <strong>never removed</strong> (commitment roots expire; nullifiers don't). At real volumes
+        the set grows into the billions, and every proof has to be made against it. Keeping that
+        state from blowing up, <em>without</em> surrendering the privacy nullifiers buy us, is a
+        genuinely open problem.
+      </p>
+
+      <h3 id="oq2-what">#2 - pricing and ordering transactions</h3>
+      <p id="oq2-forces">
+        How should the L2 order transactions, and what should they cost? Fees, first-come, an
+        auction? It sounds mundane, but three forces pull against each other:
+        <strong>(1) MEV &amp; ordering</strong> - with no fees you tend to get off-chain
+        backroom deals (quietly paying a block producer to jump the queue); a trusted BFT committee
+        mitigates this <em>by design</em>, but only because you're trusting it. <strong>(2)
+        Market-maker economics</strong> - real exchanges charge makers and takers differently
+        precisely so makers aren't punished, and makers cancel and replace constantly, so any
+        meaningful per-tx fee bleeds them. <strong>(3) Spam</strong> - set fees to zero and
+        you invite junk transactions that slow proofs and (per
+        <a href="#oq1-what">#1</a>) balloon the nullifier set permanently.
+      </p>
+
+      <figure id="fee-figure">
+        <!-- Enhanced into an interactive fee/ordering explorer by client/figures/feeOrdering.ts. -->
+        <svg class="fo-static" viewBox="0 0 480 168" role="img" aria-label="Pricing and ordering transactions trades off three pressures: high fees push out market makers, zero fees invite spam, and fee-priority ordering creates MEV. The only all-green corner - low flat fee plus first-come ordering - still relies on trusting the committee.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <text x="240" y="16" text-anchor="middle" fill="#999" font-size="10">every knob trades one problem for another</text>
+            <rect x="10" y="28" width="150" height="58" rx="8" fill="#fbeded" stroke="#d98a8a"/>
+            <text x="85" y="50" text-anchor="middle" font-weight="700" fill="#b23b3b">high fees</text>
+            <text x="85" y="70" text-anchor="middle" fill="#b23b3b" font-size="10">market makers leave</text>
+            <rect x="165" y="28" width="150" height="58" rx="8" fill="#fbeded" stroke="#d98a8a"/>
+            <text x="240" y="50" text-anchor="middle" font-weight="700" fill="#b23b3b">zero fees</text>
+            <text x="240" y="70" text-anchor="middle" fill="#b23b3b" font-size="10">spam → nullifier blow-up</text>
+            <rect x="320" y="28" width="150" height="58" rx="8" fill="#fbeded" stroke="#d98a8a"/>
+            <text x="395" y="50" text-anchor="middle" font-weight="700" fill="#b23b3b">fee-priority</text>
+            <text x="395" y="70" text-anchor="middle" fill="#b23b3b" font-size="10">an MEV auction</text>
+            <rect x="90" y="100" width="300" height="44" rx="8" fill="#fdf7ec" stroke="#e0a13a"/>
+            <text x="240" y="120" text-anchor="middle" font-weight="700" fill="#9a5b1e">low flat fee + first-come</text>
+            <text x="240" y="136" text-anchor="middle" fill="#9a5b1e" font-size="10">best corner - but ordering only stays fair on-chain (trust the committee)</text>
+          </g>
+        </svg>
+        <figcaption>
+          Drag the fee and flip the ordering: push fees up and market makers leave; drop them to
+          zero and spam takes over; choose fee-priority and you've built an MEV auction. The best
+          corner - a <strong>low flat fee with first-come ordering</strong> - still
+          isn't a clean win: first-come is only fair <em>on-chain</em>, so it leans on
+          <em>trusting</em> the BFT committee, and a flat fee can't replicate maker/taker rebates.
+        </figcaption>
+      </figure>
+
+      <p id="oq2-dilemma">
+        The best the figure can do - a <strong>low flat fee with first-come ordering</strong>
+        - is the closest thing to an answer, and it still isn't clean. First-come ordering only
+        stops bidding for position <em>on-chain</em>; off-chain, you're back to trusting the
+        committee not to take a reorder bribe. And a single flat fee can't do what
+        exchanges do with separate <strong>maker and taker</strong> fees - charge the spammer
+        and the taker without taxing every maker re-quote. How fees and ordering <em>should</em>
+        work on this L2 is still open.
+      </p>
+
+      <h3 id="oq3-what">#3 - how much to build, and when</h3>
+      <p id="oq3-window">
+        The last question isn't really technical - it's about timing. How much complexity do
+        we want? A perfect system takes longer to build, and this whole L2 has a
+        <strong>shelf life</strong>, because two things could make it unnecessary:
+      </p>
+      <ol>
+        <li><strong>The Midnight L1 itself.</strong> It keeps improving, and it runs
+          general-purpose ZK-optimized smart contracts - not just zSwaps - so if the base
+          layer gets fast enough, you don't need this L2 at all.</li>
+        <li><strong>Nightstream</strong>, a more general Midnight L2 built as a full
+          <strong>zkVM</strong> rather than a ZK-optimized construction; as it matures, the case for
+          a zSwap-specific network shrinks.</li>
+      </ol>
+      <p>
+        But neither has arrived: it's unclear how long until the L1 matches a purpose-built zSwap L2,
+        and Nightstream today has no clear path to connect to the L1 and is far slower than this L2
+        would be.
+      </p>
+
+      <figure id="ttm-figure">
+        <!-- Enhanced into an interactive timeline by client/figures/timeToMarket.ts. -->
+        <svg class="ttm-static" viewBox="0 0 480 110" role="img" aria-label="The zSwap L2 has a window of usefulness of unknown length, closing whenever the L1 gets fast enough or Nightstream matures. Shipping lean lands inside the window; over-building risks launching as it closes.">
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <rect x="10" y="40" width="460" height="34" rx="8" fill="#f3f3f7"/>
+            <rect x="250" y="40" width="220" height="34" rx="0" fill="#fbeded"/>
+            <text x="16" y="32" fill="#2f7d4d" font-weight="700" font-size="10">now</text>
+            <text x="466" y="32" text-anchor="end" fill="#9a3b3b" font-size="10">window closes? - L1 fast enough · Nightstream matures (timing unknown)</text>
+            <g transform="translate(70,0)">
+              <line x1="0" y1="26" x2="0" y2="74" stroke="#5bb87a" stroke-width="2"/>
+              <text x="0" y="90" text-anchor="middle" fill="#2f7d4d" font-weight="700" font-size="10">ship lean → inside the window</text>
+            </g>
+            <g transform="translate(360,0)">
+              <line x1="0" y1="26" x2="0" y2="74" stroke="#d96b6b" stroke-width="2" stroke-dasharray="3 3"/>
+              <text x="0" y="90" text-anchor="middle" fill="#b23b3b" font-size="10">over-build → ship into the fog</text>
+            </g>
+          </g>
+        </svg>
+        <figcaption>
+          The L2 is useful only until something general-purpose catches up - the L1 speeding
+          up, or Nightstream maturing - and <strong>nobody knows when that is</strong> (the
+          red zone is fuzzy on purpose). Drag the build scope: ship lean and you land inside the
+          window; perfect it and you risk launching just as it closes.
+        </figcaption>
+      </figure>
+
+      <p id="oq3-takeaway">
+        That points to a clear, if uncomfortable, answer: <strong>don't aim for perfect</strong>.
+        With an open-ended window, the cost of over-building isn't just late delivery - it's
+        shipping into a world that no longer needs what you built. Better to get something good to
+        market <em>soon</em>, while the window is open, and iterate from there. Which is as honest a
+        note as any to end on: a design that works, and the real questions still worth arguing
+        about.
+      </p>
+    </section>
+
+    <hr class="section-divider" />
+
+    <section>
+      <h2 id="business-heading">Switching hats: would anyone actually trade here?</h2>
+      <p id="business-lead">
+        Everything above is engineering - how to make offer files work, and work fast, on a
+        privacy chain. That is the easy half to feel good about, and the dangerous half to stop at:
+        a protocol that is elegant and unused is just a clever way to spend a budget. So switch hats
+        - from architect to investor - and ask the only question that decides whether any
+        of this was worth building: <strong>will people actually trade on it?</strong> We can't prove
+        the future, but we aren't guessing in the dark either, because this exact shape already ran as
+        a live experiment for four and a half years.
+      </p>
+
+      <h3 id="business-precedent">The one thing we don't have to guess: Chia ran it</h3>
+      <p id="bp-real">
+        The <a href="https://dexie.space/">dexie</a> marketplace on the <strong>Chia</strong>
+        blockchain shipped a conceptually identical offer-file system - wallet-created offers, a
+        peer-to-peer gossip network, and shared liquidity across every site that indexed it. It is the
+        closest thing the industry has to a controlled experiment on the idea, and the headline result
+        is genuinely reassuring: it <em>worked</em>. Across 4.5 years and multiple boom-and-bust waves,
+        dexie settled on the order of <strong>~985,000 real, on-chain trades</strong> carried entirely
+        by offer files. We pulled and analyzed <strong>833,145</strong> of them - the full
+        breakdown is its own post, <a href="/posts/offer-files-data">Chia Offer Files by the
+        Numbers</a>, which the rest of this section leans on. Offer files are not a whiteboard idea:
+        they clear trades - though, as the next figures show, not many dollars of them.
+      </p>
+
+      <figure id="adoption-figure">
+        <svg class="chart" viewBox="0 0 760 380" role="img" aria-label="Completed Chia offers per month, 2022 to 2026, 833,145 in total - activity ramps up through 2022 and is sustained across several waves into 2026">
+        <text x="60" y="17" font-size="15" font-weight="700" fill="#1a202c">Completed offers per month</text>
+        <text x="60" y="34" font-size="11" fill="#4a5568">833,145 total · 2022-01 → 2026-05</text>
+        <line x1="60" y1="334.0" x2="736" y2="334.0" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="338.0" font-size="11" fill="#4a5568" text-anchor="end">0k</text>
+        <line x1="60" y1="262.0" x2="736" y2="262.0" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="266.0" font-size="11" fill="#4a5568" text-anchor="end">10k</text>
+        <line x1="60" y1="190.0" x2="736" y2="190.0" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="194.0" font-size="11" fill="#4a5568" text-anchor="end">20k</text>
+        <line x1="60" y1="118.0" x2="736" y2="118.0" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="122.0" font-size="11" fill="#4a5568" text-anchor="end">30k</text>
+        <line x1="60" y1="46.0" x2="736" y2="46.0" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="50.0" font-size="11" fill="#4a5568" text-anchor="end">40k</text>
+        <line x1="60" y1="334" x2="736" y2="334" stroke="#94a3b8" stroke-width="1"/>
+        <path d="M60.0,328.9 L73.0,330.2 L86.0,328.4 L99.0,327.9 L112.0,325.9 L125.0,322.9 L138.0,265.8 L151.0,275.9 L164.0,265.5 L177.0,224.8 L190.0,241.9 L203.0,247.1 L216.0,203.9 L229.0,231.6 L242.0,210.8 L255.0,260.8 L268.0,235.8 L281.0,156.1 L294.0,235.3 L307.0,217.2 L320.0,241.3 L333.0,188.6 L346.0,194.8 L359.0,256.0 L372.0,243.1 L385.0,223.2 L398.0,214.4 L411.0,228.5 L424.0,171.6 L437.0,234.7 L450.0,244.6 L463.0,280.4 L476.0,287.2 L489.0,263.0 L502.0,228.4 L515.0,233.7 L528.0,212.3 L541.0,225.8 L554.0,171.8 L567.0,233.6 L580.0,203.4 L593.0,111.2 L606.0,126.6 L619.0,53.6 L632.0,86.6 L645.0,125.5 L658.0,145.0 L671.0,212.0 L684.0,155.6 L697.0,196.6 L710.0,143.7 L723.0,159.3 L736.0,170.7 L736.0,334 L60.0,334 Z" fill="#2b6cb0" fill-opacity="0.12"/>
+        <path d="M60.0,328.9 L73.0,330.2 L86.0,328.4 L99.0,327.9 L112.0,325.9 L125.0,322.9 L138.0,265.8 L151.0,275.9 L164.0,265.5 L177.0,224.8 L190.0,241.9 L203.0,247.1 L216.0,203.9 L229.0,231.6 L242.0,210.8 L255.0,260.8 L268.0,235.8 L281.0,156.1 L294.0,235.3 L307.0,217.2 L320.0,241.3 L333.0,188.6 L346.0,194.8 L359.0,256.0 L372.0,243.1 L385.0,223.2 L398.0,214.4 L411.0,228.5 L424.0,171.6 L437.0,234.7 L450.0,244.6 L463.0,280.4 L476.0,287.2 L489.0,263.0 L502.0,228.4 L515.0,233.7 L528.0,212.3 L541.0,225.8 L554.0,171.8 L567.0,233.6 L580.0,203.4 L593.0,111.2 L606.0,126.6 L619.0,53.6 L632.0,86.6 L645.0,125.5 L658.0,145.0 L671.0,212.0 L684.0,155.6 L697.0,196.6 L710.0,143.7 L723.0,159.3 L736.0,170.7" fill="none" stroke="#2b6cb0" stroke-width="2.5" stroke-linejoin="round"/>
+        <text x="60.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2022-01</text>
+        <text x="138.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2022-07</text>
+        <text x="216.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2023-01</text>
+        <text x="294.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2023-07</text>
+        <text x="372.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2024-01</text>
+        <text x="450.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2024-07</text>
+        <text x="528.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2025-01</text>
+        <text x="606.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2025-07</text>
+        <text x="684.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2026-01</text>
+        </svg>
+        <figcaption>
+          Real adoption, and it stuck. Completed offer-file trades per month on Chia, 2022&ndash;2026
+          (833,145 in all). Activity ramped through the 2022 NFT mania, survived its collapse, and kept
+          clearing through several later waves - years of sustained use, not a launch-day spike.
+          Chart from <a href="/posts/offer-files-data#scale-heading">Chia Offer Files by the Numbers</a>.
+        </figcaption>
+      </figure>
+
+      <figure id="precedent-figure">
+        <svg viewBox="0 0 680 232" role="img" aria-label="Over 4.5 years on Chia, offer files settled 833,145 analyzed trades (about 985,000 all-time) and ran through multiple boom/bust waves - but the median trade was just 0.2 XCH, about a couple of dollars (roughly thirty-four dollars in 2022, collapsing to under a dollar by 2026), the busiest pair cleared roughly 800 dollars a day, and lifetime volume priced in dollars was about 16.9 million dollars.">
+          <g font-family="system-ui, sans-serif">
+            <text x="16" y="26" font-size="14" font-weight="800" fill="#1d1d1f">The offer-file experiment ran 4.5 years on Chia - here's what it cleared</text>
+            <!-- real & durable (green) -->
+            <rect x="16" y="50" width="150" height="104" rx="10" fill="#e9f5ee" stroke="#8fcfa8"/>
+            <text x="91" y="92" text-anchor="middle" font-size="23" font-weight="800" fill="#2f7d4d">833,145</text>
+            <text x="91" y="116" text-anchor="middle" font-size="10" fill="#3a7d55">offers analyzed</text>
+            <text x="91" y="132" text-anchor="middle" font-size="10" fill="#3a7d55">(~985k settled all-time)</text>
+            <rect x="182" y="50" width="150" height="104" rx="10" fill="#e9f5ee" stroke="#8fcfa8"/>
+            <text x="257" y="92" text-anchor="middle" font-size="23" font-weight="800" fill="#2f7d4d">4.5 yrs</text>
+            <text x="257" y="116" text-anchor="middle" font-size="10" fill="#3a7d55">live through several</text>
+            <text x="257" y="132" text-anchor="middle" font-size="10" fill="#3a7d55">boom-and-bust waves</text>
+            <!-- small & retail (amber) -->
+            <rect x="348" y="50" width="150" height="104" rx="10" fill="#fdf7ec" stroke="#e0a13a"/>
+            <text x="423" y="92" text-anchor="middle" font-size="22" font-weight="800" fill="#9a5b1e">~$16.9M</text>
+            <text x="423" y="116" text-anchor="middle" font-size="10" fill="#9a5b1e">lifetime volume,</text>
+            <text x="423" y="132" text-anchor="middle" font-size="10" fill="#9a5b1e">priced in dollars (a floor)</text>
+            <rect x="514" y="50" width="150" height="104" rx="10" fill="#fdf7ec" stroke="#e0a13a"/>
+            <text x="589" y="92" text-anchor="middle" font-size="22" font-weight="800" fill="#9a5b1e">0.2 XCH</text>
+            <text x="589" y="116" text-anchor="middle" font-size="10" fill="#9a5b1e">median trade size</text>
+            <text x="589" y="132" text-anchor="middle" font-size="10" fill="#9a5b1e">(≈ $2.70; ~$34→&lt;$1 over time)</text>
+            <text x="16" y="184" font-size="11" fill="#2f7d4d" font-weight="700">real &amp; durable</text>
+            <text x="664" y="184" text-anchor="end" font-size="11" fill="#9a5b1e" font-weight="700">small &amp; retail</text>
+            <text x="16" y="208" font-size="10" fill="#888">Busiest liquid pair: ~$800/day across ~17 trades. Nearly 90% of offers were a plain one-for-one swap.</text>
+          </g>
+        </svg>
+        <figcaption>
+          The same four-and-a-half-year record reads two ways at once. On the left it is
+          <strong>real and durable</strong> - close to a million settled trades through several
+          market cycles. On the right it is <strong>small and retail</strong> - a 0.2-XCH median
+          trade (~$2.70 - about $34 in 2022, collapsing to under $1 by 2026) and ~$800/day on the best
+          pair. Both are true. Numbers from
+          <a href="/posts/offer-files-data">Chia Offer Files by the Numbers</a>.
+        </figcaption>
+      </figure>
+
+      <p id="bp-small">
+        Read those numbers the other way and they are sobering - and because a single dollar figure
+        would mislead on a chain whose token fell from ~$30 to under $3, the honest, non-cherry-picked
+        number is coin-denominated: the median trade held at about <strong>0.2 XCH</strong> across the
+        <em>whole</em> period (NFT prices were famously sticky at 0.1&ndash;0.2 XCH the entire time). In
+        dollars the typical swap <em>collapsed</em> from ~$34 in 2022 to under a dollar by 2026 - as XCH
+        fell ~15&times; and sub-cent game-token swaps flooded in - so it's a couple of dollars at most,
+        small by any reading. The totals agree: ~1.08M XCH has ever changed hands, which - pricing each
+        swap at the true rate on its day - is only about <strong>$16.9M</strong> of lifetime volume (a
+        floor); the busiest liquid pair clears ~<strong>$800/day</strong> across ~17 trades; and nearly 90% of
+        offers are a plain one-for-one swap.
+        After 4.5 years, the honest description is a <em>retail bazaar</em> - real, durable, and small.
+        The optimist's footnote is fair: scale is a property of the <em>ecosystem</em>, not the primitive,
+        and Chia is a small chain in a long bear market. The pessimist's reply is equally fair: Midnight is a
+        young ecosystem too, so there's no reason to assume it clears more out of the gate.
+      </p>
+
+      <h3 id="business-proven">What it proved the primitive does well</h3>
+      <p id="bproven-body">
+        Several of the strongest pro-offer-file claims survive contact with four years of data, and they
+        carry over to Midnight because they are properties of the <em>offer</em> itself, not of Chia:
+      </p>
+      <ul id="bproven-list">
+        <li><strong>Trustless, atomic settlement.</strong> The trade completes in full or does nothing -
+          no escrow, no counterparty risk.</li>
+        <li><strong>Atomic multi-asset bundles.</strong> ~10% of offers carried three or more assets, with a
+          tail to a single 32-asset trade - baskets an instrument-at-a-time order book can't express.</li>
+        <li><strong>Safe composition into an aggregator.</strong> Because every route is one atomic spend, by
+          2026 roughly half of all dexie offers were multi-source routes; the worst case of routing through an
+          untrusted source is simply that nothing happens (that same composability, we'll see, has a dark side).</li>
+        <li><strong>A free price oracle.</strong> The settled-price tape reconstructs XCH/USD with a ~1.8%
+          median spread, stable on as few as five trades a day.</li>
+      </ul>
+      <p id="bproven-royalty">
+        One further result is striking but - fair warning - <em>not</em> portable the way those
+        are: on Chia, trustless trading <em>strengthened</em> NFT royalties rather than eroding them (the
+        trade-weighted median rose from 5% to 10%). That rides on Chia's NFT puzzle standard, not on the offer
+        file itself, so whether Midnight's contract model reproduces it is an open question, not a carried-over
+        win.
+      </p>
+
+      <figure id="usecases-figure">
+        <svg class="chart" viewBox="0 0 760 380" role="img" aria-label="What gets traded by share of offers: XCH 77%, NFTs 38%, memecoins 27%, game-economy tokens 20%, then protocol/infra and stablecoins at 8%, NFT-project tokens 5%, TibetSwap LP tokens 4%, social 3%, unclassified 2%, real-world-asset NFTs 0.3%">
+        <text x="24" y="17" font-size="15" font-weight="700" fill="#1a202c">What gets traded (share of all 833k offers)</text>
+        <text x="24" y="34" font-size="11" fill="#4a5568">overlaps; most offers are token↔XCH</text>
+        <text x="190" y="63" font-size="11.5" fill="#1a202c" text-anchor="end">XCH</text>
+        <rect x="200" y="48" width="382.7" height="20" fill="#2b6cb0" rx="3"/>
+        <text x="588.7" y="63" font-size="11" fill="#4a5568">77%</text>
+        <text x="190" y="93" font-size="11.5" fill="#1a202c" text-anchor="end">NFTs</text>
+        <rect x="200" y="78" width="188.8" height="20" fill="#6b46c1" rx="3"/>
+        <text x="394.9" y="93" font-size="11" fill="#4a5568">38%</text>
+        <text x="190" y="123" font-size="11.5" fill="#1a202c" text-anchor="end">Memecoins</text>
+        <rect x="200" y="108" width="137.3" height="20" fill="#c05621" rx="3"/>
+        <text x="343.3" y="123" font-size="11" fill="#4a5568">27%</text>
+        <text x="190" y="153" font-size="11.5" fill="#1a202c" text-anchor="end">Game-economy tokens</text>
+        <rect x="200" y="138" width="97.6" height="20" fill="#2f855a" rx="3"/>
+        <text x="303.6" y="153" font-size="11" fill="#4a5568">20%</text>
+        <text x="190" y="183" font-size="11.5" fill="#1a202c" text-anchor="end">Protocol / infra</text>
+        <rect x="200" y="168" width="41.9" height="20" fill="#0987a0" rx="3"/>
+        <text x="247.9" y="183" font-size="11" fill="#4a5568">8%</text>
+        <text x="190" y="213" font-size="11.5" fill="#1a202c" text-anchor="end">Stablecoins</text>
+        <rect x="200" y="198" width="40.7" height="20" fill="#c53030" rx="3"/>
+        <text x="246.7" y="213" font-size="11" fill="#4a5568">8%</text>
+        <text x="190" y="243" font-size="11.5" fill="#1a202c" text-anchor="end">NFT-project tokens</text>
+        <rect x="200" y="228" width="23.4" height="20" fill="#805ad5" rx="3"/>
+        <text x="229.4" y="243" font-size="11" fill="#4a5568">5%</text>
+        <text x="190" y="273" font-size="11.5" fill="#1a202c" text-anchor="end">TibetSwap LP tokens</text>
+        <rect x="200" y="258" width="22.4" height="20" fill="#319795" rx="3"/>
+        <text x="228.4" y="273" font-size="11" fill="#4a5568">4%</text>
+        <text x="190" y="303" font-size="11.5" fill="#1a202c" text-anchor="end">Social / community</text>
+        <rect x="200" y="288" width="14.3" height="20" fill="#d53f8c" rx="3"/>
+        <text x="220.3" y="303" font-size="11" fill="#4a5568">3%</text>
+        <text x="190" y="333" font-size="11.5" fill="#1a202c" text-anchor="end">Unclassified</text>
+        <rect x="200" y="318" width="12.3" height="20" fill="#94a3b8" rx="3"/>
+        <text x="218.3" y="333" font-size="11" fill="#4a5568">2%</text>
+        <text x="190" y="363" font-size="11.5" fill="#1a202c" text-anchor="end">Real-world-asset NFTs</text>
+        <rect x="200" y="348" width="1.5" height="20" fill="#7b341e" rx="3"/>
+        <text x="207.5" y="363" font-size="11" fill="#4a5568">0.3%</text>
+        </svg>
+        <figcaption>
+          Not one niche - a whole bazaar. Share of all 833k offers by what's being traded (categories
+          overlap, since most trades are a token against XCH). NFTs, memecoins, and entire game economies all
+          adopted offer files; tellingly, the most &ldquo;serious&rdquo; financial use-case - stablecoins
+          - stayed a single-digit slice. Chart from
+          <a href="/posts/offer-files-data#traded-heading">Chia Offer Files by the Numbers</a>.
+        </figcaption>
+      </figure>
+
+      <h3 id="business-warning">What it warns about</h3>
+      <p id="bwarn-body">
+        The warnings are just as concrete, and they are about the <em>market</em>, not the mechanism.
+        Given total freedom, the offer-file market converged on the architecture it was built to avoid.
+        By 2026 <strong>roughly two-thirds of fills were taken by a single automated market maker</strong>
+        (TibetSwap - 46% rising toward 67% of labeled fills), and <strong>discovery re-centralized
+        on one aggregator</strong>: dexie routes about half of all offers - the flip side of the
+        composability we just praised, the same force funnelling flow into a single venue. So much for the
+        opening promise of liquidity shared permissionlessly across apps: the primitive stayed
+        decentralized, but the market it produced did not. Worse for anyone hoping to
+        provide liquidity, a resting offer is a <strong>free option you write to arbitrage bots</strong>.
+        An offer priced in the taker's favor fills in a median ~38 seconds; a fairly-priced one waits
+        ~10 minutes - textbook adverse selection. So makers couldn't earn a spread by sitting
+        still; they had to cancel and re-quote constantly, producing <strong>eight to nine wasted offers
+        for every one that settled</strong> (2.2M reward-earning offers in ten months, 99.7% of which
+        never filled). And because none of that paid on spread, liquidity had to be <strong>rented with
+        a token subsidy - which then shrank ~5&times;</strong>, from ~$1,700/month to ~$355, as the
+        reward token itself fell. Whether that means the market was weaning off rented liquidity or the
+        subsidy was simply eroding with its token, the data can't say - but liquidity still leaning
+        on a subsidy years in was, at best, not yet organic.
+      </p>
+
+      <figure id="amm-figure">
+        <svg class="chart" viewBox="0 0 760 380" role="img" aria-label="Share of dexie offers filled by the TibetSwap AMM, monthly since labels began in April 2025: already around half and climbing past 60% toward two-thirds by 2026 - and a floor, since only one AMM is labelled">
+        <text x="60" y="17" font-size="15" font-weight="700" fill="#1a202c">Share of offers filled by the TibetSwap AMM</text>
+        <text x="60" y="34" font-size="11" fill="#4a5568">labelled only since 2025-04 · a floor on true automation</text>
+        <line x1="60" y1="334.0" x2="736" y2="334.0" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="338.0" font-size="11" fill="#4a5568" text-anchor="end">0%</text>
+        <line x1="60" y1="276.4" x2="736" y2="276.4" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="280.4" font-size="11" fill="#4a5568" text-anchor="end">20%</text>
+        <line x1="60" y1="218.8" x2="736" y2="218.8" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="222.8" font-size="11" fill="#4a5568" text-anchor="end">40%</text>
+        <line x1="60" y1="161.2" x2="736" y2="161.2" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="165.2" font-size="11" fill="#4a5568" text-anchor="end">60%</text>
+        <line x1="60" y1="103.6" x2="736" y2="103.6" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="107.6" font-size="11" fill="#4a5568" text-anchor="end">80%</text>
+        <line x1="60" y1="46.0" x2="736" y2="46.0" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="52" y="50.0" font-size="11" fill="#4a5568" text-anchor="end">100%</text>
+        <line x1="60" y1="334" x2="736" y2="334" stroke="#94a3b8" stroke-width="1"/>
+        <rect x="45.0" y="231.0" width="29.9" height="103.0" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="97.0" y="202.2" width="29.9" height="131.8" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="149.0" y="162.7" width="29.9" height="171.3" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="201.0" y="209.3" width="29.9" height="124.7" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="253.0" y="258.4" width="29.9" height="75.6" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="305.0" y="253.0" width="29.9" height="81.0" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="357.0" y="182.1" width="29.9" height="151.9" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="409.0" y="240.5" width="29.9" height="93.5" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="461.0" y="203.9" width="29.9" height="130.1" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="513.0" y="206.9" width="29.9" height="127.1" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="565.0" y="170.6" width="29.9" height="163.4" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="617.0" y="139.8" width="29.9" height="194.2" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="669.0" y="152.2" width="29.9" height="181.8" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <rect x="721.0" y="166.2" width="29.9" height="167.8" fill="#c05621" fill-opacity="0.85" rx="1.5"/>
+        <line x1="60" y1="190.0" x2="736" y2="190.0" stroke="#c53030" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="736" y="186.0" font-size="10" fill="#c53030" text-anchor="end">half of all fills</text>
+        <text x="60.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2025-04</text>
+        <text x="164.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2025-06</text>
+        <text x="268.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2025-08</text>
+        <text x="372.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2025-10</text>
+        <text x="476.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2025-12</text>
+        <text x="580.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2026-02</text>
+        <text x="684.0" y="352" font-size="10" fill="#4a5568" text-anchor="middle">2026-04</text>
+        </svg>
+        <figcaption>
+          Convergence, charted. The monthly share of dexie offers <em>filled</em> by the single TibetSwap AMM
+          since labelling began (April 2025) - already around half, trending toward two-thirds. And it's
+          a <strong>floor</strong>: only one AMM is labelled, so true automation is higher. The market the
+          offer file enabled became, increasingly, one bot quoting a pool. Chart from
+          <a href="/posts/offer-files-data#machines-heading">Chia Offer Files by the Numbers</a>.
+        </figcaption>
+      </figure>
+
+      <figure id="outcomes-figure">
+        <svg class="chart" viewBox="0 0 760 270" role="img" aria-label="Rough estimate of offer-file outcomes: about 6.5 million cancelled or expired, 985k settled, 600k open - settled is roughly 1 in 8">
+        <text x="24" y="22" font-size="15" font-weight="700" fill="#1a202c">What happens to an offer file (rough estimate)</text>
+        <text x="24" y="40" font-size="11" fill="#4a5568">Most never fill. Only the settled slice (~1 in 8) ever moves money - or costs a cancel.</text>
+        <text x="155" y="91" font-size="12" fill="#1a202c" text-anchor="end">Cancelled or expired</text>
+        <rect x="165" y="70" width="481.0" height="32" fill="#c53030" rx="3"/>
+        <text x="654.0" y="91" font-size="12" fill="#4a5568">~6.5M (est.)</text>
+        <text x="155" y="149" font-size="12" fill="#1a202c" text-anchor="end">Settled (filled)</text>
+        <rect x="165" y="128" width="72.5" height="32" fill="#2f855a" rx="3"/>
+        <text x="245.5" y="149" font-size="12" fill="#4a5568">~985k</text>
+        <text x="155" y="207" font-size="12" fill="#1a202c" text-anchor="end">Open right now</text>
+        <rect x="165" y="186" width="44.1" height="32" fill="#2b6cb0" rx="3"/>
+        <text x="217.1" y="207" font-size="12" fill="#4a5568">~600k (snapshot)</text>
+        <text x="24" y="252" font-size="11" fill="#4a5568">Cancelled/expired is estimated from reward-farming churn (a floor); dexie prunes these, so its own counts undercount.</text>
+        </svg>
+        <figcaption>
+          Cancellation is the <em>normal</em> ending, not the exception. Of every offer file ever created,
+          only ~985k (about <strong>1 in 8</strong>) ever settled, against an estimated
+          <strong>~6.5M cancelled or expired</strong>. (That bucket is <em>estimated</em> by scaling
+          market-maker reward churn - a floor - since dexie prunes dead offers; see the next
+          chart.) On Chia those dead offers are <em>free</em>. On a UTXO chain like Midnight, a cancel is a
+          spend, so this giant red bar is a giant bill - which is precisely why the
+          <a href="#l2-design-heading">L2</a> has to make cancelling cheap. Chart from
+          <a href="/posts/offer-files-data#lifecycle-heading">Chia Offer Files by the Numbers</a>.
+        </figcaption>
+      </figure>
+
+
+      <h3 id="business-midnight">Now add Midnight</h3>
+      <p id="bmid-lead">
+        Here is where our specific chain changes the calculus - in both directions. The points
+        above were argued chain-agnostically; Midnight is not neutral about any of them.
+      </p>
+
+      <figure id="scorecard-figure">
+        <svg viewBox="0 0 700 276" role="img" aria-label="A three-column verdict. Where Midnight helps: cheap cancels on the L2 gut the churn cost that broke market-making on Chia (though not the pick-off itself); and hidden traders over public prices is privacy Chia can't offer. A cost Chia never paid: every fill must match and post a heavy zero-knowledge proof on-chain; the nullifier set grows forever; and fees and ordering are still unsolved and hit makers directly. Unknown or unchanged: the market converged to an AMM, but AMMs are hard to build on Midnight so offers may be the only primitive; discovery still re-centralizes on an indexer; and it's a young thin ecosystem with the same chicken-and-egg liquidity problem.">
+          <g font-family="system-ui, sans-serif">
+            <text x="12" y="22" font-size="14" font-weight="800" fill="#1d1d1f">What Midnight changes about the Chia verdict</text>
+            <!-- column: helps -->
+            <rect x="12" y="36" width="216" height="228" rx="10" fill="#e9f5ee" stroke="#8fcfa8"/>
+            <text x="120" y="58" text-anchor="middle" font-size="11.5" font-weight="800" fill="#2f7d4d">Midnight helps</text>
+            <g font-size="10" fill="#2c5f43">
+              <text x="24" y="92"><tspan font-weight="700">▸ Cheap cancels</tspan> (the L2) gut the</text>
+              <text x="24" y="106">churn cost that broke Chia</text>
+              <text x="24" y="120">market-making (not the pick-off)</text>
+              <text x="24" y="176"><tspan font-weight="700">▸ Hidden traders</tspan>, public prices</text>
+              <text x="24" y="190">- privacy Chia can't offer</text>
+            </g>
+            <!-- column: new cost -->
+            <rect x="242" y="36" width="216" height="228" rx="10" fill="#fbeded" stroke="#d98a8a"/>
+            <text x="350" y="58" text-anchor="middle" font-size="11.5" font-weight="800" fill="#b23b3b">A cost Chia never paid</text>
+            <g font-size="10" fill="#8a3030">
+              <text x="254" y="84">▸ Every fill matches &amp; posts a</text>
+              <text x="254" y="98" font-weight="700">heavy ZK proof on-chain</text>
+              <text x="254" y="146"><tspan font-weight="700">▸ Nullifier set grows forever</tspan></text>
+              <text x="254" y="160">(open question #1)</text>
+              <text x="254" y="194"><tspan font-weight="700">▸ Fees &amp; ordering unsolved</tspan></text>
+              <text x="254" y="208">(open #2) - and they hit</text>
+              <text x="254" y="222">maker economics directly</text>
+            </g>
+            <!-- column: unknown -->
+            <rect x="472" y="36" width="216" height="228" rx="10" fill="#fdf7ec" stroke="#e0a13a"/>
+            <text x="580" y="58" text-anchor="middle" font-size="11.5" font-weight="800" fill="#9a5b1e">Unknown / unchanged</text>
+            <g font-size="10" fill="#7a4a16">
+              <text x="484" y="84"><tspan font-weight="700">▸ Market became an AMM</tspan> - but</text>
+              <text x="484" y="98">AMMs are hard on Midnight, so</text>
+              <text x="484" y="112">offers may be the only primitive</text>
+              <text x="484" y="146"><tspan font-weight="700">▸ Discovery still re-centralizes</tspan></text>
+              <text x="484" y="160">on an indexer</text>
+              <text x="484" y="194"><tspan font-weight="700">▸ Young, thin ecosystem</tspan> -</text>
+              <text x="484" y="208">same chicken-and-egg</text>
+              <text x="484" y="222">liquidity problem as Chia</text>
+            </g>
+          </g>
+        </svg>
+        <figcaption>
+          Our synthesis, balanced on purpose. <strong>Green</strong>: places Midnight improves on the
+          Chia verdict (above all, the L2's cheap cancels attack the churn <em>cost</em> that broke
+          market-making - though not the pick-off itself). <strong>Red</strong>: costs Chia never had
+          to pay, all downstream of ZK proving. <strong>Amber</strong>: questions Midnight leaves open or
+          that are bound to ecosystem size.
+        </figcaption>
+      </figure>
+
+      <p id="bmid-helps">
+        Midnight's biggest lever lands on the bear case's strongest pillar - but it's a lever, not a
+        cure. The maker-killer on Chia was that cancelling is an on-chain spend, so makers churned millions
+        of quotes and still got picked off. The <a href="#l2-design-heading">L2</a> in the back half of
+        this post makes cancelling fast and nearly free, which removes the <em>cost</em> of churning. What
+        it doesn't remove is the <em>cause</em>: a stale quote still gets picked off in the window before
+        you can pull it, and on Midnight every fresh quote has to be <em>proven</em> - so proving, not
+        cancelling, may be the step that matters more, unless proofs can be made cheap or amortised across
+        quotes. So the L2 makes market-making
+        <em>cheaper to attempt</em>, not automatically <em>profitable</em>; whether makers come out ahead
+        still rides on the L2's <a href="#oq2-what">unsolved fee and ordering design</a> and on how fast
+        proofs can be produced. What <em>does</em> carry over cleanly is the rest: zSwap gives atomic
+        settlement and multi-asset bundles in the base layer, and Midnight adds one thing Chia simply
+        cannot - <strong>real privacy, hidden traders over public prices</strong>.
+      </p>
+      <p id="bmid-hurts">
+        But Midnight also imports a cost Chia never paid. On Chia the whole DEX ran on about half a
+        percent of block compute; an offer is cheap to verify. On Midnight the <strong>proof <em>is</em>
+        still an expensive part</strong> - a single offer is <a href="#file-encoding">~16,000
+        characters</a> of zero-knowledge proof, and settling a trade means a taker <em>merges and posts that
+        proof on-chain</em> to be verified, with the matching overhead that implies. The L1 clears only a
+        handful of transactions a second, and the <a href="#oq1-what">nullifier set grows without bound</a>.
+        Those are real costs, and they cap throughput. But notice the shape of the bet, not just the price
+        tag: in ZK the hard part is rarely the <em>idea</em> - it's finding one cheap enough to run
+        <em>today</em> - and an offer file is about as light as a useful primitive gets. That it consumed
+        a fraction of Chia's compute is actually encouraging here, because it's exactly the kind of lean
+        primitive zSwap can afford under ZK <em>now</em>, where a general-purpose contract still can't. So
+        the cost is genuine, but it's also <em>why this</em> primitive - and not a richer one -
+        is the buildable bet. What stays unresolved is narrower: the <a href="#oq2-what">fees and ordering</a>
+        questions still bear directly on whether makers can work, the economics that broke on Chia.
+      </p>
+      <p id="bmid-unknown">
+        Then there's the AMM - the relationship most people read exactly backwards. Chia's market
+        <em>became</em> an AMM: pooled liquidity, not resting offers, is what ultimately scaled. That
+        invites the sharpest bear question: <em>why build offer files if the market just turns into a pool
+        you could have shipped on day one?</em> But look at <em>how</em> it happened on Chia: the AMM didn't
+        <em>replace</em> offer files, it <em>plugged into</em> them - TibetSwap fills offers and settles
+        through the very same rail. Read that way, &ldquo;the market became an AMM&rdquo; isn't offer files
+        losing; it's offer files succeeding as the substrate a pool runs on. And that's the likelier shape on
+        Midnight too. Building a general-purpose AMM here means a general-purpose ZK contract -
+        <a href="#problem-heading">hard and slow</a>, at least <em>today</em> - so offer files give you
+        a working market <em>now</em> and let pools arrive <em>gradually</em>, as ZK makes them feasible, with
+        the decentralized offer chain always underneath as the fallback rather than a cliff to transition off.
+        Better still, because a new pool can bootstrap its liquidity straight from the shared offer-file pool,
+        this path may even <em>soften</em> the winner-take-all gravity of AMMs - later entrants don't
+        start from zero. The string attached: if pools never get cheap enough, offer files must carry
+        liquidity alone, and Chia's verdict on resting orders still applies. So - a genuinely promising
+        complementarity, with one real caveat, not a dead end.
+      </p>
+
+      <p id="bmid-demand">
+        Underneath all of this sits the question neither chain's data answers: <strong>who is this
+        for?</strong> &ldquo;Public prices, hidden traders&rdquo; is not a universal want; it's a specific
+        one. The plausible buyer is flow that must <em>prove</em> an execution price but not reveal
+        <em>who</em> traded - OTC desks, treasuries rebalancing without being front-run, anyone
+        allergic to MEV. That's a real niche, but it is emphatically <em>not</em> Chia's ~$2-a-swap retail
+        NFT trader - which is the deeper reason to be careful extrapolating Chia at all: the mechanism
+        may port while the <em>user</em> does not. But that gap cuts the other way too. Ask <em>why</em> the
+        bigger players never showed up on Chia. Part of it may be that serious market-making is simply hard
+        to incentivize at size - but part may be Chia's <em>transparency itself</em>, the very thing
+        Midnight removes. If privacy is what kept large, identity-sensitive flow away from a fully public
+        venue, then it isn't just a <em>different</em> user, it's a <em>larger</em> addressable market -
+        one Chia structurally couldn't reach. Whether that demand actually shows up - far more than any
+        throughput number - is the real, still-unmeasured question underneath all of this.
+      </p>
+
+      <h3 id="business-verdict">The honest verdict</h3>
+      <p id="bverdict-bull">
+        Put the optimist's case in one breath: the shape is proven to clear real trades for years;
+        Midnight's L2 directly attacks the defect that crippled market-making on Chia by making cancels
+        cheap; privacy - public prices, hidden traders - is a real differentiator no transparent
+        DEX has; and while general-purpose AMMs stay hard to build here, offer files may be the natural
+        <em>first</em> liquidity primitive rather than a detour. And the Chia&rarr;AMM convergence may
+        simply not bind here, because <strong>an AMM would struggle to offer hidden traders over public
+        prices</strong> - so for the buyer who wants exactly that, there's little pool to lose to. If that reading holds,
+        the move is the one the <a href="#oq3-what">time-to-market</a> question already pointed to -
+        ship something lean and capture the window before it (or the moat) closes.
+      </p>
+      <p id="bverdict-bear">
+        Now the skeptic's case, equally honest: the proven shape proved <em>small</em> - an
+        ~$2-median retail bazaar - and it converged on an AMM and a centralized aggregator
+        regardless of how trustless the rail underneath was. Chia's data is steady-state and silent on the
+        hardest part, the cold start - and Chia <em>still</em> had to rent liquidity with a subsidy,
+        so a younger Midnight, where every fresh quote also costs a proof, plausibly has to bootstrap
+        <em>harder</em>, not easier. The maker economics hang on an L2 whose fee, ordering, and nullifier
+        questions are open. And the pick-off that cheap cancels don't fully remove already has a rival
+        answer shipping elsewhere - batch-auction privacy DEXs like Penumbra sidestep it by clearing
+        in sealed batches instead of letting quotes rest at all. (That a competitor exists cuts both ways:
+        it's a sharper rival, but also a sign the demand for private trading is real.) By this reading the
+        bar for traction is <em>higher</em> on Midnight than it was on Chia, not lower.
+      </p>
+      <p id="bverdict-close" class="closing">
+        Both readings are built from the same receipts, and that is the point. The evidence is strong
+        enough to justify building <em>something</em>, and honest enough that nobody should pretend the
+        traction is proven. What it really turns on is a demand no one has measured yet: whether enough
+        people want a market that is transparent in its prices and private in its participants to bring
+        real liquidity to it. The architecture, we've shown, can be built. Whether it <em>should</em> be
+        is a bet - but now, at least, it's a bet you make with four and a half years of someone
+        else's data in hand.
+      </p>
+    </section>
+  </article>
+
+  <div class="narrate-dock" role="region" aria-label="Narration player">
+    <div class="chapter-strip" id="narrate-chapters" aria-label="Chapters"></div>
+    <div id="narrate-player" class="narrate-player"></div>
+  </div>
+</body>
+</html>
