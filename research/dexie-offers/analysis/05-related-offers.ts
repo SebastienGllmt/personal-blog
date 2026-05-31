@@ -5,7 +5,7 @@ const dec = new TextDecoder();
 const out: string[] = ["offer_id,related_id,rel_count"];
 let lines = 0, withRel = 0, totalRefs = 0;
 const distCount: Record<number, number> = {};
-for await (const chunk of Bun.file("generated/dexie-offers-dedup.jsonl").stream()) {
+for await (const chunk of Bun.file("generated/dexie-offers-dedup.jsonl").stream() as unknown as AsyncIterable<Uint8Array>) {
   buf += dec.decode(chunk, { stream: true });
   let n: number;
   while ((n = buf.indexOf("\n")) >= 0) {

@@ -170,7 +170,7 @@ function initFigure(figure: HTMLElement): void {
     tl = t;
 
     // Reveal both cursors at the top of their stacks.
-    t.set([ethCursor, tiaCursor], { opacity: 1, y: rowCenterY(ethStack, ethRows[0]) });
+    t.set([ethCursor, tiaCursor], { opacity: 1, y: rowCenterY(ethStack, ethRows[0]!) });
 
     // LEFT (Ethereum): the cursor crawls down EVERY row, ingesting each one.
     // This is the slow path — it has to touch all of them.

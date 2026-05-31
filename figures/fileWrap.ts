@@ -97,7 +97,7 @@ function initFileWrap(figure: HTMLElement): void {
     stepEls.forEach((el) => el.classList.add("lit"));
     linkFills.forEach((el) => { el.style.width = "100%"; });
     pkg.classList.add("show", "wrapped");
-    captionEl.innerHTML = STEPS[STEPS.length - 1].note;
+    captionEl.innerHTML = STEPS[STEPS.length - 1]!.note;
   }
 
   // One pass through the wrap cycle, appended to the given timeline.
@@ -112,7 +112,7 @@ function initFileWrap(figure: HTMLElement): void {
     });
 
     STEPS.forEach((s, i) => {
-      const el = stepEls[i];
+      const el = stepEls[i]!;
       t.add(() => { captionEl.innerHTML = s.note; });
       t.fromTo(el, { scale: 0.9 }, {
         scale: 1, duration: 0.35, ease: "back.out(2.4)",
@@ -134,7 +134,7 @@ function initFileWrap(figure: HTMLElement): void {
       }
 
       if (i < linkFills.length) {
-        t.to(linkFills[i], { width: "100%", duration: 0.4, ease: "none" });
+        t.to(linkFills[i]!, { width: "100%", duration: 0.4, ease: "none" });
       }
     });
 

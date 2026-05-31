@@ -35,13 +35,18 @@ function splitCsv(line: string): string[] {
   }
   out.push(cur); return out;
 }
-function parseCSV(name: string): Record<string, string>[] {
+// Returns `any[]` deliberately: with `noUncheckedIndexedAccess`, every
+// `Record<string, string>` access would be `string | undefined`, which would
+// scatter `!` non-null assertions across every `r.col` use in this file. The
+// CSV columns are known at write time by the chart's author — `any` is the
+// pragmatic escape hatch for research-script ergonomics.
+function parseCSV(name: string): any[] {
   const txt = readFileSync(join(DATA, name), "utf8").trim();
   const [head, ...lines] = txt.split("\n");
-  const cols = splitCsv(head);
+  const cols = splitCsv(head!);
   return lines.map((l) => {
     const v = splitCsv(l);
-    return Object.fromEntries(cols.map((c, i) => [c, v[i]]));
+    return Object.fromEntries(cols.map((c, i) => [c, v[i] ?? ""]));
   });
 }
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -65,7 +70,7 @@ function xTickLabels(labels: string[], every: number) {
   const n = labels.length, p: string[] = [];
   for (let i = 0; i < n; i += every) {
     const x = xAt(i, n);
-    p.push(`<text x="${x.toFixed(1)}" y="${M.t + PH + 18}" font-size="10" fill="${C.gray}" text-anchor="middle">${esc(labels[i])}</text>`);
+    p.push(`<text x="${x.toFixed(1)}" y="${M.t + PH + 18}" font-size="10" fill="${C.gray}" text-anchor="middle">${esc(labels[i]!)}</text>`);
   }
   return p;
 }
@@ -115,8 +120,8 @@ function svg(id: string, label: string, inner: string) {
   p.push(polyline(pct, 0, 100, C.violet));
   // annotate peak
   const peak = pct.indexOf(Math.max(...pct));
-  p.push(`<circle cx="${xAt(peak, months.length).toFixed(1)}" cy="${yAt(pct[peak], 0, 100).toFixed(1)}" r="3.5" fill="${C.violet}"/>`);
-  p.push(`<text x="${xAt(peak, months.length).toFixed(1)}" y="${(yAt(pct[peak], 0, 100) - 8).toFixed(1)}" font-size="10" fill="${C.violet}" text-anchor="middle">82.5% (Jul 2022)</text>`);
+  p.push(`<circle cx="${xAt(peak, months.length).toFixed(1)}" cy="${yAt(pct[peak]!, 0, 100).toFixed(1)}" r="3.5" fill="${C.violet}"/>`);
+  p.push(`<text x="${xAt(peak, months.length).toFixed(1)}" y="${(yAt(pct[peak]!, 0, 100) - 8).toFixed(1)}" font-size="10" fill="${C.violet}" text-anchor="middle">82.5% (Jul 2022)</text>`);
   p.push(...xTickLabels(months, 6));
   svg("chart-nft-share", "NFT share of all offers over time, peaking at 82 percent in mid 2022", p.join("\n"));
 }
@@ -162,7 +167,7 @@ function svg(id: string, label: string, inner: string) {
   // bars
   const n = months.length, bw = PW / n * 0.62;
   rows.forEach((_, i) => {
-    const x = xAt(i, n) - bw / 2, y = yAt(pct[i], 0, 100);
+    const x = xAt(i, n) - bw / 2, y = yAt(pct[i]!, 0, 100);
     p.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(M.t + PH - y).toFixed(1)}" fill="${C.orange}" fill-opacity="0.85" rx="1.5"/>`);
   });
   p.push(`<line x1="${M.l}" y1="${yAt(50, 0, 100).toFixed(1)}" x2="${W - M.r}" y2="${yAt(50, 0, 100).toFixed(1)}" stroke="${C.red}" stroke-width="1" stroke-dasharray="4 3"/>`);
@@ -212,7 +217,7 @@ function svg(id: string, label: string, inner: string) {
   p.push(`<text x="${W - M.r - 4}" y="${(M.t + 14)}" font-size="10" fill="${C.gray}" text-anchor="end">perfect equality</text>`);
   const n = xs.length;
   const xpos = (v: number) => M.l + (v / 100) * PW;
-  const d = xs.map((v, i) => `${i === 0 ? "M" : "L"}${xpos(v).toFixed(1)},${yAt(ys[i], 0, 100).toFixed(1)}`).join(" ");
+  const d = xs.map((v, i) => `${i === 0 ? "M" : "L"}${xpos(v).toFixed(1)},${yAt(ys[i]!, 0, 100).toFixed(1)}`).join(" ");
   p.push(`<path d="${d} L${(W - M.r)},${M.t + PH} Z" fill="${C.orange}" fill-opacity="0.12"/>`);
   p.push(`<path d="${d}" fill="none" stroke="${C.orange}" stroke-width="2.5"/>`);
   p.push(`<text x="${(M.l + PW * 0.5).toFixed(1)}" y="${M.t + PH + 36}" font-size="11" fill="${C.gray}" text-anchor="middle">cumulative share of CATs (fewest trades → most)</text>`);
@@ -323,7 +328,7 @@ function svg(id: string, label: string, inner: string) {
   const p = frame("Automated-looking trades, by year", "bot fingerprint on XCH↔CAT swaps · the AMM label only began in 2025", ticks, 0, 60, (v) => `${v}%`);
   const n = years.length, bw = PW / n * 0.55;
   rows.forEach((r, i) => {
-    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, y = yAt(pct[i], 0, 60);
+    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, y = yAt(pct[i]!, 0, 60);
     // pre-2025 bars are entirely UNLABELLED automation (no tibet2 field yet)
     const labelled = +r.year >= 2025;
     p.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(M.t + PH - y).toFixed(1)}" fill="${labelled ? C.orange : C.gray}" rx="2"/>`);
@@ -347,10 +352,10 @@ function svg(id: string, label: string, inner: string) {
   const p = frame("NFT supply comes from a tiny cast: 891 creators", "cumulative share of NFT trades by the top-N creators", ticks, 0, 100, (v) => `${v}%`);
   const n = rows.length, bw = PW / n * 0.5;
   rows.forEach((r, i) => {
-    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, y = yAt(vals[i], 0, 100);
+    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, y = yAt(vals[i]!, 0, 100);
     p.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(M.t + PH - y).toFixed(1)}" fill="${C.violet}" rx="2"/>`);
     p.push(`<text x="${cx.toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="12" fill="${C.violet}" text-anchor="middle">${vals[i]}%</text>`);
-    p.push(`<text x="${cx.toFixed(1)}" y="${M.t + PH + 17}" font-size="11" fill="${C.gray}" text-anchor="middle">${esc(labels[i])} creators</text>`);
+    p.push(`<text x="${cx.toFixed(1)}" y="${M.t + PH + 17}" font-size="11" fill="${C.gray}" text-anchor="middle">${esc(labels[i]!)} creators</text>`);
   });
   p.push(`<text x="${(M.l + PW / 2).toFixed(1)}" y="${M.t + PH + 36}" font-size="11" fill="${C.gray}" text-anchor="middle">of all NFT trade legs</text>`);
   svg("chart-creators", "Just ten creators account for 44 percent of NFT trades, fifty for 75 percent", p.join("\n"));
@@ -366,11 +371,11 @@ function svg(id: string, label: string, inner: string) {
   const p = frame("Mispriced-cheap offers get picked off in seconds", "median time-to-fill by how far the offer is priced from fair (XCH↔USD)", ticks, 0, hi, (v) => v === 0 ? "0" : `${v}s`);
   const n = rows.length, bw = PW / n * 0.62;
   rows.forEach((r, i) => {
-    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, y = yAt(ttf[i], 0, hi);
+    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, y = yAt(ttf[i]!, 0, hi);
     const pickedOff = i >= 5; // favorable-to-taker buckets — the ones bots snap up
     p.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(M.t + PH - y).toFixed(1)}" fill="${pickedOff ? C.red : C.gray}" rx="2"/>`);
-    p.push(`<text x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" font-size="10" fill="${C.ink}" text-anchor="middle">${ttf[i] < 60 ? ttf[i] + "s" : Math.round(ttf[i] / 60) + "m"}</text>`);
-    p.push(`<text x="${cx.toFixed(1)}" y="${M.t + PH + 16}" font-size="9.5" fill="${C.gray}" text-anchor="middle">${esc(labs[i])}</text>`);
+    p.push(`<text x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" font-size="10" fill="${C.ink}" text-anchor="middle">${ttf[i]! < 60 ? ttf[i] + "s" : Math.round(ttf[i]! / 60) + "m"}</text>`);
+    p.push(`<text x="${cx.toFixed(1)}" y="${M.t + PH + 16}" font-size="9.5" fill="${C.gray}" text-anchor="middle">${esc(labs[i]!)}</text>`);
   });
   p.push(`<text x="${(M.l + PW * 0.28).toFixed(1)}" y="${M.t + PH + 34}" font-size="10" fill="${C.gray}" text-anchor="middle">priced expensive →
  sits</text>`.replace(/\n/g, " "));
@@ -498,7 +503,7 @@ function svg(id: string, label: string, inner: string) {
   p.push(polyline(pct, 0, hi, C.green));
   p.push(legend([{ name: "+ on-chain cancellations (est.)", color: C.orange }, { name: "settled only (measured)", color: C.green }], M.l + 12, M.t + 16));
   const pk = pct.indexOf(Math.max(...pct));
-  p.push(`<text x="${xAt(pk, n).toFixed(1)}" y="${(yAt(total[pk], 0, hi) - 6).toFixed(1)}" font-size="10" fill="${C.gray}" text-anchor="middle">peak ~0.53% settled → ~0.64% with cancels</text>`);
+  p.push(`<text x="${xAt(pk, n).toFixed(1)}" y="${(yAt(total[pk]!, 0, hi) - 6).toFixed(1)}" font-size="10" fill="${C.gray}" text-anchor="middle">peak ~0.53% settled → ~0.64% with cancels</text>`);
   p.push(...xTickLabels(months, 6));
   svg("chart-blockspace", "Offer files use under about 0.65 percent of Chia block capacity at peak: settled offers ~0.5 percent, plus roughly a fifth more from on-chain cancellations", p.join("\n"));
 }
@@ -512,8 +517,8 @@ function svg(id: string, label: string, inner: string) {
   const p = frame("Completed offers per second", "throughput — even at peak, ~1 settled trade per minute", ticks, 0, hi, (v) => v.toFixed(3));
   p.push(polyline(ops, 0, hi, C.blue));
   const pk = ops.indexOf(Math.max(...ops));
-  p.push(`<circle cx="${xAt(pk, months.length).toFixed(1)}" cy="${yAt(ops[pk], 0, hi).toFixed(1)}" r="3.5" fill="${C.blue}"/>`);
-  p.push(`<text x="${xAt(pk, months.length).toFixed(1)}" y="${(yAt(ops[pk], 0, hi) - 8).toFixed(1)}" font-size="10" fill="${C.blue}" text-anchor="middle">peak ~1 every 69s (${esc(months[pk])})</text>`);
+  p.push(`<circle cx="${xAt(pk, months.length).toFixed(1)}" cy="${yAt(ops[pk]!, 0, hi).toFixed(1)}" r="3.5" fill="${C.blue}"/>`);
+  p.push(`<text x="${xAt(pk, months.length).toFixed(1)}" y="${(yAt(ops[pk]!, 0, hi) - 8).toFixed(1)}" font-size="10" fill="${C.blue}" text-anchor="middle">peak ~1 every 69s (${esc(months[pk])})</text>`);
   p.push(...xTickLabels(months, 6));
   svg("chart-throughput", "Completed offers per second peaks around 0.0145 in mid-2025, about one settled trade per minute", p.join("\n"));
 }
@@ -555,10 +560,10 @@ function svg(id: string, label: string, inner: string) {
   const p = frame("A few market makers earn most of the rewards", "cumulative share of DBX liquidity rewards · 12,712 maker addresses", ticks, 0, 100, (v) => `${v}%`);
   const n = rows.length, bw = PW / n * 0.5;
   rows.forEach((r, i) => {
-    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, y = yAt(vals[i], 0, 100);
+    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, y = yAt(vals[i]!, 0, 100);
     p.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(M.t + PH - y).toFixed(1)}" fill="#d53f8c" rx="2"/>`);
     p.push(`<text x="${cx.toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="12" fill="#d53f8c" text-anchor="middle">${vals[i]}%</text>`);
-    p.push(`<text x="${cx.toFixed(1)}" y="${M.t + PH + 17}" font-size="11" fill="${C.gray}" text-anchor="middle">${esc(labels[i])} makers</text>`);
+    p.push(`<text x="${cx.toFixed(1)}" y="${M.t + PH + 17}" font-size="11" fill="${C.gray}" text-anchor="middle">${esc(labels[i]!)} makers</text>`);
   });
   p.push(`<text x="${(M.l + PW / 2).toFixed(1)}" y="${M.t + PH + 36}" font-size="11" fill="${C.gray}" text-anchor="middle">of all DBX liquidity-incentive rewards (2025-08 → 2026-05)</text>`);
   svg("chart-mm-rewards", "Reward concentration: the top market maker earns 19 percent and the top 100 earn 86 percent of liquidity rewards", p.join("\n"));
@@ -607,7 +612,7 @@ function svg(id: string, label: string, inner: string) {
   const xs = (h: number) => M.l + (h / 23) * PW;
   p.push(`<rect x="${xs(14).toFixed(1)}" y="${M.t}" width="${(xs(22) - xs(14)).toFixed(1)}" height="${PH}" fill="${C.green}" fill-opacity="0.06"/>`);
   p.push(`<text x="${xs(18).toFixed(1)}" y="${M.t + 14}" font-size="10" fill="${C.gray}" text-anchor="middle">Americas daytime · Europe evening</text>`);
-  const poly = (vals: number[], color: string, opacity = 1) => `<path d="${vals.map((v, i) => `${i === 0 ? "M" : "L"}${xs(hrs[i]).toFixed(1)},${yAt(v, 0, hi).toFixed(1)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2.5" stroke-opacity="${opacity}" stroke-linejoin="round"/>`;
+  const poly = (vals: number[], color: string, opacity = 1) => `<path d="${vals.map((v, i) => `${i === 0 ? "M" : "L"}${xs(hrs[i]!).toFixed(1)},${yAt(v, 0, hi).toFixed(1)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2.5" stroke-opacity="${opacity}" stroke-linejoin="round"/>`;
   p.push(poly(amm, "#0987a0", 0.35)); // de-emphasised: the bot baseline
   p.push(poly(nft, C.violet));        // the focus: human trading
   // legend (AMM swatch dimmed to match)
@@ -630,7 +635,7 @@ function svg(id: string, label: string, inner: string) {
   const n = years.length, bw = PW / n * 0.5;
   rows.forEach((_, i) => {
     const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2;
-    const yTot = yAt(tot[i], 0, hi), yOff = yAt(off[i], 0, hi);
+    const yTot = yAt(tot[i]!, 0, hi), yOff = yAt(off[i]!, 0, hi);
     p.push(`<rect x="${x.toFixed(1)}" y="${yTot.toFixed(1)}" width="${bw.toFixed(1)}" height="${(M.t + PH - yTot).toFixed(1)}" fill="${C.axis}" fill-opacity="0.35" rx="2"/>`);
     p.push(`<rect x="${x.toFixed(1)}" y="${yOff.toFixed(1)}" width="${bw.toFixed(1)}" height="${(M.t + PH - yOff).toFixed(1)}" fill="${C.green}" rx="2"/>`);
     p.push(`<text x="${cx.toFixed(1)}" y="${(yOff - 6).toFixed(1)}" font-size="11" font-weight="700" fill="${C.green}" text-anchor="middle">${share[i]}%</text>`);
@@ -658,10 +663,10 @@ function svg(id: string, label: string, inner: string) {
   }
   const n = rows.length, base = M.t + PH, bw = PW / n * 0.62;
   rows.forEach((r, i) => {
-    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, top = logY(vals[i]);
+    const cx = M.l + (i + 0.5) / n * PW, x = cx - bw / 2, top = logY(vals[i]!);
     const spike = r.assets === "5" || r.assets === "11"; // notable bundle-size spikes
     p.push(`<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - top).toFixed(1)}" fill="${spike ? C.orange : C.blue}" rx="1.5"/>`);
-    p.push(`<text x="${cx.toFixed(1)}" y="${(top - 5).toFixed(1)}" font-size="9.5" fill="${C.gray}" text-anchor="middle">${fmt(vals[i])}</text>`);
+    p.push(`<text x="${cx.toFixed(1)}" y="${(top - 5).toFixed(1)}" font-size="9.5" fill="${C.gray}" text-anchor="middle">${fmt(vals[i]!)}</text>`);
     p.push(`<text x="${cx.toFixed(1)}" y="${base + 16}" font-size="11" fill="${C.gray}" text-anchor="middle">${esc(r.assets)}</text>`);
   });
   p.push(`<text x="${(M.l + PW / 2).toFixed(1)}" y="${base + 34}" font-size="11" fill="${C.gray}" text-anchor="middle">assets in the offer (offered + requested legs)</text>`);
@@ -681,7 +686,7 @@ function svg(id: string, label: string, inner: string) {
     + ` L${xAt(n - 1, n).toFixed(1)},${M.t + PH} L${xAt(0, n).toFixed(1)},${M.t + PH} Z`;
   p.push(`<path d="${area}" fill="${C.green}" fill-opacity="0.15"/>`);
   p.push(polyline(cum, lo, hi, C.green));
-  const last = cum[cum.length - 1];
+  const last = cum[cum.length - 1]!;
   p.push(`<text x="${(W - M.r).toFixed(1)}" y="${(yAt(last, lo, hi) - 8).toFixed(1)}" font-size="13" font-weight="700" fill="${C.green}" text-anchor="end">$${(last / 1e6).toFixed(1)}M</text>`);
   p.push(...xTickLabels(months, 6));
   svg("chart-usd-volume", "Cumulative US dollar value settled through Chia offer files, climbing to about 16.9 million dollars by 2026", p.join("\n"));

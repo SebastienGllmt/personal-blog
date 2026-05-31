@@ -65,8 +65,8 @@ let curOffers: string[] = [];
 let nEdges = 0;
 function flush() {
   if (curOffers.length >= 2) {
-    const a = curOffers[0];
-    for (let i = 1; i < curOffers.length; i++) { union(a, curOffers[i]); nEdges++; }
+    const a = curOffers[0]!;
+    for (let i = 1; i < curOffers.length; i++) { union(a, curOffers[i]!); nEdges++; }
   }
 }
 for (const line of edgeRows.split("\n")) {

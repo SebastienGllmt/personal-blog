@@ -31,7 +31,7 @@ function monday(ymd: string): string {
 function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
   const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
 }
 
 const byWeek = new Map<string, number[]>();
@@ -43,7 +43,7 @@ for (const r of daily) {
 
 // Emit only the weeks the oracle CSV has, in its order → index-aligned overlay.
 const oracleWeeks = readFileSync(join(DATA, "03-price-oracle-weekly.csv"), "utf8")
-  .trim().split("\n").slice(1).map((l) => l.split(",")[0]);
+  .trim().split("\n").slice(1).map((l) => l.split(",")[0]!);
 
 const out = ["week,usd_per_xch"];
 let n = 0;

@@ -22,5 +22,8 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  // engine/ is a symlink to ../presidocs; its template starter imports
+  // paths that only resolve inside a consumer repo's layout (not this one).
+  "exclude": ["engine/templates/content-repo"]
 }

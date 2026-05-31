@@ -61,7 +61,7 @@ function initDa(figure: HTMLElement): void {
 
   function select(i: number, animate: boolean): void {
     chipBtns.forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
-    note.innerHTML = `<b>${BACKENDS[i].id}</b> &mdash; ${BACKENDS[i].note}`;
+    note.innerHTML = `<b>${BACKENDS[i]!.id}</b> &mdash; ${BACKENDS[i]!.note}`;
     readout.innerHTML = READOUT;
     if (animate && !reduced) {
       gsap.fromTo(note, { opacity: 0.3, y: 4 }, { opacity: 1, y: 0, duration: 0.3, ease: "power1.out" });

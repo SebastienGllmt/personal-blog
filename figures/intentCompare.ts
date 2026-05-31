@@ -209,7 +209,7 @@ function initFigure(figure: HTMLElement): void {
     let onchainTx = 0;
     ONCHAIN_ROWS.forEach((r, i) => {
       onchainTx += r.tx ? 1 : 0;
-      revealRow(t, onchainRowEls[i], r.tx ? onchainCount : null, r.tx ? onchainCounter : null, onchainTx);
+      revealRow(t, onchainRowEls[i]!, r.tx ? onchainCount : null, r.tx ? onchainCounter : null, onchainTx);
       t.to({}, { duration: 0.12 });
     });
 
@@ -219,14 +219,14 @@ function initFigure(figure: HTMLElement): void {
     // Then the intent side: the off-chain column piles up for free (no counter
     // movement), and only the final settle bumps the on-chain counter to 1.
     INTENT_OFFCHAIN_ROWS.forEach((r, i) => {
-      revealRow(t, offRowEls[i], null, null, 0);
+      revealRow(t, offRowEls[i]!, null, null, 0);
       t.to({}, { duration: 0.1 });
     });
     t.to({}, { duration: 0.3 });
     let intentTx = 0;
     INTENT_ONCHAIN_ROWS.forEach((r, i) => {
       intentTx += r.tx ? 1 : 0;
-      revealRow(t, intentOnRowEls[i], r.tx ? intentCount : null, r.tx ? intentCounter : null, intentTx);
+      revealRow(t, intentOnRowEls[i]!, r.tx ? intentCount : null, r.tx ? intentCounter : null, intentTx);
     });
   }
 

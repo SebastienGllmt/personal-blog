@@ -99,7 +99,7 @@ function initFigure(figure: HTMLElement): void {
     fillR.style.width = "100%";
     const c = centerIn(walletB);
     gsap.set(chip, { x: c.x, y: c.y, opacity: 1, scale: 1 });
-    readout.innerHTML = STEPS[STEPS.length - 1];
+    readout.innerHTML = STEPS[STEPS.length - 1]!;
   }
 
   function buildPass(): gsap.core.Timeline {
@@ -107,14 +107,14 @@ function initFigure(figure: HTMLElement): void {
     t.add(() => resetVisuals());
 
     // Beat 0: A's wallet builds the offer; chip rises to User A (vertical).
-    t.add(() => { readout.innerHTML = STEPS[0]; lit(walletA, true); });
+    t.add(() => { readout.innerHTML = STEPS[0]!; lit(walletA, true); });
     t.fromTo(chip, { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.2)" });
     t.add(() => lit(userA, true));
     t.to(chip, { ...centerIn(userA), duration: 0.4, ease: "power1.inOut" });
     t.to({}, { duration: 0.45 });
 
     // Beat 1: A → the #offers pill (right, along the line); left half fills.
-    t.add(() => { readout.innerHTML = STEPS[1]; });
+    t.add(() => { readout.innerHTML = STEPS[1]!; });
     t.to(fillL, { width: "100%", duration: 0.45, ease: "none" }, "<");
     t.to(chip, { ...centerIn(channel), duration: 0.55, ease: "power1.inOut" }, "<");
     t.add(() => lit(channel, true));
@@ -122,13 +122,13 @@ function initFigure(figure: HTMLElement): void {
     t.to({}, { duration: 0.45 });
 
     // Beat 2: pill → User B (right, along the line); right half fills.
-    t.add(() => { readout.innerHTML = STEPS[2]; lit(userB, true); });
+    t.add(() => { readout.innerHTML = STEPS[2]!; lit(userB, true); });
     t.to(fillR, { width: "100%", duration: 0.45, ease: "none" }, "<");
     t.to(chip, { ...centerIn(userB), duration: 0.55, ease: "power1.inOut" }, "<");
     t.to({}, { duration: 0.45 });
 
     // Beat 3: B drops it into their wallet (vertical) and it settles.
-    t.add(() => { readout.innerHTML = STEPS[3]; });
+    t.add(() => { readout.innerHTML = STEPS[3]!; });
     t.to(chip, { ...centerIn(walletB), duration: 0.4, ease: "power1.inOut" });
     t.add(() => lit(walletB, true));
     t.fromTo(walletB, { scale: 1 }, { scale: 1.08, duration: 0.22, yoyo: true, repeat: 1, ease: "power1.inOut" });

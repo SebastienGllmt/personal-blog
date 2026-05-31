@@ -219,15 +219,15 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
       const total = vals.reduce((a, b) => a + b, 0);
       const base = `Per-week ${noun} (the dollar value of USD-paired swaps for volume). ${fmtV(total)} in total over the window.`;
       readout.innerHTML = base;
-      hover(svg, (i) => { readout.innerHTML = `<b>week of ${weeks[i].w}</b> &mdash; ${fmtV(vals[i])}`; }, () => { readout.innerHTML = base; });
+      hover(svg, (i) => { readout.innerHTML = `<b>week of ${weeks[i]!.w}</b> &mdash; ${fmtV(vals[i]!)}`; }, () => { readout.innerHTML = base; });
     } else {
       const cum = cumsum(vals);
       const { svg, path } = line(cum, color, fmtV, true);
       chartBox.appendChild(svg);
       animateIn(svg, "line", path);
-      const base = `<b>Cumulative</b> ${noun} &mdash; the running total to date (${fmtV(cum[n - 1])}). The "up and to the right" view.`;
+      const base = `<b>Cumulative</b> ${noun} &mdash; the running total to date (${fmtV(cum[n - 1]!)}). The "up and to the right" view.`;
       readout.innerHTML = base;
-      hover(svg, (i) => { readout.innerHTML = `<b>by ${weeks[i].w}</b> &mdash; ${fmtV(cum[i])} cumulatively`; }, () => { readout.innerHTML = base; });
+      hover(svg, (i) => { readout.innerHTML = `<b>by ${weeks[i]!.w}</b> &mdash; ${fmtV(cum[i]!)} cumulatively`; }, () => { readout.innerHTML = base; });
     }
   }
 
@@ -250,9 +250,9 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
       const { svg, path } = line(vals, "price", (v) => `$${v.toFixed(0)}`);
       chartBox.appendChild(svg);
       animateIn(svg, "line", path);
-      const base = `Chia's price over the window (median of USD-paired swaps): from about $${weeks[0].p.toFixed(0)} to $${weeks[n - 1].p.toFixed(2)}. Context for the volume curve, not the headline.`;
+      const base = `Chia's price over the window (median of USD-paired swaps): from about $${weeks[0]!.p.toFixed(0)} to $${weeks[n - 1]!.p.toFixed(2)}. Context for the volume curve, not the headline.`;
       readout.innerHTML = base;
-      hover(svg, (i) => { readout.innerHTML = `<b>week of ${weeks[i].w}</b> &mdash; $${weeks[i].p.toFixed(2)} / XCH`; }, () => { readout.innerHTML = base; });
+      hover(svg, (i) => { readout.innerHTML = `<b>week of ${weeks[i]!.w}</b> &mdash; $${weeks[i]!.p.toFixed(2)} / XCH`; }, () => { readout.innerHTML = base; });
     }
   }
 

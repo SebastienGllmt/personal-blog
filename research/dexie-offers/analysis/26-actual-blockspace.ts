@@ -53,12 +53,12 @@ async function costForHeight(h: number): Promise<number | null> {
 }
 async function pool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   let i = 0;
-  await Promise.all(Array.from({ length: n }, async () => { while (i < items.length) { const k = i++; await fn(items[k]); } }));
+  await Promise.all(Array.from({ length: n }, async () => { while (i < items.length) { const k = i++; await fn(items[k]!); } }));
 }
 
 const rows = readFileSync(IN, "utf8").trim().split("\n").slice(1).map((l) => {
   const [month, min_h, max_h, blocks, offer] = l.split(",");
-  return { month, min_h: +min_h, max_h: +max_h, blocks: +blocks, offer: +offer };
+  return { month, min_h: +min_h!, max_h: +max_h!, blocks: +blocks!, offer: +offer! };
 });
 
 const out: string[] = ["month,sampled,mean_block_cost,blocks,actual_compute,offer_cost,share_pct"];

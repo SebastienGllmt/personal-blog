@@ -80,7 +80,7 @@ function initViewingKey(figure: HTMLElement): void {
   function reveal(): void {
     revealed = true;
     cellEls.forEach((c, i) => {
-      if (mine.has(i)) { c.classList.add("mine"); c.textContent = MINE_DELTA[i]; }
+      if (mine.has(i)) { c.classList.add("mine"); c.textContent = MINE_DELTA[i]!; }
       else { c.classList.add("notmine"); c.textContent = "?"; }
     });
     readout.innerHTML = "Your <b>viewing key</b> is the one thing that can tell which swaps touched you &mdash; here, just 5 of them. Nobody else can: not other users, and crucially <b>not the sequencer</b>. So no one can simply attest your balance.";

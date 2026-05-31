@@ -61,7 +61,7 @@ for (let i = 0; i < 20; i++) {
   if (!rows.length) break;
   const real = rows.filter((r) => r.close > 0 || r.high > 0 || r.volumeto > 0);
   for (const r of real) seen.set(r.time, r);
-  const earliest = rows[0].time; // CryptoCompare returns ascending
+  const earliest = rows[0]!.time; // CryptoCompare returns ascending
   process.stderr.write(
     `chunk ${i}: ${rows.length} rows (${real.length} real), earliest=${new Date(earliest * 1000).toISOString().slice(0, 10)}, kept=${seen.size}\n`,
   );

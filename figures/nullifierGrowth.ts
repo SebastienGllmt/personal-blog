@@ -95,7 +95,7 @@ function initNullifier(figure: HTMLElement): void {
     if (!reduced) {
       gsap.fromTo(btn, { x: -4 }, { x: 0, duration: 0.45, ease: "elastic.out(1, 0.3)" });
       if (pills.length) {
-        const pill = pills[(Math.random() * pills.length) | 0];
+        const pill = pills[(Math.random() * pills.length) | 0]!;
         gsap.fromTo(pill, { backgroundColor: "#fbdcdc" }, {
           backgroundColor: "#efeafb", duration: 0.8, ease: "power1.out",
           onComplete() { pill.style.backgroundColor = ""; }, // back to pure CSS — nothing left behind

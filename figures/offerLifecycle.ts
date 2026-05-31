@@ -88,9 +88,9 @@ function initLifecycle(figure: HTMLElement): void {
     reset();
     playing = false;
     setBtn();
-    for (let k = 0; k <= i; k++) stageEls[k].classList.add("lit");
+    for (let k = 0; k <= i; k++) stageEls[k]!.classList.add("lit");
     linkFills.forEach((el, k) => { el.style.width = k < i ? "100%" : "0%"; });
-    captionEl.innerHTML = STAGES[i].note;
+    captionEl.innerHTML = STAGES[i]!.note;
   }
 
   function play(): void {
@@ -104,7 +104,7 @@ function initLifecycle(figure: HTMLElement): void {
     } });
     tl = t;
     STAGES.forEach((s, i) => {
-      const el = stageEls[i];
+      const el = stageEls[i]!;
       t.add(() => { captionEl.innerHTML = s.note; });
       t.fromTo(el, { scale: 0.9 }, {
         scale: 1, duration: 0.35, ease: "back.out(2.4)",
@@ -112,7 +112,7 @@ function initLifecycle(figure: HTMLElement): void {
       });
       t.to(el, { scale: 1, duration: 0.5 }); // dwell so the caption is readable
       if (i < linkFills.length) {
-        t.to(linkFills[i], { width: "100%", duration: 0.4, ease: "none" });
+        t.to(linkFills[i]!, { width: "100%", duration: 0.4, ease: "none" });
       }
     });
   }

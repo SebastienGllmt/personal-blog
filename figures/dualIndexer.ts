@@ -110,7 +110,7 @@ function initIndexer(figure: HTMLElement): void {
     trackMid.innerHTML = "";
     book.innerHTML = "";
     box.classList.remove("idx-pulse");
-    captionEl.innerHTML = CAPTIONS.intro;
+    captionEl.innerHTML = CAPTIONS.intro!;
   }
 
   // Final, fully-reconciled state for reduced-motion / fallback.
@@ -125,7 +125,7 @@ function initIndexer(figure: HTMLElement): void {
         if (row) row.classList.add("idx-dead");
       }
     });
-    captionEl.innerHTML = CAPTIONS.done;
+    captionEl.innerHTML = CAPTIONS.done!;
   }
 
   function play(): void {
@@ -141,7 +141,7 @@ function initIndexer(figure: HTMLElement): void {
       track.appendChild(chip);
 
       // Chip enters its stream track, then flies into the EffectStream box.
-      t.add(() => { captionEl.innerHTML = CAPTIONS[ev.source]; });
+      t.add(() => { captionEl.innerHTML = CAPTIONS[ev.source]!; });
       t.fromTo(chip, { x: -24, opacity: 0 }, {
         x: 0, opacity: 1, duration: 0.35, ease: "power2.out",
       });
@@ -177,7 +177,7 @@ function initIndexer(figure: HTMLElement): void {
       }
     });
 
-    t.add(() => { captionEl.innerHTML = CAPTIONS.done; });
+    t.add(() => { captionEl.innerHTML = CAPTIONS.done!; });
   }
 
   replayBtn.addEventListener("click", play);

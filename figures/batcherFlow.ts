@@ -110,7 +110,7 @@ const initFigure = (figure: HTMLElement): void => {
     linkFills.forEach((el) => { el.style.width = "100%"; });
     gsap.set(packet, { opacity: 0 });
     gsap.set(feeTag, { opacity: 0 });
-    gsap.set(posted, { opacity: 1, scale: 1, x: centerX(nodeEls[2], posted) });
+    gsap.set(posted, { opacity: 1, scale: 1, x: centerX(nodeEls[2]!, posted) });
     captionEl.innerHTML = DONE;
   };
 
@@ -122,23 +122,23 @@ const initFigure = (figure: HTMLElement): void => {
     tl = t;
 
     // 1. User lights up, packet appears at the user.
-    t.add(() => { captionEl.innerHTML = NODES[0].note + " &mdash; building an offer."; });
-    t.fromTo(nodeEls[0], { scale: 0.92 }, {
+    t.add(() => { captionEl.innerHTML = NODES[0]!.note + " &mdash; building an offer."; });
+    t.fromTo(nodeEls[0]!, { scale: 0.92 }, {
       scale: 1, duration: 0.35, ease: "back.out(2.4)",
-      onStart() { nodeEls[0].classList.add("lit"); },
+      onStart() { nodeEls[0]!.classList.add("lit"); },
     });
-    t.set(packet, { x: centerX(nodeEls[0], packet), opacity: 0, scale: 0.7 });
+    t.set(packet, { x: centerX(nodeEls[0]!, packet), opacity: 0, scale: 0.7 });
     t.to(packet, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" });
 
     // 2. Packet travels user → batcher; connector fills.
     t.add(() => { captionEl.innerHTML = "The user hands the offer to the batcher."; });
-    t.to(linkFills[0], { width: "100%", duration: 0.4, ease: "none" }, "<");
-    t.to(packet, { x: centerX(nodeEls[1], packet), duration: 0.6, ease: "power1.inOut" }, "<");
-    t.add(() => { nodeEls[1].classList.add("lit"); });
+    t.to(linkFills[0]!, { width: "100%", duration: 0.4, ease: "none" }, "<");
+    t.to(packet, { x: centerX(nodeEls[1]!, packet), duration: 0.6, ease: "power1.inOut" }, "<");
+    t.add(() => { nodeEls[1]!.classList.add("lit"); });
 
     // 3. Batcher attaches the TIA fee (it is paying).
     t.add(() => { captionEl.innerHTML = "The batcher attaches the <b>TIA fee</b> &mdash; it pays, not the user."; });
-    t.set(feeTag, { x: centerX(nodeEls[1], feeTag) });
+    t.set(feeTag, { x: centerX(nodeEls[1]!, feeTag) });
     t.fromTo(feeTag, { opacity: 0, scale: 0.6, y: 6 }, {
       opacity: 1, scale: 1, y: 0, duration: 0.4, ease: "back.out(2.5)",
     });
@@ -146,13 +146,13 @@ const initFigure = (figure: HTMLElement): void => {
 
     // 4. Packet (with fee) travels batcher → Celestia; connector fills.
     t.add(() => { captionEl.innerHTML = "The batcher posts the blob to Celestia."; });
-    t.to(linkFills[1], { width: "100%", duration: 0.4, ease: "none" }, "<");
-    t.to([packet, feeTag], { x: centerX(nodeEls[2], packet), duration: 0.6, ease: "power1.inOut" }, "<");
-    t.add(() => { nodeEls[2].classList.add("lit"); });
+    t.to(linkFills[1]!, { width: "100%", duration: 0.4, ease: "none" }, "<");
+    t.to([packet, feeTag], { x: centerX(nodeEls[2]!, packet), duration: 0.6, ease: "power1.inOut" }, "<");
+    t.add(() => { nodeEls[2]!.classList.add("lit"); });
 
     // 5. Lands on Celestia: posted ✓.
     t.to([packet, feeTag], { opacity: 0, scale: 0.7, duration: 0.25, ease: "power2.in" });
-    t.set(posted, { x: centerX(nodeEls[2], posted) });
+    t.set(posted, { x: centerX(nodeEls[2]!, posted) });
     t.fromTo(posted, { opacity: 0, scale: 0.6 }, {
       opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2.6)",
     });
