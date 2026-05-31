@@ -87,9 +87,12 @@
   exactly that pattern - but with a twist that makes them unusually clean on Midnight.
 </script>
 
-<script type="text/narration" data-chapter-id="zswap" data-chapter-title="zSwap: swaps in the L1">
-  <mark name="zswap-heading"/>
+<script type="text/narration" data-chapter-id="p-zswap" data-chapter-title="zSwap intro">
+  <mark name="p-zswap"/>
   And the twist is a primitive called zSwap.
+</script>
+
+<script type="text/narration" data-chapter-id="zswap" data-chapter-title="swaps live in the L1" data-chapter-parent="p-zswap">
   <mark name="zswap-body"/>
   Most chains make you write a smart contract to swap two assets. Midnight doesn't.
   Atomic swaps are built directly into the base layer. The unit you work with is an
@@ -120,7 +123,7 @@
   they can never peel off your coins for some other trade.
 </script>
 
-<script type="text/narration" data-chapter-id="offer-anatomy" data-chapter-title="zSwap vs. a zSwap Offer">
+<script type="text/narration" data-chapter-id="offer-anatomy" data-chapter-title="zSwap vs. a ZswapOffer" data-chapter-parent="p-zswap">
   <mark name="anatomy-heading"/>
   Quick aside on names, because the Midnight codebase is precise about this and it matters for what's coming.
   <mark name="anatomy-naming"/>
@@ -139,7 +142,7 @@
   other holdings.
 </script>
 
-<script type="text/narration" data-chapter-id="offer-file" data-chapter-title="From swap to file">
+<script type="text/narration" data-chapter-id="offer-file" data-chapter-title="From a swap to a file" data-chapter-parent="p-zswap">
   <mark name="file-heading"/>
   So here's the leap. If an offer is a self-contained, tamper-proof, mergeable object
   - why keep it on the chain at all?
@@ -162,15 +165,24 @@
   the current chain state - which, as we'll see, is exactly half of the indexing problem.
 </script>
 
-<script type="text/narration" data-chapter-id="celestia" data-chapter-title="Where offers live">
-  <mark name="celestia-heading"/>
+<script type="text/narration" data-chapter-id="p-celestia" data-chapter-title="Where do offers live?">
+  <mark name="p-celestia"/>
   So where do offer files actually go? Well, the simplest answer is: anywhere you like.
+</script>
+
+<script type="text/narration" data-chapter-id="celestia" data-chapter-title="P2P Offer Files" data-chapter-parent="p-celestia">
   <mark name="celestia-body"/>
   You can keep one private and hand it straight to a friend - and that's already useful.
   Remember NFT mania, when people traded by posting in Discord? That needed a trusted escrow,
   because either side could back out. An offer file gives you that same casual trade with no
-  escrow and more privacy. But peer to peer, only the people you message can see it. The bigger
-  prize is shared liquidity - getting your offer in front of as many takers as possible.
+  escrow and more privacy.
+</script>
+
+<script type="text/narration" data-chapter-id="public-offers" data-chapter-title="Public Offer Files" data-chapter-parent="p-celestia">
+  <mark name="public-offers-heading"/>
+  But peer to peer, only the people you message can see it.
+  <mark name="celestia-shared"/>
+  The bigger prize is shared liquidity - getting your offer in front of as many takers as possible.
   And for that, our reference design uses Celestia as a public bulletin board. Celestia is a
   data-availability layer: a chain whose only job is to take a blob of data and guarantee
   everyone can download it. It doesn't execute the data, it just makes it available.
@@ -186,7 +198,7 @@
   window. And if you want a durable archive of old ones, the application arranges that itself.
 </script>
 
-<script type="text/narration" data-chapter-id="plumbing" data-chapter-title="Two hard parts">
+<script type="text/narration" data-chapter-id="plumbing" data-chapter-title="Two genuinely hard parts" data-chapter-parent="p-celestia">
   <mark name="plumbing-heading"/>
   Beautiful in theory. In practice there are two genuinely hard parts, and our reference
   implementation is built around solving exactly these two.
@@ -210,7 +222,7 @@
   or click any step to walk through it yourself.
 </script>
 
-<script type="text/narration" data-chapter-id="liquidity" data-chapter-title="Shared liquidity">
+<script type="text/narration" data-chapter-id="liquidity" data-chapter-title="The payoff: shared liquidity" data-chapter-parent="p-celestia">
   <mark name="liquidity-heading"/>
   So step back and look at what this gives us.
   <mark name="liquidity-body"/>
@@ -227,7 +239,7 @@
   the very end. Hold that thought; first, let's finish the design.
 </script>
 
-<script type="text/narration" data-chapter-id="orderbook" data-chapter-title="Building the order book">
+<script type="text/narration" data-chapter-id="orderbook" data-chapter-title="Now build a DEX with it" data-chapter-parent="p-celestia">
   <mark name="orderbook-heading"/>
   So let's actually build a DEX with this. The order book almost falls out for free: every offer file is a
   resting order. A taker browses them, picks one, and settles it with a single on-chain transaction. Listing
@@ -246,7 +258,7 @@
   is a spend, and a spend is a transaction.
 </script>
 
-<script type="text/narration" data-chapter-id="market-making" data-chapter-title="The market-maker wall">
+<script type="text/narration" data-chapter-id="market-making" data-chapter-title="The market-maker wall" data-chapter-parent="p-celestia">
   <mark name="mm-heading"/>
   Here's why that one fact decides whether your DEX lives or dies. A good order book needs market makers
   - the people who quote both a buy price and a sell price and earn the small spread between them.
@@ -268,9 +280,12 @@
   free. The answer is a layer two, purpose-built for offer files. So let's design it.
 </script>
 
-<script type="text/narration" data-chapter-id="l2-design" data-chapter-title="Designing the L2">
-  <mark name="l2-design-heading"/>
+<script type="text/narration" data-chapter-id="p-l2" data-chapter-title="The L2">
+  <mark name="p-l2"/>
   When you build a layer two on a privacy chain, two questions dominate everything else.
+</script>
+
+<script type="text/narration" data-chapter-id="l2-design" data-chapter-title="Designing the L2: integrity vs privacy" data-chapter-parent="p-l2">
   <mark name="l2-axes"/>
   First, integrity: under what assumptions can someone prove a balance on the layer two and withdraw it back
   to the layer one? And second, privacy: who, if anyone, gets to see the state of the layer two? On Midnight,
@@ -286,7 +301,7 @@
   cryptographic integrity: a proof, not a promise from a chip. And that, it turns out, is genuinely hard here.
 </script>
 
-<script type="text/narration" data-chapter-id="balance-proof" data-chapter-title="Proving a private balance">
+<script type="text/narration" data-chapter-id="balance-proof" data-chapter-title="The hard part: proving a private balance" data-chapter-parent="p-l2">
   <mark name="balance-heading"/>
   Here's why it's hard, and it comes straight from how zSwap works.
   <mark name="balance-body"/>
@@ -311,7 +326,7 @@
   a clever way out.
 </script>
 
-<script type="text/narration" data-chapter-id="solution" data-chapter-title="One proof for everyone">
+<script type="text/narration" data-chapter-id="solution" data-chapter-title="One proof for everyone" data-chapter-parent="p-l2">
   <mark name="solution-heading"/>
   Here's the trick. The problem was that every user has to prove their own balance, and each of those proofs has
   to sweep the whole history. So stop making users do it. Have the sequencer prove it once, for everyone at the
@@ -340,7 +355,7 @@
   - it's also how you get your funds back out.
 </script>
 
-<script type="text/narration" data-chapter-id="offboard" data-chapter-title="Offboarding to the L1">
+<script type="text/narration" data-chapter-id="offboard" data-chapter-title="Getting your funds back out" data-chapter-parent="p-l2">
   <mark name="offboard-heading"/>
   Which raises the obvious question: once your funds live on the L2, how do you get them back out to the L1?
   <mark name="offboard-lock"/>
@@ -360,9 +375,12 @@
   the core design is complete, and all that's left is making it fast.
 </script>
 
-<script type="text/narration" data-chapter-id="hot-path" data-chapter-title="Scaling: the TEE off the hot path">
-  <mark name="hotpath-heading"/>
+<script type="text/narration" data-chapter-id="p-scaling" data-chapter-title="Scaling">
+  <mark name="p-scaling"/>
   Here's something reassuring about that enclave: it isn't in the way of anyone actually using the system.
+</script>
+
+<script type="text/narration" data-chapter-id="hot-path" data-chapter-title="the TEE off the hot path" data-chapter-parent="p-scaling">
   <mark name="hotpath-body"/>
   Remember that an offer file shows the assets and amounts in the clear - it only hides the addresses. So
   the everyday path needs no enclave at all. A user hands their offer file to an ordinary sequencer, which orders
@@ -389,7 +407,7 @@
   amounts and watch the whole book black out, with the checklist flipping red. What you hide is the whole game.
 </script>
 
-<script type="text/narration" data-chapter-id="consensus" data-chapter-title="Scaling: consensus">
+<script type="text/narration" data-chapter-id="consensus" data-chapter-title="consensus without trust" data-chapter-parent="p-scaling">
   <mark name="consensus-heading"/>
   The next piece is consensus - how the L2 orders transactions and finalizes them.
   <mark name="consensus-decouple"/>
@@ -410,7 +428,7 @@
   engineering, not something the consensus hands you for free.
 </script>
 
-<script type="text/narration" data-chapter-id="da" data-chapter-title="Scaling: abstracting the data layer">
+<script type="text/narration" data-chapter-id="da" data-chapter-title="abstracting away the data layer" data-chapter-parent="p-scaling">
   <mark name="da-heading"/>
   The last piece is the data layer. Remember, the original Offer File proposal posts the files to Celestia, and
   everyone reads them from there.
@@ -429,9 +447,12 @@
   become an implementation detail the sequencers choose, not a concern anyone building or using the DEX has to carry.
 </script>
 
-<script type="text/narration" data-chapter-id="open-q1" data-chapter-title="Open question: nullifier growth">
-  <mark name="openq-intro"/>
+<script type="text/narration" data-chapter-id="p-openq" data-chapter-title="Open questions">
+  <mark name="p-openq"/>
   That's the core design. But I want to end honestly, with a few problems we <em>haven't</em> solved. Here's the first.
+</script>
+
+<script type="text/narration" data-chapter-id="open-q1" data-chapter-title="the nullifier set never shrinks" data-chapter-parent="p-openq">
   <mark name="oq1-what"/>
   Most zero-knowledge systems, Midnight included, stop double-spends with something called a nullifier. On a normal
   UTXO chain you'd just mark a spent output as spent. zSwap wants the same guarantee - each UTXO spent at most
@@ -450,7 +471,7 @@
   nullifiers buy us, is a genuinely open problem.
 </script>
 
-<script type="text/narration" data-chapter-id="open-q2" data-chapter-title="Open question: fees and ordering">
+<script type="text/narration" data-chapter-id="open-q2" data-chapter-title="fees and ordering" data-chapter-parent="p-openq">
   <mark name="oq2-what"/>
   Open question number two: how should the L2 price and order transactions? Fees, first-come, something else? It
   sounds mundane, but three forces pull against each other and there's no obvious right answer.
@@ -471,7 +492,7 @@
   separate maker and taker fees. So how fees and ordering should really work on this L2 is still open.
 </script>
 
-<script type="text/narration" data-chapter-id="open-q3" data-chapter-title="Open question: time to market">
+<script type="text/narration" data-chapter-id="open-q3" data-chapter-title="time to market" data-chapter-parent="p-openq">
   <mark name="oq3-what"/>
   And the last open question isn't really technical at all - it's about timing. How much complexity do we
   actually want to build? A perfect system takes longer, and the catch is that this whole L2 has a shelf life.
@@ -493,8 +514,8 @@
   of this was worth building at all.
 </script>
 
-<script type="text/narration" data-chapter-id="business-intro" data-chapter-title="Will anyone trade?">
-  <mark name="business-heading"/>
+<script type="text/narration" data-chapter-id="p-business" data-chapter-title="Will anyone trade?">
+  <mark name="p-business"/>
   So let's switch hats. Everything up to now was engineering - how to build offer files, and how to make
   them fast.
   <mark name="business-lead"/>
@@ -502,6 +523,9 @@
   and unused is just a clever way to spend a budget. So put on the investor's hat and ask the only question that
   really decides things: will people actually trade on this? We can't prove the future - but we're not
   guessing in the dark either, because this exact shape already ran as a live experiment for four and a half years.
+</script>
+
+<script type="text/narration" data-chapter-id="business-intro" data-chapter-title="the Chia precedent" data-chapter-parent="p-business">
   <mark name="business-precedent"/>
   That experiment was Chia.
   <mark name="bp-real"/>
@@ -523,7 +547,7 @@
   pessimist replies that Midnight is a young ecosystem too.
 </script>
 
-<script type="text/narration" data-chapter-id="business-evidence" data-chapter-title="The receipts">
+<script type="text/narration" data-chapter-id="business-evidence" data-chapter-title="The receipts" data-chapter-parent="p-business">
   <mark name="business-proven"/>
   So what did four years of receipts actually prove the primitive does well?
   <mark name="bproven-body"/>
@@ -553,7 +577,7 @@
   transaction - exactly the cost our layer two exists to crush.
 </script>
 
-<script type="text/narration" data-chapter-id="business-midnight" data-chapter-title="The Midnight lens">
+<script type="text/narration" data-chapter-id="business-midnight" data-chapter-title="The Midnight lens" data-chapter-parent="p-business">
   <mark name="business-midnight"/>
   Here's where our specific chain changes the math - in both directions.
   <mark name="bmid-lead"/>
@@ -594,7 +618,7 @@
   is the real, still-unmeasured question under all of this.
 </script>
 
-<script type="text/narration" data-chapter-id="business-verdict" data-chapter-title="The honest verdict">
+<script type="text/narration" data-chapter-id="business-verdict" data-chapter-title="The honest verdict" data-chapter-parent="p-business">
   <mark name="business-verdict"/>
   So - the honest verdict.
   <mark name="bverdict-bull"/>
@@ -678,6 +702,8 @@
         </figcaption>
       </figure>
     </section>
+
+    <div class="section-divider-labeled" id="p-zswap" role="separator">zSwap intro</div>
 
     <section>
       <h2 id="zswap-heading">zSwap: swaps live in the L1</h2>
@@ -889,8 +915,10 @@
       </p>
     </section>
 
+    <div class="section-divider-labeled" id="p-celestia" role="separator">Where do offers live?</div>
+
     <section>
-      <h2 id="celestia-heading">Where do offers live?</h2>
+      <h2 id="celestia-heading">P2P Offer Files</h2>
       <p id="celestia-body">
         You can absolutely keep an offer file private and hand it straight to someone
         - and that alone is useful. Think back to NFT mania, when people traded by
@@ -927,7 +955,10 @@
           escrow, more private. (Loops.)
         </figcaption>
       </figure>
+    </section>
 
+    <section>
+      <h2 id="public-offers-heading">Public Offer Files</h2>
       <p id="celestia-shared">
         But peer-to-peer means only the people you send it to can see it. The bigger
         prize is <em>shared</em> liquidity: making your offer visible to as many takers as
@@ -1271,6 +1302,8 @@
       </p>
     </section>
 
+    <div class="section-divider-labeled" id="p-l2" role="separator">The L2</div>
+
     <section>
       <h2 id="l2-design-heading">Designing the L2: integrity vs privacy</h2>
       <p id="l2-axes">
@@ -1514,6 +1547,8 @@
       </p>
     </section>
 
+    <div class="section-divider-labeled" id="p-scaling" role="separator">Scaling</div>
+
     <section>
       <h2 id="hotpath-heading">Scaling, part 1: the TEE off the hot path</h2>
       <p id="hotpath-body">
@@ -1735,6 +1770,8 @@
       </p>
     </section>
 
+    <div class="section-divider-labeled" id="p-openq" role="separator">Open questions</div>
+
     <section>
       <h2 id="openq-intro">Open questions</h2>
       <p id="openq-lead">
@@ -1742,7 +1779,7 @@
         problems we <em>haven't</em> solved. Three of them are worth stating plainly.
       </p>
 
-      <h3 id="oq1-what">#1 - the nullifier set never shrinks</h3>
+      <h2 id="oq1-what">#1 - the nullifier set never shrinks</h2>
       <p>
         Most zero-knowledge systems, Midnight included, prevent double-spends with
         <strong>nullifiers</strong>. On a transparent UTXO chain you'd simply mark a spent output as
@@ -1790,7 +1827,7 @@
         genuinely open problem.
       </p>
 
-      <h3 id="oq2-what">#2 - pricing and ordering transactions</h3>
+      <h2 id="oq2-what">#2 - pricing and ordering transactions</h2>
       <p id="oq2-forces">
         How should the L2 order transactions, and what should they cost? Fees, first-come, an
         auction? It sounds mundane, but three forces pull against each other:
@@ -1842,7 +1879,7 @@
         work on this L2 is still open.
       </p>
 
-      <h3 id="oq3-what">#3 - how much to build, and when</h3>
+      <h2 id="oq3-what">#3 - how much to build, and when</h2>
       <p id="oq3-window">
         The last question isn't really technical - it's about timing. How much complexity do
         we want? A perfect system takes longer to build, and this whole L2 has a
@@ -1898,7 +1935,7 @@
       </p>
     </section>
 
-    <hr class="section-divider" />
+    <div class="section-divider-labeled" id="p-business" role="separator">Will anyone trade?</div>
 
     <section>
       <h2 id="business-heading">Switching hats: would anyone actually trade here?</h2>
@@ -1912,7 +1949,7 @@
         a live experiment for four and a half years.
       </p>
 
-      <h3 id="business-precedent">The one thing we don't have to guess: Chia ran it</h3>
+      <h2 id="business-precedent">The one thing we don't have to guess: Chia ran it</h2>
       <p id="bp-real">
         The <a href="https://dexie.space/">dexie</a> marketplace on the <strong>Chia</strong>
         blockchain shipped a conceptually identical offer-file system - wallet-created offers, a
@@ -2015,7 +2052,7 @@
         young ecosystem too, so there's no reason to assume it clears more out of the gate.
       </p>
 
-      <h3 id="business-proven">What it proved the primitive does well</h3>
+      <h2 id="business-proven">What it proved the primitive does well</h2>
       <p id="bproven-body">
         Several of the strongest pro-offer-file claims survive contact with four years of data, and they
         carry over to Midnight because they are properties of the <em>offer</em> itself, not of Chia:
@@ -2086,7 +2123,7 @@
         </figcaption>
       </figure>
 
-      <h3 id="business-warning">What it warns about</h3>
+      <h2 id="business-warning">What it warns about</h2>
       <p id="bwarn-body">
         The warnings are just as concrete, and they are about the <em>market</em>, not the mechanism.
         Given total freedom, the offer-file market converged on the architecture it was built to avoid.
@@ -2186,7 +2223,7 @@
       </figure>
 
 
-      <h3 id="business-midnight">Now add Midnight</h3>
+      <h2 id="business-midnight">Now add Midnight</h2>
       <p id="bmid-lead">
         Here is where our specific chain changes the calculus - in both directions. The points
         above were argued chain-agnostically; Midnight is not neutral about any of them.
@@ -2308,7 +2345,7 @@
         throughput number - is the real, still-unmeasured question underneath all of this.
       </p>
 
-      <h3 id="business-verdict">The honest verdict</h3>
+      <h2 id="business-verdict">The honest verdict</h2>
       <p id="bverdict-bull">
         Put the optimist's case in one breath: the shape is proven to clear real trades for years;
         Midnight's L2 directly attacks the defect that crippled market-making on Chia by making cancels
