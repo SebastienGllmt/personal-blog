@@ -21,6 +21,9 @@ generated
 # local analysis tooling (e.g. the DuckDB CLI binary under research/)
 /tools/
 
+# avoid leaking author information like reference voice clip
+authors/
+
 # heavy / regenerable research data artifacts. Canonical home is generated/
 # (already ignored). Committed analysis data is .csv, intentionally NOT ignored.
 *.jsonl
