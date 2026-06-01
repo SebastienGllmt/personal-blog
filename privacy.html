@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — Sebastiengllmt's blog</title>
+<link rel="stylesheet" href="./engine/client/landing.css" />
+</head>
+<body>
+  <main class="legal">
+    <p class="legal-back"><a href="/">&larr; Back to the blog</a></p>
+    <h1>Privacy Policy</h1>
+    <p class="legal-meta">Last updated: 2026-06-01</p>
+
+    <p>
+      This is the privacy policy for <strong>blog.sebastiengllmt.com</strong> (the "blog"), a
+      personal blog operated by Sébastien Guillemot (the "operator"). It explains what data the
+      blog collects, why, how long it is kept, and how to exercise your rights under the
+      <abbr title="General Data Protection Regulation (EU/UK)">GDPR</abbr>,
+      the <abbr title="California Consumer Privacy Act / California Privacy Rights Act">CCPA/CPRA</abbr>,
+      and the
+      <abbr title="Act on the Protection of Personal Information (Japan)">APPI</abbr>.
+    </p>
+
+    <h2 id="data-controller">Who is responsible</h2>
+    <p>
+      The data controller (GDPR) / business (CCPA) / Personal Information Handling Business Operator
+      (APPI) for this blog is Sébastien Guillemot, based in Japan. The blog is run as a personal
+      project, not as part of a commercial enterprise. For any privacy request, contact
+      <a href="mailto:sebastiengllmt@gmail.com">sebastiengllmt@gmail.com</a>.
+    </p>
+
+    <h2 id="what-we-collect">What the blog collects, and why</h2>
+
+    <h3 id="analytics">Page-view analytics</h3>
+    <p>
+      Every page on the blog loads
+      <a href="https://www.cloudflare.com/web-analytics/" rel="noopener">Cloudflare Web Analytics</a>,
+      Cloudflare's privacy-focused, <strong>cookieless</strong> page-view counter. It records that
+      a page was viewed, the referrer, the page URL, and coarse device/browser information. It does
+      <strong>not</strong> set cookies, does not fingerprint, and the operator does not receive
+      individual visitor identifiers — only aggregate counts. Cloudflare receives your IP address
+      transiently to handle the request; per Cloudflare, IP addresses are not stored in the
+      analytics dataset.
+    </p>
+    <p>
+      <strong>Legal basis (GDPR):</strong> legitimate interest in understanding which posts get
+      traffic, given the minimal, anonymous nature of the data collected and the absence of any
+      profiling or cross-site tracking.
+      <strong>CCPA:</strong> this is not a "sale" or "share" of personal information.
+      <strong>APPI:</strong> data is anonymized and not retained in identifiable form by the
+      operator.
+    </p>
+
+    <h3 id="comments">Comments and login</h3>
+    <p>
+      If — and only if — you choose to leave a comment, you are asked to sign in via
+      <strong>Google</strong> or <strong>Microsoft</strong> using OAuth 2.0. When you sign in, the
+      blog receives, from your chosen provider:
+    </p>
+    <ul>
+      <li>your provider account ID (a stable identifier for your account at that provider);</li>
+      <li>your display name;</li>
+      <li>your email address;</li>
+      <li>your profile picture URL, if your provider returns one.</li>
+    </ul>
+    <p>
+      The blog uses your name and picture next to your comments, your email to reach you about
+      replies, and your account ID to attribute future comments to the same person. Comments
+      themselves (the text you write and the passage you anchor them to) are stored alongside that
+      identity.
+    </p>
+    <p>
+      <strong>Where it is stored.</strong> Comments and the associated identity fields are stored
+      in <a href="https://www.cloudflare.com/developer-platform/r2/" rel="noopener">Cloudflare R2</a>
+      object storage, served through a Cloudflare Worker. Cloudflare acts as a data processor /
+      service provider on the operator's behalf.
+    </p>
+    <p>
+      <strong>How long.</strong> Comments are kept until you delete them or request deletion. The
+      operator may delete comments at any time for moderation reasons (spam, abuse, off-topic).
+    </p>
+    <p>
+      <strong>Legal basis (GDPR):</strong> consent — by clicking "Sign in with Google" or "Sign in
+      with Microsoft" and submitting a comment, you consent to the storage and display of your
+      comment, name, picture, and the contact use of your email. You can withdraw consent at any
+      time by deleting your comments or contacting the operator.
+    </p>
+
+    <h3 id="cookies">Cookies</h3>
+    <p>
+      The blog sets the following cookies, all of which are
+      <strong>strictly necessary</strong> under the GDPR / ePrivacy framing and therefore do not
+      require a cookie banner:
+    </p>
+    <ul>
+      <li>
+        <strong>Session cookie</strong> (<code>__Host-blog-session</code> in production,
+        <code>blog-session</code> in local development) — set <em>only</em> after you sign in to
+        comment, holds a signed
+        <abbr title="JSON Web Token">JWT</abbr>
+        identifying your account. <code>HttpOnly</code>, <code>Secure</code>,
+        <code>SameSite=Lax</code>, lifetime 400 days. Cleared on sign-out.
+      </li>
+      <li>
+        <strong>OAuth flow cookies</strong>
+        (<code>blog-oauth-state-&lt;provider&gt;</code>,
+        <code>blog-oauth-verifier-&lt;provider&gt;</code>) — set briefly during the sign-in
+        redirect to defend against CSRF and to complete
+        <abbr title="Proof Key for Code Exchange">PKCE</abbr>. 10-minute lifetime, cleared on
+        callback.
+      </li>
+    </ul>
+    <p>
+      The blog does <strong>not</strong> set any analytics, advertising, or third-party tracking
+      cookies. Cloudflare Web Analytics is explicitly cookieless.
+    </p>
+
+    <h3 id="server-logs">Server logs</h3>
+    <p>
+      The Cloudflare Worker that serves this blog produces standard request logs (timestamp,
+      method, path, response status, client IP at the edge) as a normal part of how Cloudflare's
+      platform operates. These logs are used for debugging and to defend against abuse; the
+      operator does not extract analytics from them, and Cloudflare's standard retention applies.
+    </p>
+
+    <h2 id="subprocessors">Service providers / sub-processors</h2>
+    <ul>
+      <li>
+        <strong>Cloudflare, Inc.</strong> — hosting (Workers), object storage (R2), analytics
+        (cookieless), edge security/CDN. See
+        <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare's privacy
+        policy</a>.
+      </li>
+      <li>
+        <strong>Google LLC</strong> — OAuth sign-in, only if you choose to sign in with Google.
+        See <a href="https://policies.google.com/privacy" rel="noopener">Google's privacy
+        policy</a>.
+      </li>
+      <li>
+        <strong>Microsoft Corporation</strong> — OAuth sign-in, only if you choose to sign in
+        with Microsoft. See
+        <a href="https://privacy.microsoft.com/privacystatement" rel="noopener">Microsoft's
+        privacy statement</a>.
+      </li>
+    </ul>
+
+    <h2 id="sharing">Disclosures and sales</h2>
+    <p>
+      The operator does <strong>not</strong> sell or share personal information, does not provide
+      it to advertisers or data brokers, and does not use it for cross-context behavioral
+      advertising. Personal information may be disclosed only as required by law, to comply with a
+      legally valid order from a competent authority. In the language of the CCPA/CPRA, the
+      operator has not sold or shared personal information in the preceding twelve months.
+    </p>
+
+    <h2 id="international-transfers">International transfers</h2>
+    <p>
+      Cloudflare operates globally; the operator does not choose specific storage regions for R2 at
+      this time, and data may be processed in jurisdictions outside your own (including the United
+      States, the European Union, and Japan). Cloudflare maintains its own safeguards for
+      international transfers; see Cloudflare's privacy policy linked above for details on standard
+      contractual clauses and equivalent safeguards.
+    </p>
+
+    <h2 id="your-rights">Your rights</h2>
+    <p>Depending on where you live, you have some or all of the following rights:</p>
+    <ul>
+      <li>
+        <strong>Access</strong> — a copy of the personal information held about you.
+        <em>(GDPR Art. 15; CCPA §1798.110; APPI Art. 33)</em>
+      </li>
+      <li>
+        <strong>Rectification / correction</strong> — fix inaccurate information.
+        <em>(GDPR Art. 16; CCPA §1798.106; APPI Art. 34)</em>
+      </li>
+      <li>
+        <strong>Deletion / erasure</strong> — delete your comments and identity record.
+        <em>(GDPR Art. 17; CCPA §1798.105; APPI Art. 35)</em>
+      </li>
+      <li>
+        <strong>Portability</strong> — receive your comments in a machine-readable format.
+        <em>(GDPR Art. 20; CCPA §1798.130; APPI Art. 33(5))</em>
+      </li>
+      <li>
+        <strong>Withdraw consent</strong> at any time, without affecting the lawfulness of past
+        processing.
+        <em>(GDPR Art. 7(3))</em>
+      </li>
+      <li>
+        <strong>Opt-out of sale or sharing</strong> — not applicable here because the operator
+        does not sell or share personal information.
+        <em>(CCPA §1798.120)</em>
+      </li>
+      <li>
+        <strong>Non-discrimination</strong> for exercising any of the above.
+        <em>(CCPA §1798.125)</em>
+      </li>
+      <li>
+        <strong>Lodge a complaint</strong> with a supervisory authority — for EU/UK residents,
+        your national data protection authority; for California residents, the
+        <a href="https://cppa.ca.gov/" rel="noopener">California Privacy Protection Agency</a>;
+        for residents of Japan, the
+        <a href="https://www.ppc.go.jp/en/" rel="noopener">Personal Information Protection
+        Commission</a>.
+      </li>
+    </ul>
+    <p>
+      To exercise any of these rights, email
+      <a href="mailto:sebastiengllmt@gmail.com">sebastiengllmt@gmail.com</a> from the address
+      associated with your account. The operator will respond within 30 days (GDPR / APPI) or
+      45 days (CCPA), or notify you and explain the delay.
+    </p>
+
+    <h2 id="children">Children</h2>
+    <p>
+      The blog is not directed at children under 16, and the operator does not knowingly collect
+      personal information from anyone under 16. If you believe a child has signed in and posted a
+      comment, contact the operator and the account and comments will be deleted.
+    </p>
+
+    <h2 id="security">Security</h2>
+    <p>
+      Session tokens are signed JWTs delivered in <code>HttpOnly</code>, <code>Secure</code>,
+      <code>SameSite=Lax</code> cookies with the <code>__Host-</code> prefix in production. The
+      blog enforces HTTPS site-wide, ships a
+      <abbr title="Content Security Policy">CSP</abbr>
+      with no <code>'unsafe-inline'</code> script sources, and sends standard hardening headers
+      (HSTS, <code>X-Content-Type-Options</code>, <code>Referrer-Policy</code>, etc.). No system
+      is perfectly secure; if you notice a security issue, please report it to the operator.
+    </p>
+
+    <h2 id="changes">Changes to this policy</h2>
+    <p>
+      The operator may update this policy. Material changes will be reflected in the
+      "Last updated" date at the top. Continued use of the blog after a change constitutes
+      acceptance of the revised policy.
+    </p>
+
+    <h2 id="contact">Contact</h2>
+    <p>
+      Privacy questions and rights requests:
+      <a href="mailto:sebastiengllmt@gmail.com">sebastiengllmt@gmail.com</a>.
+    </p>
+  </main>
+  <footer class="site-footer">
+    <a href="/privacy">Privacy Policy</a>
+  </footer>
+</body>
+</html>
