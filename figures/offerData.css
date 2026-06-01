@@ -10,7 +10,7 @@
    presidocs/authoring/authoringRules.md. The wrap keeps article-scoped rules
    in this file (notably `a { color: … }`) from cascading onto the engine-
    injected byline, follow-CTA, post-meta, attribution, or heading-link
-   icons; those live in `@layer engine.components`, declared after `post` in
+   icons; those live in `@layer engine-components`, declared after `post` in
    the cascade order, so they win by ordering regardless of selector
    specificity.
 
@@ -21,7 +21,7 @@
 @layer post {
   /* Prose anchor color for this post. Stays inside `@layer post` so it
      applies to the article body but not to the engine-injected components
-     in `@layer engine.components`. */
+     in `@layer engine-components`. */
   .offer-data a { color: #2b6cb0; }
 
   /* Figures: the generated SVG scales to the column; caption beneath. */
