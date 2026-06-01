@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Privacy Policy — Sebastiengllmt's blog</title>
 <link rel="stylesheet" href="./engine/client/landing.css" />
+<script type="module" src="./engine/client/analytics.ts"></script>
 </head>
 <body>
   <main class="legal">
@@ -32,24 +33,48 @@
 
     <h2 id="what-we-collect">What the blog collects, and why</h2>
 
-    <h3 id="analytics">Page-view analytics</h3>
+    <h3 id="analytics">Engagement analytics</h3>
     <p>
-      Every page on the blog loads
-      <a href="https://www.cloudflare.com/web-analytics/" rel="noopener">Cloudflare Web Analytics</a>,
-      Cloudflare's privacy-focused, <strong>cookieless</strong> page-view counter. It records that
-      a page was viewed, the referrer, the page URL, and coarse device/browser information. It does
-      <strong>not</strong> set cookies, does not fingerprint, and the operator does not receive
-      individual visitor identifiers — only aggregate counts. Cloudflare receives your IP address
-      transiently to handle the request; per Cloudflare, IP addresses are not stored in the
-      analytics dataset.
+      The blog writes a small set of anonymous engagement events to
+      <a href="https://developers.cloudflare.com/analytics/analytics-engine/" rel="noopener">Cloudflare
+      Analytics Engine</a>, a server-side event sink the operator already uses as the data plane for
+      this blog. Two kinds of events are recorded:
+    </p>
+    <ul>
+      <li>
+        <strong>Page view</strong> — once per page load: the URL path you visited and the
+        <em>hostname</em> of your referrer (the full referrer URL is never recorded). Same-origin
+        referrers (clicking between pages on this blog) are omitted as uninformative.
+      </li>
+      <li>
+        <strong>Narration playback</strong> — only when you actually press play on a post's spoken
+        track: a "play started" marker (with what triggered playback — the dock button, the
+        Space key, an OS media key, or a chapter jump) and up to four "you crossed 25 % / 50 %
+        / 75 % / 100 % of this talk" markers. Each is one row in the dataset; the markers fire at
+        most once per page load and never if you don't press play. The post's master-track duration
+        is stored alongside the play marker so completion is interpretable in absolute terms.
+      </li>
+    </ul>
+    <p>
+      No cookies, no <code>localStorage</code>, no per-visitor identifier, no fingerprint.
+      <strong>No IP address or other identifier is written to the analytics dataset</strong> —
+      the operator never sees your IP in any query result, only the aggregate fields above.
+      Cloudflare's edge still processes your request transiently (this is how every site fronted by
+      Cloudflare works, not specific to analytics); refer to
+      <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare's own privacy policy</a>
+      for how Cloudflare handles request metadata at the edge. Known bots and crawlers are filtered
+      before any event is written. Beacon delivery uses
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon" rel="noopener"><code>navigator.sendBeacon</code></a>
+      to a same-origin endpoint on this site (no cross-origin analytics origin runs in your browser).
     </p>
     <p>
       <strong>Legal basis (GDPR):</strong> legitimate interest in understanding which posts get
-      traffic, given the minimal, anonymous nature of the data collected and the absence of any
-      profiling or cross-site tracking.
+      traffic and whether the spoken-narration feature is used, given the minimal, anonymous nature
+      of the data collected and the absence of any profiling or cross-site tracking.
       <strong>CCPA:</strong> this is not a "sale" or "share" of personal information.
       <strong>APPI:</strong> data is anonymized and not retained in identifiable form by the
-      operator.
+      operator. Row-level events age out per Cloudflare's standard Analytics Engine retention
+      (approximately 3 months per their documentation).
     </p>
 
     <h3 id="comments">Comments and login</h3>
