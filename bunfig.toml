@@ -1,0 +1,5 @@
+[test]
+# `engine` is a symlink to the presidocs repo. Without this, `bun test`
+# follows the symlink and runs the engine's whole suite from here. Those
+# tests belong to (and should only run from) the presidocs repo.
+pathIgnorePatterns = ["**/engine/**"]
