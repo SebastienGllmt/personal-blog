@@ -3,6 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "test": "bun test",
     "dev": "bun engine/scripts/dev.ts",
     "dev:edge": "bun run build && wrangler dev --port 3000",
     "dev:reset-comments": "bun engine/scripts/clean-dev-comments.ts",

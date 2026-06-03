@@ -3,3 +3,13 @@
 # follows the symlink and runs the engine's whole suite from here. Those
 # tests belong to (and should only run from) the presidocs repo.
 pathIgnorePatterns = ["**/engine/**"]
+
+[serve.static]
+# Engine HTML-head injections for the dev server: the canonical cascade-layer
+# order (first <head> CSS, so dev resolves the cascade identically to prod) and
+# the site footer. The same plugin runs in the prod build (build-html.ts), so
+# dev and prod render identically. Required — without it, dev's module-eval CSS
+# injection order can invert the layers AND posts lose their footer. See the
+# engine's shared/bunHtmlHeadPlugin.ts and methodology → Cascade-layer
+# architecture. (layerOrder.test.ts asserts this line is present.)
+plugins = ["presidocs/shared/bunHtmlHeadPlugin.ts"]

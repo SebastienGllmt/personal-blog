@@ -65,7 +65,8 @@
       for how Cloudflare handles request metadata at the edge. Known bots and crawlers are filtered
       before any event is written. Beacon delivery uses
       <a href="https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon" rel="noopener"><code>navigator.sendBeacon</code></a>
-      to a same-origin endpoint on this site (no cross-origin analytics origin runs in your browser).
+      to a same-origin endpoint on this site — these engagement events post to the operator's own
+      Worker, not to a third-party analytics origin.
     </p>
     <p>
       <strong>Legal basis (GDPR):</strong> legitimate interest in understanding which posts get
@@ -75,6 +76,27 @@
       <strong>APPI:</strong> data is anonymized and not retained in identifiable form by the
       operator. Row-level events age out per Cloudflare's standard Analytics Engine retention
       (approximately 3 months per their documentation).
+    </p>
+
+    <h3 id="performance-analytics">Performance analytics (Core Web Vitals)</h3>
+    <p>
+      Separately from the engagement events above, this site has
+      <a href="https://developers.cloudflare.com/web-analytics/" rel="noopener">Cloudflare Web
+      Analytics</a> enabled. Cloudflare injects a small measurement script
+      (<code>beacon.min.js</code>, served from <code>static.cloudflareinsights.com</code>) that runs
+      in your browser and reports aggregate page-view counts and
+      <a href="https://web.dev/articles/vitals" rel="noopener">Core Web Vitals</a> — real-world
+      performance timings such as load speed, interactivity, and layout stability — back to
+      Cloudflare. The operator uses this only to monitor whether pages load well for real visitors.
+    </p>
+    <p>
+      This beacon is <strong>cookieless</strong>: it sets no <code>localStorage</code>, no
+      per-visitor identifier, and no fingerprint, and it does not track you across sites. It reports
+      to Cloudflare — already this blog's hosting provider and sub-processor (see
+      <a href="#subprocessors">below</a>) — so it introduces no new third party.
+      <strong>Legal basis (GDPR):</strong> legitimate interest in operating a fast, reliable site,
+      given the aggregate, anonymous nature of the data. You can block the beacon with any content
+      blocker with no effect on the site.
     </p>
 
     <h3 id="comments">Comments and login</h3>
