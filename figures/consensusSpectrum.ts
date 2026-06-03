@@ -62,8 +62,8 @@ function initConsensus(figure: HTMLElement): void {
   stage.className = "cns-fig";
   stage.innerHTML = `
     <div class="cns-const">Integrity: <b>cryptographic (the ZK proof)</b> &mdash; consensus only orders, so it can never forge state, whichever option you pick.</div>
-    <div class="cns-tabs">
-      ${OPTIONS.map((o, i) => `<button type="button" data-opt="${o.id}"${i === 0 ? ' aria-selected="true"' : ""}>${o.label}</button>`).join("")}
+    <div class="cns-tabs" role="tablist" aria-label="Consensus mechanism">
+      ${OPTIONS.map((o, i) => `<button type="button" role="tab" data-opt="${o.id}" aria-selected="${i === 0 ? "true" : "false"}">${o.label}</button>`).join("")}
     </div>
     <svg class="cns-diagram" viewBox="0 0 380 96" role="img" aria-hidden="true"><defs><marker id="cns-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#999"/></marker></defs><g data-diagram></g></svg>
     <div class="cns-meters" data-meters></div>
