@@ -5,8 +5,10 @@
 import { createWorkerHandler } from "presidocs/server/createWorker.ts";
 import { POST_AUTHORS } from "./.generated/postMeta.ts";
 import { POST_VERSIONS } from "./.generated/postVersions.ts";
+import { EPISODE_AUDIO } from "./.generated/episodeAudio.ts";
 
 export default createWorkerHandler({
   postAuthors: POST_AUTHORS,
   postVersions: POST_VERSIONS,
+  episodeAudio: EPISODE_AUDIO,
 });

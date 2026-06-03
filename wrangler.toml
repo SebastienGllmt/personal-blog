@@ -74,12 +74,7 @@ simple = { limit = 100, period = 60 }
 # Queried via Cloudflare's GraphQL/SQL surface. See methodology.md →
 # "Engagement analytics".
 #
-# TEMPORARILY DISABLED: deploy fails with API error 10089 ("You need to enable
-# Analytics Engine") — the account can't register this binding (likely needs
-# the Workers Paid plan). The Worker degrades gracefully: createWorker.ts wires
-# `sink: env.ANALYTICS ?? null`, so a missing binding makes every analytics
-# emit a no-op (same as dev) with no client-visible change. Re-enable by
-# uncommenting once the account is entitled, then redeploy.
-# [[analytics_engine_datasets]]
-# binding = "ANALYTICS"
-# dataset = "blog_engagement"
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "blog_engagement"
