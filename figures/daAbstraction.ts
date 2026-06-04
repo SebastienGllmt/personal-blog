@@ -11,6 +11,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 interface Backend { id: string; note: string }
 const BACKENDS: Backend[] = [
@@ -70,11 +71,12 @@ function initDa(figure: HTMLElement): void {
     }
   }
 
-  chipBtns.forEach((b) => b.addEventListener("click", () => select(Number(b.dataset.be), true)));
+  let driven = false;
+  chipBtns.forEach((b) => b.addEventListener("click", () => { driven = false; select(Number(b.dataset.be), true); }));
   select(0, false);
 
   function intro(): void {
-    if (reduced) return;
+    if (driven || reduced) return;
     gsap.from(stage.querySelectorAll(".da-user, .da-l2, .da-backends"), { opacity: 0, y: 8, duration: 0.35, stagger: 0.1, ease: "power1.out" });
   }
   const io = new IntersectionObserver((entries) => {
@@ -89,4 +91,19 @@ function initDa(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // The journey: cycle the DA backends — the user panel never changes, the
+  // backend is swappable underneath.
+  const journey = gsap.timeline({ paused: true });
+  BACKENDS.forEach((b, i) => {
+    journey.addLabel(b.id.replace(/\s+/g, "-"));
+    journey.call(() => select(i, false));
+    journey.to({}, { duration: 1.6 });
+  });
+  registerFigureJourney("da-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; select(0, false); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

@@ -12,6 +12,7 @@
 // `.sl-enhanced`, IntersectionObserver intro (once), `narration-active`
 // replay, reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 interface Node {
   icon: string;
@@ -98,63 +99,44 @@ const initFigure = (figure: HTMLElement): void => {
   const srcEls = Array.from(stage.querySelectorAll<HTMLElement>('.sl-node[data-side="src"]'));
   const dstEls = Array.from(stage.querySelectorAll<HTMLElement>('.sl-node[data-side="dst"]'));
 
-  let tl: gsap.core.Timeline | null = null;
-
   const center = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   };
 
-  const reset = (): void => {
-    tl?.kill();
-    tl = null;
+  // Visual reset (no timeline kill — stopLive() handles that). Also clears the
+  // dynamically-spawned chips, so the journey is REBUILT (fresh chips) each run.
+  const resetVisual = (): void => {
     chipsLayer.innerHTML = "";
     gsap.set(hub, { scale: 1, boxShadow: "0 0 0 rgba(106,79,176,0)" });
     srcEls.concat(dstEls).forEach((el) => el.classList.remove("lit"));
   };
 
-  // Spawn a chip centered on `from`, animate it to `to`. Used for both the
-  // fan-in (source → hub) and fan-out (hub → consumer) phases.
+  // Spawn a chip and animate it from→to ENTIRELY on the timeline (move + fade-out
+  // + arrival callback at numeric `at`) — no detached gsap.to in callbacks, so a
+  // forward seek reproduces every frame. immediateRender:false keeps building a
+  // paused instance side-effect-free.
   const flyChip = (
     timeline: gsap.core.Timeline,
     from: HTMLElement,
     to: HTMLElement,
-    at: gsap.Position,
+    at: number,
     onArrive?: () => void,
   ): void => {
     const a = center(from);
     const b = center(to);
-    const stageRect = stage.getBoundingClientRect();
+    const sr = stage.getBoundingClientRect();
     const chip = document.createElement("div");
     chip.className = "sl-chip";
     chipsLayer.appendChild(chip);
-    gsap.set(chip, {
-      x: a.x - stageRect.left,
-      y: a.y - stageRect.top,
-      xPercent: -50,
-      yPercent: -50,
-      opacity: 0,
-      scale: 0.6,
-    });
-    timeline.to(
+    timeline.fromTo(
       chip,
-      {
-        x: b.x - stageRect.left,
-        y: b.y - stageRect.top,
-        opacity: 1,
-        scale: 1,
-        duration: 0.55,
-        ease: "power2.inOut",
-        onStart() {
-          gsap.to(chip, { opacity: 1, duration: 0.1 });
-        },
-        onComplete() {
-          gsap.to(chip, { opacity: 0, scale: 0.5, duration: 0.25 });
-          onArrive?.();
-        },
-      },
+      { x: a.x - sr.left, y: a.y - sr.top, xPercent: -50, yPercent: -50, opacity: 0, scale: 0.6 },
+      { x: b.x - sr.left, y: b.y - sr.top, opacity: 1, scale: 1, duration: 0.55, ease: "power2.inOut", immediateRender: false },
       at,
     );
+    timeline.to(chip, { opacity: 0, scale: 0.5, duration: 0.25 }, at + 0.55);
+    if (onArrive) timeline.add(onArrive, at + 0.55);
   };
 
   const lightAll = (): void => {
@@ -162,60 +144,50 @@ const initFigure = (figure: HTMLElement): void => {
     captionEl.innerHTML = CAP_FANOUT;
   };
 
-  const play = (): void => {
-    if (reduced) {
-      reset();
-      lightAll();
-      return;
-    }
-    reset();
-    // Auto-loop forever: replay a couple seconds after each pass completes.
-    const t = gsap.timeline({ onComplete: () => { gsap.delayedCall(2, play); } });
-    tl = t;
-
-    // Phase 1: fan-in. Each source emits a chip that converges on the hub.
-    t.add(() => {
-      captionEl.innerHTML = CAP_FANIN;
-    });
+  // One pass (fan-in → hub pulse → fan-out) as a paused, labeled timeline, with
+  // explicit numeric times so chip fades/callbacks sit on the timeline.
+  const buildPass = (): gsap.core.Timeline => {
+    const t = gsap.timeline({ paused: true });
+    t.addLabel("fan-in", 0);
+    t.add(() => { captionEl.innerHTML = CAP_FANIN; }, 0);
     srcEls.forEach((el, i) => {
       const at = i * 0.18;
       t.add(() => el.classList.add("lit"), at);
       flyChip(t, el, hub, at);
     });
 
-    // Phase 2: the hub pulses as it fills.
-    t.add(() => {
-      captionEl.innerHTML = CAP_HUB;
-    }, ">-0.1");
-    t.to(hub, { scale: 1.12, duration: 0.25, ease: "power2.out" }, "<");
-    t.to(
-      hub,
-      {
-        boxShadow: "0 0 22px rgba(106,79,176,0.55)",
-        duration: 0.25,
-        yoyo: true,
-        repeat: 1,
-      },
-      "<",
-    );
-    t.to(hub, { scale: 1, duration: 0.3, ease: "power2.inOut" });
+    t.addLabel("hub", 1.0);
+    t.add(() => { captionEl.innerHTML = CAP_HUB; }, 1.0);
+    t.to(hub, { scale: 1.12, duration: 0.25, ease: "power2.out" }, 1.0);
+    t.to(hub, { boxShadow: "0 0 22px rgba(106,79,176,0.55)", duration: 0.25, yoyo: true, repeat: 1, immediateRender: false }, 1.0);
+    t.to(hub, { scale: 1, duration: 0.3, ease: "power2.inOut" }, 1.5);
 
-    // Phase 3: fan-out. The hub emits a chip to each consumer dApp.
-    t.add(() => {
-      captionEl.innerHTML = CAP_FANOUT;
-    });
-    dstEls.forEach((el) => {
-      flyChip(t, hub, el, ">-0.4", () => el.classList.add("lit"));
-    });
+    t.addLabel("fan-out", 1.75);
+    t.add(() => { captionEl.innerHTML = CAP_FANOUT; }, 1.75);
+    dstEls.forEach((el, i) => flyChip(t, hub, el, 1.75 + i * 0.18, () => el.classList.add("lit")));
+    return t;
+  };
+
+  let liveTl: gsap.core.Timeline | null = null;
+  let loopTimer: gsap.core.Tween | null = null;
+  let driven = false;
+  const stopLive = (): void => { liveTl?.kill(); liveTl = null; loopTimer?.kill(); loopTimer = null; };
+
+  const playLive = (): void => {
+    if (driven) return;
+    if (reduced) { stopLive(); resetVisual(); lightAll(); return; }
+    stopLive();
+    resetVisual();
+    const t = buildPass();
+    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(2, playLive); });
+    liveTl = t;
+    t.play();
   };
 
   // Silent reader: play once when scrolled into view.
   const io = new IntersectionObserver(
     (entries) => {
-      for (const e of entries) if (e.isIntersecting) {
-        io.disconnect();
-        play();
-      }
+      for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
     },
     { threshold: 0.3 },
   );
@@ -225,10 +197,35 @@ const initFigure = (figure: HTMLElement): void => {
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) play();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // Register the journey. This figure SPAWNS chips during the animation, so the
+  // journey is rebuilt fresh on reset() (a probe build gives stable duration/
+  // steps; its chips are cleared so the live DOM stays clean).
+  const probe = buildPass();
+  const probeDur = probe.duration();
+  const journeyDurationMs = probeDur * 1000;
+  const journeySteps = stepsFromLabels(probe.labels, probeDur);
+  probe.kill();
+  resetVisual();
+  let journey: gsap.core.Timeline | null = null;
+  registerFigureJourney("sharedliquidity-figure", {
+    durationMs: journeyDurationMs,
+    steps: journeySteps,
+    reset() {
+      driven = true;
+      stopLive();
+      resetVisual();
+      journey = buildPass();
+      journey.pause(0);
+    },
+    seek(ms: number) {
+      journey?.time(ms / 1000);
+    },
+  });
 };
 
 // Run-guard at the very bottom: all const arrow helpers above are defined by

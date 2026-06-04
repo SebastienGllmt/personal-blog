@@ -16,6 +16,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 const fig = document.getElementById("sequencer-proof-figure");
 if (fig) initSeqProof(fig);
@@ -108,34 +109,61 @@ function initSeqProof(figure: HTMLElement): void {
   slider.addEventListener("input", update);
   update();
 
-  function play(): void {
-    if (reduced) return;
-    // keys fly into the TEE, then a single proof pops out
+  let liveTl: gsap.core.Timeline | null = null;
+  let driven = false;
+  const stopLive = (): void => { liveTl?.kill(); liveTl = null; };
+
+  // The journey: keys fly into the TEE, it glows, one proof + commitment pops
+  // out, then the keys reset. Built paused & labeled; from/fromTo use
+  // immediateRender:false so building the registered instance doesn't mutate the
+  // live DOM (getBoundingClientRect forces layout, so build-time positions are
+  // correct).
+  const buildSeq = (): gsap.core.Timeline => {
+    const t = gsap.timeline({ paused: true });
+    t.addLabel("keys", 0);
     const teeRect = tee.getBoundingClientRect();
-    const tl = gsap.timeline();
     keyEls.forEach((k, i) => {
       const kr = k.getBoundingClientRect();
-      tl.to(k, {
+      t.to(k, {
         x: teeRect.left + teeRect.width / 2 - (kr.left + kr.width / 2),
         y: teeRect.top + teeRect.height / 2 - (kr.top + kr.height / 2),
         opacity: 0, scale: 0.6, duration: 0.5, ease: "power2.in",
       }, i * 0.05);
     });
-    tl.fromTo(tee, { boxShadow: "0 0 0 rgba(106,79,176,0)" }, { boxShadow: "0 0 18px rgba(106,79,176,0.5)", duration: 0.25, yoyo: true, repeat: 1 }, ">-0.1");
-    tl.fromTo(q<HTMLElement>("[data-out]"), { scale: 0.7, opacity: 0.3 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2.5)" });
-    tl.add(() => keyEls.forEach((k) => gsap.set(k, { x: 0, y: 0, opacity: 1, scale: 1 })), "+=0.6");
-  }
+    t.fromTo(tee, { boxShadow: "0 0 0 rgba(106,79,176,0)" }, { boxShadow: "0 0 18px rgba(106,79,176,0.5)", duration: 0.25, yoyo: true, repeat: 1, immediateRender: false }, ">-0.1");
+    t.addLabel("proof");
+    t.fromTo(q<HTMLElement>("[data-out]"), { scale: 0.7, opacity: 0.3 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2.5)", immediateRender: false });
+    t.add(() => keyEls.forEach((k) => gsap.set(k, { x: 0, y: 0, opacity: 1, scale: 1 })), "+=0.6");
+    return t;
+  };
+
+  // Live self-play (rebuilds for fresh layout); stands down when driven.
+  const playLive = (): void => {
+    if (driven || reduced) return;
+    stopLive();
+    const t = buildSeq();
+    liveTl = t;
+    t.play();
+  };
 
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); play(); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
   }, { threshold: 0.3 });
   io.observe(figure);
 
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) play();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  const journey = buildSeq();
+  registerFigureJourney("sequencer-proof-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; stopLive(); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

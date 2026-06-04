@@ -18,13 +18,24 @@
 //   - narration-synced via the `narration-active` class the player toggles
 //   - IntersectionObserver intro for the silent reader
 //   - reduced-motion aware
+//
+// It ALSO registers a FigureJourney (engine contract): a self-
+// playing "tour" (balanced → break it → rebalance) on one paused, scrubbable
+// GSAP timeline, so the narrator can play/loop it on cue and the video renderer
+// can capture it frame-accurately. See engine client/figureAnimation.ts.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 // Alice's posted offer is fixed: she puts 5 NIGHT into the pot and pulls 3 ROCK
 // out. Expressed as the offer's net contribution per token (its delta):
 const MAKER_NIGHT = 5; // +5 NIGHT contributed
 const MAKER_ROCK = 3; // −3 ROCK withdrawn
 const MAX = 9;
+
+const BALANCED_VERDICT =
+  "&check; <b>Balanced.</b> The two halves merge into one transaction that settles atomically on Midnight. <b>Press the &minus;/+ buttons</b> to unbalance it and watch it break.";
+const IMBALANCED_VERDICT =
+  "&times; <b>Imbalanced.</b> A non-zero &Delta; can't be submitted &mdash; mirror Alice's offer exactly to fix it.";
 
 const fig = document.getElementById("merge-figure");
 if (fig) initMergeFigure(fig);
@@ -91,41 +102,69 @@ function initMergeFigure(figure: HTMLElement): void {
   let ROCKGive = MAKER_ROCK;
   let wasBalanced = true;
 
-  const clamp = (n: number) => Math.max(0, Math.min(MAX, n));
+  // A driver (video capture / narrator) takes exclusive control via reset();
+  // `driven` stands the live triggers down and we kill the live tween instances
+  // so they can't race the journey. We track instances rather than
+  // `killTweensOf(bars)` because the journey tweens the SAME bars and
+  // killTweensOf would reach into the paused tour and destroy it.
+  let driven = false;
+  const liveTweens: gsap.core.Tween[] = [];
+  const track = (tw: gsap.core.Tween): gsap.core.Tween => {
+    liveTweens.push(tw);
+    return tw;
+  };
 
-  function paintDelta(el: HTMLElement, bar: HTMLElement, delta: number): void {
+  const clamp = (n: number) => Math.max(0, Math.min(MAX, n));
+  const pct = (delta: number) => Math.min(100, (Math.abs(delta) / MAX) * 100);
+
+  function setDeltaText(el: HTMLElement, delta: number): void {
     el.textContent = (delta > 0 ? "+" : "") + delta;
     el.classList.toggle("surplus", delta > 0);
     el.classList.toggle("deficit", delta < 0);
     el.classList.toggle("zero", delta === 0);
-    // Bar fills proportionally to |delta| (max 9), colored by sign.
-    const pct = Math.min(100, (Math.abs(delta) / MAX) * 100);
+  }
+  function setBarClass(bar: HTMLElement, delta: number): void {
     bar.classList.toggle("surplus", delta > 0);
     bar.classList.toggle("deficit", delta < 0);
     bar.classList.toggle("zero", delta === 0);
-    if (reduced) bar.style.width = pct + "%";
-    else gsap.to(bar, { width: pct + "%", duration: 0.35, ease: "power2.out" });
   }
 
-  function render(animateBalance: boolean): void {
-    nightEl.textContent = String(nightTake);
-    ROCKEl.textContent = String(ROCKGive);
-
-    const mergedNight = MAKER_NIGHT - nightTake; // +5 from Alice, −take from you
-    const mergedROCK = ROCKGive - MAKER_ROCK; // −3 from Alice, +give from you
-    paintDelta(dNight, barNight, mergedNight);
-    paintDelta(dROCK, barROCK, mergedROCK);
-
+  /** Everything that isn't a bar-width tween: amounts, deltas, verdict, op,
+   *  balanced class. Driven discretely by both the interactive path and the
+   *  tour timeline's keyframe callbacks. */
+  function applyDiscrete(night: number, rock: number): void {
+    nightTake = night;
+    ROCKGive = rock;
+    nightEl.textContent = String(night);
+    ROCKEl.textContent = String(rock);
+    const mergedNight = MAKER_NIGHT - night;
+    const mergedROCK = rock - MAKER_ROCK;
+    setDeltaText(dNight, mergedNight);
+    setDeltaText(dROCK, mergedROCK);
+    setBarClass(barNight, mergedNight);
+    setBarClass(barROCK, mergedROCK);
     const balanced = mergedNight === 0 && mergedROCK === 0;
     figure.classList.toggle("is-balanced", balanced);
     op.textContent = balanced ? "=" : "+";
-    verdict.innerHTML = balanced
-      ? "&check; <b>Balanced.</b> The two halves merge into one transaction that settles atomically on Midnight. <b>Press the &minus;/+ buttons</b> to unbalance it and watch it break."
-      : "&times; <b>Imbalanced.</b> A non-zero &Delta; can't be submitted &mdash; mirror Alice's offer exactly to fix it.";
+    verdict.innerHTML = balanced ? BALANCED_VERDICT : IMBALANCED_VERDICT;
+  }
 
+  // Interactive render: discrete state + animated bar widths (detached tweens).
+  function render(animateBalance: boolean): void {
+    const mergedNight = MAKER_NIGHT - nightTake;
+    const mergedROCK = ROCKGive - MAKER_ROCK;
+    applyDiscrete(nightTake, ROCKGive);
+    const setBar = (bar: HTMLElement, delta: number) => {
+      const w = pct(delta) + "%";
+      if (reduced) bar.style.width = w;
+      else track(gsap.to(bar, { width: w, duration: 0.35, ease: "power2.out" }));
+    };
+    setBar(barNight, mergedNight);
+    setBar(barROCK, mergedROCK);
+    const balanced = mergedNight === 0 && mergedROCK === 0;
     if (balanced && animateBalance && !wasBalanced && !reduced) {
-      gsap.fromTo(ledger, { scale: 0.97 }, { scale: 1, duration: 0.4, ease: "back.out(2.2)" });
-      gsap.fromTo(op, { scale: 0.5, rotation: -20 }, { scale: 1, rotation: 0, duration: 0.45, ease: "back.out(3)" });
+      track(gsap.fromTo(ledger, { scale: 0.97 }, { scale: 1, duration: 0.4, ease: "back.out(2.2)" }));
+      track(gsap.fromTo(op, { scale: 0.5, rotation: -20 }, { scale: 1, rotation: 0, duration: 0.45, ease: "back.out(3)" }));
     }
     wasBalanced = balanced;
   }
@@ -143,10 +182,37 @@ function initMergeFigure(figure: HTMLElement): void {
   });
 
   function intro(): void {
+    if (driven) return; // a driver owns the figure; stay out of its way
     if (reduced) { render(false); return; }
     const legs = stage.querySelectorAll(".maker .leg, .taker .stepper-row");
-    gsap.from(legs, { opacity: 0, y: 12, duration: 0.3, stagger: 0.07, ease: "back.out(2)" });
+    track(gsap.from(legs, { opacity: 0, y: 12, duration: 0.3, stagger: 0.07, ease: "back.out(2)" }));
     render(false);
+  }
+
+  // ----- self-playing tour: balanced → break it → rebalance (one paused,
+  // scrubbable timeline; bar widths are tweens, the rest are keyframe calls) ---
+  // The journey's named steps become the `steps` map (via the timeline labels);
+  // they're the future join-point for narration-driven stepping.
+  function buildTour(): gsap.core.Timeline {
+    const tl = gsap.timeline({ paused: true });
+    tl.addLabel("balanced", 0);
+    tl.call(() => applyDiscrete(5, 3));
+    tl.set([barNight, barROCK], { width: "0%" });
+    tl.to({}, { duration: 1.1 }); // dwell on balanced
+    // break it: the taker takes 8 NIGHT instead of 5 → merged Δ = −3.
+    tl.addLabel("broken");
+    tl.call(() => applyDiscrete(8, 3));
+    tl.to(barNight, { width: pct(-3) + "%", duration: 0.45, ease: "power2.out" });
+    tl.fromTo(op, { scale: 0.6 }, { scale: 1, duration: 0.3, ease: "back.out(3)", immediateRender: false }, "<");
+    tl.to({}, { duration: 1.5 }); // dwell on imbalanced
+    // fix it: back to 5 → balanced again, with the settle pop.
+    tl.addLabel("rebalanced");
+    tl.call(() => applyDiscrete(5, 3));
+    tl.to(barNight, { width: "0%", duration: 0.45, ease: "power2.out" });
+    tl.fromTo(op, { scale: 0.5, rotation: -18 }, { scale: 1, rotation: 0, duration: 0.45, ease: "back.out(3)", immediateRender: false }, "<");
+    tl.fromTo(ledger, { scale: 0.97 }, { scale: 1, duration: 0.4, ease: "back.out(2.2)", immediateRender: false }, "<");
+    tl.to({}, { duration: 1.2 }); // dwell on balanced
+    return tl;
   }
 
   // Silent reader: play once when scrolled into view.
@@ -165,4 +231,24 @@ function initMergeFigure(figure: HTMLElement): void {
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
 
   render(false);
+
+  // Register the journey (always — registration ≠ playback: the live page gates
+  // animation on reduced-motion via its own triggers, the renderer always
+  // captures). Forward-seek contract; transport lives in engine drivers, not here.
+  const tour = buildTour();
+  registerFigureJourney("merge-figure", {
+    durationMs: tour.duration() * 1000,
+    steps: stepsFromLabels(tour.labels, tour.duration()),
+    reset() {
+      driven = true;
+      liveTweens.forEach((t) => t.kill()); // stop in-flight live tweens (NOT killTweensOf — it'd nuke the tour)
+      liveTweens.length = 0;
+      tour.pause(0);
+      applyDiscrete(5, 3);
+      gsap.set([barNight, barROCK], { width: "0%" });
+    },
+    seek(ms: number) {
+      tour.time(ms / 1000);
+    },
+  });
 }

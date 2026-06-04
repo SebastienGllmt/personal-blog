@@ -18,6 +18,7 @@
 // writes CSSOM. Progressive enhancement over a static SVG; narration-synced
 // replay; reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 type Phase = "none" | "open" | "filled" | "cancelled";
 
@@ -84,6 +85,7 @@ const initUtxoFigure = (figure: HTMLElement): void => {
 
   let phase: Phase = "none";
   let txCount = 0;
+  let driven = false; // a driver (video capture / narrator) has exclusive control
 
   // Fan an SVG link line out of the "posted to →" connector to every copy, so
   // the one-file-to-many-copies fan-out is unmistakable. The lines start just
@@ -241,6 +243,7 @@ const initUtxoFigure = (figure: HTMLElement): void => {
   // Narration / scroll triggers just (re)play the create step so a listener
   // sees the offer fan out when the figure is referenced.
   const intro = (): void => {
+    if (driven) return;
     if (phase === "none") onCreate();
   };
 
@@ -263,6 +266,83 @@ const initUtxoFigure = (figure: HTMLElement): void => {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // ----- the journey (engine drivers: video capture today, narrator later) -----
+  // The figure is an interactive state machine with detached per-action anims;
+  // the journey re-authors the core asymmetry — CREATE (free, fans out to many
+  // copies) → a taker FILLS it (spends the one coin, cascade-kills every copy,
+  // +1 tx) — on ONE paused timeline. Copies/tethers are spawned at build, so the
+  // journey is rebuilt fresh on reset().
+  const buildJourney = (): gsap.core.Timeline => {
+    // fresh DOM: one offer fanned out to its copies, tethers drawn
+    onReset();
+    phase = "open";
+    render();
+    copiesBox.innerHTML = "";
+    COPIES.forEach((label) => {
+      const c = document.createElement("div");
+      c.className = "copy";
+      c.innerHTML = `<span class="copy-tag">zswapoffer1…</span><span class="copy-where">${label}</span><span class="copy-status" data-copy-status>live</span>`;
+      copiesBox.appendChild(c);
+    });
+    drawTethers();
+    const copies = Array.from(copiesBox.querySelectorAll<HTMLElement>(".copy"));
+    const paths = Array.from(tethers.querySelectorAll<SVGElement>(".tether"));
+
+    const t = gsap.timeline({ paused: true });
+    t.addLabel("create", 0);
+    t.add(() => {
+      phase = "open";
+      render();
+      txCount = 0;
+      txEl.textContent = "0";
+      readout.innerHTML = "Created and shared &mdash; <b class='ok'>no transaction</b>. One file, copied to <b>many</b> places, all backed by the <b>same single coin</b>.";
+    }, 0);
+    t.fromTo(copies, { opacity: 0, x: -14, scale: 0.8 }, { opacity: 1, x: 0, scale: 1, stagger: 0.07, duration: 0.32, ease: "back.out(2)", immediateRender: false }, 0);
+    t.fromTo(paths, { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.07, immediateRender: false }, 0.1);
+    t.to({}, { duration: 1.4 }); // dwell on the fan-out
+
+    t.addLabel("fill");
+    t.add(() => {
+      phase = "filled";
+      setCoinSpent();
+      txCount = 1;
+      txEl.textContent = "1";
+      render();
+      file.querySelector<HTMLElement>(".file-tag")?.classList.add("strike");
+      readout.innerHTML = "A taker settled <b>on-chain</b> &mdash; that <b class='cost'>spent the one coin</b>. Every copy was backed by it, so they <b>all</b> go dead at once: one spend cascades through the whole fan-out.";
+    });
+    t.to(file.querySelector(".file-tag"), { opacity: 0.4, duration: 0.25 });
+    copies.forEach((cp, i) => {
+      t.add(() => {
+        cp.classList.add("void");
+        const s = cp.querySelector<HTMLElement>("[data-copy-status]");
+        if (s) s.textContent = "dead";
+        paths[i]?.classList.add("dead");
+      }, i === 0 ? ">" : "<+=0.14");
+      t.fromTo(cp, { scale: 1 }, { scale: 0.92, duration: 0.12, yoyo: true, repeat: 1, ease: "power1.inOut", immediateRender: false }, "<");
+    });
+    t.to({}, { duration: 1.8 }); // dwell on the cascade
+    return t;
+  };
+
+  const probe = buildJourney();
+  const probeDur = probe.duration();
+  const probeSteps = stepsFromLabels(probe.labels, probeDur);
+  probe.kill();
+  onReset(); // clear the probe's spawned copies/state
+  let journeyTl: gsap.core.Timeline | null = null;
+  registerFigureJourney("utxo-figure", {
+    durationMs: probeDur * 1000,
+    steps: probeSteps,
+    reset() {
+      driven = true;
+      gsap.killTweensOf([coin, file]);
+      journeyTl = buildJourney();
+      journeyTl.pause(0);
+    },
+    seek(ms: number) { journeyTl?.time(ms / 1000); },
+  });
 };
 
 const fig = document.getElementById("utxo-figure");

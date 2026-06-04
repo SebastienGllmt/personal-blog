@@ -12,6 +12,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 const fig = document.getElementById("ttm-figure");
 if (fig) initTtm(fig);
@@ -62,11 +63,12 @@ function initTtm(figure: HTMLElement): void {
           : "Too long. Chase perfection and you risk spending the <em>entire</em> (unknown-length) window building &mdash; and launching just as it closes, or after. The work ships into a world that no longer needs it.";
   }
 
-  scope.addEventListener("input", () => render(true));
+  let driven = false;
+  scope.addEventListener("input", () => { driven = false; render(true); });
   render(false);
 
   function intro(): void {
-    if (reduced) return;
+    if (driven || reduced) return;
     gsap.from(ship, { opacity: 0, y: -8, duration: 0.4, ease: "back.out(2)" });
   }
   const io = new IntersectionObserver((entries) => {
@@ -81,4 +83,18 @@ function initTtm(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // The journey: push the build scope from lean → polished → perfect, sliding
+  // the ship toward the fog — the case for shipping lean and soon.
+  const setScope = (v: number): void => { scope.value = String(v); render(false); };
+  const journey = gsap.timeline({ paused: true });
+  journey.addLabel("lean"); journey.call(() => setScope(12)); journey.to({}, { duration: 1.6 });
+  journey.addLabel("polished"); journey.call(() => setScope(50)); journey.to({}, { duration: 1.6 });
+  journey.addLabel("perfect"); journey.call(() => setScope(85)); journey.to({}, { duration: 1.8 });
+  registerFigureJourney("ttm-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; setScope(12); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

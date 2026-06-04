@@ -14,6 +14,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 const SELF = "0x9f…a1";
 const OTHER = "0x33…ff";
@@ -84,11 +85,12 @@ function initOffboard(figure: HTMLElement): void {
     }
   }
 
-  claimBtns.forEach((b) => b.addEventListener("click", () => { claim = b.dataset.claim as "self" | "other"; render(true); }));
+  let driven = false;
+  claimBtns.forEach((b) => b.addEventListener("click", () => { driven = false; claim = b.dataset.claim as "self" | "other"; render(true); }));
   render(false);
 
   function intro(): void {
-    if (reduced) return;
+    if (driven || reduced) return;
     gsap.from(stage.querySelectorAll(".ob-lane, .ob-bridge"), { opacity: 0, y: 8, duration: 0.35, stagger: 0.12, ease: "power1.out" });
   }
   const io = new IntersectionObserver((entries) => {
@@ -103,4 +105,17 @@ function initOffboard(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // The journey: claim as yourself (released) → as someone else (blocked) — the
+  // same-address-on-both-sides rule is the security.
+  const setClaim = (c: "self" | "other"): void => { claim = c; render(false); };
+  const journey = gsap.timeline({ paused: true });
+  journey.addLabel("claim-self"); journey.call(() => setClaim("self")); journey.to({}, { duration: 1.8 });
+  journey.addLabel("claim-other"); journey.call(() => setClaim("other")); journey.to({}, { duration: 2.0 });
+  registerFigureJourney("offboard-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; setClaim("self"); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

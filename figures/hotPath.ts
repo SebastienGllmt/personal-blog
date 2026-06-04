@@ -15,6 +15,7 @@
 // SVG attributes only. Progressive enhancement over a static SVG;
 // narration-synced; reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -71,16 +72,19 @@ function initHotPath(figure: HTMLElement): void {
   const teeRect = q<SVGRectElement>("[data-tee]");
   const replay = q<HTMLButtonElement>("[data-replay]");
 
-  let tl: gsap.core.Timeline | null = null;
+  let tl: gsap.core.Timeline | null = null; // live (looping) master
+  let driven = false;
 
-  // Build the looping timeline once. Coordinates are fixed (SVG viewBox), so it
-  // never needs rebuilding. `repeat: -1` makes the whole cycle loop forever; we
-  // pause it while the figure is off-screen so it isn't burning a rAF in the
-  // background.
-  function build(): gsap.core.Timeline {
+  const clearDots = (): void => {
     gsap.set([dotIn, dotExp, dotIdx, dotBundle], { opacity: 0 });
     gsap.set(teeRect, { fill: "#f3f0fb" });
-    const master = gsap.timeline({ repeat: -1, repeatDelay: 0.6 });
+  };
+
+  // Build the cycle. Coordinates are fixed (SVG viewBox). `loop` → the live
+  // forever-loop; `!loop` → one paused, labeled cycle (the journey).
+  function build(loop: boolean): gsap.core.Timeline {
+    clearDots();
+    const master = gsap.timeline({ paused: true, repeat: loop ? -1 : 0, repeatDelay: 0.6 });
 
     // Hot cycle: one packet arrives user → sequencer, then the sequencer forwards
     // it to BOTH the explorer and the indexer at the same instant (synced fork).
@@ -103,33 +107,58 @@ function initHotPath(figure: HTMLElement): void {
       .to(dotBundle, { attr: { cx: 545 }, duration: 0.9, ease: "power1.out" })
       .set(dotBundle, { opacity: 0 });
 
-    master.add(hot, 0).add(bundle, 1.8);
+    master.addLabel("hot", 0);
+    master.add(hot, 0);
+    master.addLabel("bundle", 1.8);
+    master.add(bundle, 1.8);
     return master;
   }
 
-  function start(): void {
-    if (reduced) return;
-    if (!tl) tl = build();
+  function startLive(): void {
+    if (driven || reduced) return;
+    if (!tl) tl = build(true);
     tl.play();
   }
 
   replay.addEventListener("click", () => {
+    driven = false;
     if (reduced) return;
-    if (!tl) tl = build();
+    if (!tl) tl = build(true);
     tl.restart();
   });
 
   // Loop while on-screen; pause when scrolled away (don't disconnect).
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) e.isIntersecting ? start() : tl?.pause();
+    for (const e of entries) e.isIntersecting ? startLive() : tl?.pause();
   }, { threshold: 0.2 });
   io.observe(figure);
 
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) start();
+    if (now && !active) startLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // Journey (one cycle) for engine drivers. Probe for stable duration/steps,
+  // then rebuild fresh on reset() (clearing the build-time .set side-effects).
+  const probe = build(false);
+  const probeDur = probe.duration();
+  const probeSteps = stepsFromLabels(probe.labels, probeDur);
+  probe.kill();
+  clearDots();
+  let journey: gsap.core.Timeline | null = null;
+  registerFigureJourney("hotpath-figure", {
+    durationMs: probeDur * 1000,
+    steps: probeSteps,
+    reset() {
+      driven = true;
+      tl?.pause();
+      clearDots();
+      journey = build(false);
+      journey.pause(0);
+    },
+    seek(ms: number) { journey?.time(ms / 1000); },
+  });
 }

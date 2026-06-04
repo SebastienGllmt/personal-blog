@@ -22,6 +22,7 @@
 // `.intent-enhanced`, IntersectionObserver intro (once, threshold 0.3),
 // `narration-active` replay via MutationObserver, reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 // A row that lands in a column. `kind` drives the row's look; `tx` whether it
 // bumps the on-chain counter.
@@ -137,19 +138,15 @@ function initFigure(figure: HTMLElement): void {
     stage.querySelectorAll<HTMLElement>('[data-rows="intent-on"] .row'),
   );
 
-  let tl: gsap.core.Timeline | null = null;
+  let liveTl: gsap.core.Timeline | null = null;
+  let loopTimer: gsap.core.Tween | null = null;
+  let driven = false;
+  const stopLive = (): void => { liveTl?.kill(); liveTl = null; loopTimer?.kill(); loopTimer = null; };
 
-  const hideRows = (els: HTMLElement[]): void => {
-    els.forEach((el) => { gsap.set(el, { opacity: 0, y: 8 }); });
-  };
+  const hideRows = (els: HTMLElement[]): void => { els.forEach((el) => gsap.set(el, { opacity: 0, y: 8 })); };
+  const showRows = (els: HTMLElement[]): void => { els.forEach((el) => gsap.set(el, { opacity: 1, y: 0 })); };
 
-  const showRows = (els: HTMLElement[]): void => {
-    els.forEach((el) => { gsap.set(el, { opacity: 1, y: 0 }); });
-  };
-
-  const reset = (): void => {
-    tl?.kill();
-    tl = null;
+  const resetVisual = (): void => {
     hideRows(onchainRowEls);
     hideRows(offRowEls);
     hideRows(intentOnRowEls);
@@ -177,67 +174,61 @@ function initFigure(figure: HTMLElement): void {
     counterEl: HTMLElement | null,
     nextCount: number,
   ): void => {
-    t.to(el, {
-      opacity: 1,
-      y: 0,
-      duration: 0.32,
-      ease: "back.out(1.8)",
-    });
+    t.to(el, { opacity: 1, y: 0, duration: 0.32, ease: "back.out(1.8)" });
     if (countEl && counterEl) {
-      t.add(() => {
-        countEl.textContent = String(nextCount);
-        counterEl.classList.add("active");
-      });
-      t.fromTo(counterEl, { scale: 1 }, { scale: 1.16, duration: 0.16, yoyo: true, repeat: 1, ease: "power2.out" });
+      t.add(() => { countEl.textContent = String(nextCount); counterEl.classList.add("active"); });
+      t.fromTo(counterEl, { scale: 1 }, { scale: 1.16, duration: 0.16, yoyo: true, repeat: 1, ease: "power2.out", immediateRender: false });
     }
   };
 
-  function play(): void {
-    if (reduced) { reset(); finalState(); return; }
-    reset();
-
-    const t = gsap.timeline({
-      onComplete() {
-        // Auto-loop: dwell on the finished comparison, then replay.
-        gsap.delayedCall(LOOP_GAP, play);
-      },
-    });
-    tl = t;
-
-    // Build the fully-on-chain column first: every row is a tx, the counter
-    // climbs row by row. This is the "expensive" side.
+  // The journey: the expensive on-chain column climbs row by row, then the
+  // intent side piles up off-chain for free with one settle tx.
+  const buildJourney = (): gsap.core.Timeline => {
+    const t = gsap.timeline({ paused: true });
+    t.add(() => resetVisual());
+    t.addLabel("on-chain", 0);
     let onchainTx = 0;
     ONCHAIN_ROWS.forEach((r, i) => {
       onchainTx += r.tx ? 1 : 0;
       revealRow(t, onchainRowEls[i]!, r.tx ? onchainCount : null, r.tx ? onchainCounter : null, onchainTx);
       t.to({}, { duration: 0.12 });
     });
-
-    // Small breath before the intent side.
     t.to({}, { duration: 0.35 });
-
-    // Then the intent side: the off-chain column piles up for free (no counter
-    // movement), and only the final settle bumps the on-chain counter to 1.
+    t.addLabel("intent-off");
     INTENT_OFFCHAIN_ROWS.forEach((r, i) => {
       revealRow(t, offRowEls[i]!, null, null, 0);
       t.to({}, { duration: 0.1 });
     });
     t.to({}, { duration: 0.3 });
+    t.addLabel("settle");
     let intentTx = 0;
     INTENT_ONCHAIN_ROWS.forEach((r, i) => {
       intentTx += r.tx ? 1 : 0;
       revealRow(t, intentOnRowEls[i]!, r.tx ? intentCount : null, r.tx ? intentCounter : null, intentTx);
     });
-  }
+    t.to({}, { duration: 1.0 }); // dwell on the finished comparison
+    return t;
+  };
 
-  replayBtn.addEventListener("click", play);
+  const playLive = (): void => {
+    if (driven) return;
+    if (reduced) { stopLive(); resetVisual(); finalState(); return; }
+    stopLive();
+    resetVisual();
+    const t = buildJourney();
+    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(LOOP_GAP, playLive); });
+    liveTl = t;
+    t.play();
+  };
+
+  replayBtn.addEventListener("click", () => { driven = false; playLive(); });
 
   // Idle state before the first run.
-  reset();
+  resetVisual();
 
   // Silent reader: start when scrolled into view.
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); play(); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
   }, { threshold: 0.3 });
   io.observe(figure);
 
@@ -245,10 +236,18 @@ function initFigure(figure: HTMLElement): void {
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) play();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  const journey = buildJourney();
+  registerFigureJourney("intent-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; stopLive(); resetVisual(); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }
 
 // Run-guard MUST stay at the bottom: the const arrow helpers above are not

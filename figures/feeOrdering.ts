@@ -17,6 +17,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 const fig = document.getElementById("fee-figure");
 if (fig) initFee(fig);
@@ -97,12 +98,13 @@ function initFee(figure: HTMLElement): void {
     if (animate && !reduced) gsap.fromTo(checks, { opacity: 0.4 }, { opacity: 1, duration: 0.25, ease: "power1.out" });
   }
 
-  fee.addEventListener("input", () => render(true));
-  orderBtns.forEach((b) => b.addEventListener("click", () => { order = b.dataset.order as "fifo" | "priority"; render(true); }));
+  let driven = false;
+  fee.addEventListener("input", () => { driven = false; render(true); });
+  orderBtns.forEach((b) => b.addEventListener("click", () => { driven = false; order = b.dataset.order as "fifo" | "priority"; render(true); }));
   render(false);
 
   function intro(): void {
-    if (reduced) return;
+    if (driven || reduced) return;
     gsap.from(stage.querySelectorAll(".fo-checks li"), { opacity: 0, y: 6, duration: 0.3, stagger: 0.06, ease: "power1.out" });
   }
   const io = new IntersectionObserver((entries) => {
@@ -117,4 +119,23 @@ function initFee(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // The journey: tour the corners of the fee/ordering tradeoff space — every
+  // knob trades one problem for another.
+  const setState = (feeVal: number, ord: "fifo" | "priority"): void => {
+    fee.value = String(feeVal);
+    order = ord;
+    render(false);
+  };
+  const journey = gsap.timeline({ paused: true });
+  journey.addLabel("free"); journey.call(() => setState(0, "fifo")); journey.to({}, { duration: 1.6 });
+  journey.addLabel("low-flat"); journey.call(() => setState(18, "fifo")); journey.to({}, { duration: 1.8 });
+  journey.addLabel("high-fee"); journey.call(() => setState(80, "fifo")); journey.to({}, { duration: 1.6 });
+  journey.addLabel("fee-priority"); journey.call(() => setState(18, "priority")); journey.to({}, { duration: 2.0 });
+  registerFigureJourney("fee-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; setState(18, "fifo"); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

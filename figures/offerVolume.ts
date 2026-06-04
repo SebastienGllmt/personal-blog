@@ -16,6 +16,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 interface Week { w: string; nAll: number; vu: number; p: number }
 interface Dataset { totalAllAssets: number; usdCount: number; asOf: string; weeks: Week[]; interim?: boolean }
@@ -77,6 +78,7 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
   const modeWrap = stage.querySelector<HTMLElement>("[data-modes]")!;
   const modeBtns = Array.from(stage.querySelectorAll<HTMLButtonElement>("[data-mode]"));
   let cumulative = false; // shared across the swaps & volume tabs
+  let animate = true; // off while a driver (capture) scrubs — see the journey
   const cumsum = (vals: number[]) => { let s = 0; return vals.map((v) => (s += v)); };
 
   const x = (i: number) => PAD.l + (n <= 1 ? 0 : (i / (n - 1)) * PLOTW);
@@ -196,7 +198,7 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
   }
 
   function animateIn(node: SVGElement, kind: "bars" | "line" | "donut", payload?: SVGElement[] | SVGElement): void {
-    if (reduced) return;
+    if (reduced || !animate) return;
     if (kind === "bars" && Array.isArray(payload)) {
       gsap.from(payload, { scaleY: 0, transformOrigin: "bottom", duration: 0.5, stagger: { each: 0.5 / n }, ease: "power1.out" });
     } else if (kind === "line" && payload && !Array.isArray(payload)) {
@@ -256,8 +258,11 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
     }
   }
 
-  tabBtns.forEach((b) => b.addEventListener("click", () => render(b.dataset.tab as TabId)));
+  let driven = false;
+  tabBtns.forEach((b) => b.addEventListener("click", () => { driven = false; animate = true; render(b.dataset.tab as TabId); }));
   modeBtns.forEach((b) => b.addEventListener("click", () => {
+    driven = false;
+    animate = true;
     cumulative = b.dataset.mode === "cumulative";
     modeBtns.forEach((x) => x.setAttribute("aria-selected", String(x === b)));
     render(current);
@@ -266,16 +271,32 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
 
   // Narration / scroll: replay the current tab's intro.
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); render(current); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); if (!driven) { animate = true; render(current); } }
   }, { threshold: 0.3 });
   io.observe(figure);
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) render(current);
+    if (now && !active && !driven) { animate = true; render(current); }
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // The journey: tour the four charts (swaps → USD share → USD volume → price),
+  // rendered statically (animate off avoids the detached stroke/bar
+  // reveals so a forward seek is reproducible).
+  const journey = gsap.timeline({ paused: true });
+  TABS.forEach((tab) => {
+    journey.addLabel(tab.id);
+    journey.call(() => { animate = false; cumulative = false; render(tab.id); });
+    journey.to({}, { duration: 1.8 });
+  });
+  registerFigureJourney("volume-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; animate = false; cumulative = false; render("swaps"); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }
 
 // Run-guard last, so all helper consts (fmtInt/fmtUsd) and functions are

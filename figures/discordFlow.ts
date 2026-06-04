@@ -14,6 +14,7 @@
 // `.dc-enhanced`, IntersectionObserver intro, `narration-active` replay,
 // reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 const STEPS: string[] = [
   "User A's wallet builds and proves an offer &mdash; a self-contained <code>zswapoffer1…</code> file. No chain touched, no escrow.",
@@ -68,8 +69,6 @@ function initFigure(figure: HTMLElement): void {
   const fillL = q<HTMLElement>("[data-fill-l]");
   const fillR = q<HTMLElement>("[data-fill-r]");
 
-  let tl: gsap.core.Timeline | null = null;
-
   // Translate (x,y) that lands the chip's centre on `el`'s centre. The chip is
   // anchored at the stage's top-left (left:0;top:0), so we offset by the chip's
   // own (untransformed) size; offsetWidth/Height ignore any scale transform.
@@ -102,60 +101,84 @@ function initFigure(figure: HTMLElement): void {
     readout.innerHTML = STEPS[STEPS.length - 1]!;
   }
 
+  // One pass of the flow as a paused, labeled timeline (the journey). The first
+  // `.add` re-establishes the start state on play/seek; from/fromTo use
+  // immediateRender:false so building the registered instance is side-effect-free.
   function buildPass(): gsap.core.Timeline {
-    const t = gsap.timeline();
+    const t = gsap.timeline({ paused: true });
     t.add(() => resetVisuals());
 
     // Beat 0: A's wallet builds the offer; chip rises to User A (vertical).
+    t.addLabel("build", 0);
     t.add(() => { readout.innerHTML = STEPS[0]!; lit(walletA, true); });
-    t.fromTo(chip, { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.2)" });
+    t.fromTo(chip, { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.2)", immediateRender: false });
     t.add(() => lit(userA, true));
     t.to(chip, { ...centerIn(userA), duration: 0.4, ease: "power1.inOut" });
     t.to({}, { duration: 0.45 });
 
     // Beat 1: A → the #offers pill (right, along the line); left half fills.
+    t.addLabel("to-channel");
     t.add(() => { readout.innerHTML = STEPS[1]!; });
     t.to(fillL, { width: "100%", duration: 0.45, ease: "none" }, "<");
     t.to(chip, { ...centerIn(channel), duration: 0.55, ease: "power1.inOut" }, "<");
     t.add(() => lit(channel, true));
-    t.fromTo(channel, { scale: 1 }, { scale: 1.12, duration: 0.22, yoyo: true, repeat: 1, ease: "power1.inOut" });
+    t.fromTo(channel, { scale: 1 }, { scale: 1.12, duration: 0.22, yoyo: true, repeat: 1, ease: "power1.inOut", immediateRender: false });
     t.to({}, { duration: 0.45 });
 
     // Beat 2: pill → User B (right, along the line); right half fills.
+    t.addLabel("to-userB");
     t.add(() => { readout.innerHTML = STEPS[2]!; lit(userB, true); });
     t.to(fillR, { width: "100%", duration: 0.45, ease: "none" }, "<");
     t.to(chip, { ...centerIn(userB), duration: 0.55, ease: "power1.inOut" }, "<");
     t.to({}, { duration: 0.45 });
 
     // Beat 3: B drops it into their wallet (vertical) and it settles.
+    t.addLabel("settle");
     t.add(() => { readout.innerHTML = STEPS[3]!; });
     t.to(chip, { ...centerIn(walletB), duration: 0.4, ease: "power1.inOut" });
     t.add(() => lit(walletB, true));
-    t.fromTo(walletB, { scale: 1 }, { scale: 1.08, duration: 0.22, yoyo: true, repeat: 1, ease: "power1.inOut" });
+    t.fromTo(walletB, { scale: 1 }, { scale: 1.08, duration: 0.22, yoyo: true, repeat: 1, ease: "power1.inOut", immediateRender: false });
     t.to({}, { duration: 1.0 }); // hold before the loop restarts
     return t;
   }
 
-  function play(): void {
-    if (reduced) { showFinal(); return; }
-    tl?.kill();
-    const master = gsap.timeline({ repeat: -1, repeatDelay: 0.6 });
-    tl = master;
-    master.add(buildPass());
+  let liveTl: gsap.core.Timeline | null = null;
+  let loopTimer: gsap.core.Tween | null = null;
+  let driven = false;
+  const stopLive = (): void => { liveTl?.kill(); liveTl = null; loopTimer?.kill(); loopTimer = null; };
+
+  // Live self-play: a fresh pass that auto-loops; stands down once driven.
+  function playLive(): void {
+    if (driven) return;
+    if (reduced) { stopLive(); showFinal(); return; }
+    stopLive();
+    const t = buildPass();
+    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(0.6, playLive); });
+    liveTl = t;
+    t.play();
   }
 
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); play(); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
   }, { threshold: 0.3 });
   io.observe(figure);
 
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active && !reduced) play();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // Register the journey (one pass) for engine drivers.
+  const journey = buildPass();
+  registerFigureJourney("discord-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; stopLive(); resetVisuals(); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 
   if (reduced) showFinal();
   else resetVisuals();

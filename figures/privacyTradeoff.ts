@@ -16,6 +16,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 interface Row { side: "buy" | "sell"; who: string; amt: string; px: string }
 const ROWS: Row[] = [
@@ -126,14 +127,15 @@ function initPrivacy(figure: HTMLElement): void {
     }
   }
 
-  btnAmounts.addEventListener("click", () => { hideAmounts = !hideAmounts; render(true); });
-  btnAddr.addEventListener("click", () => { hideAddresses = !hideAddresses; render(true); });
+  let driven = false;
+  btnAmounts.addEventListener("click", () => { driven = false; hideAmounts = !hideAmounts; render(true); });
+  btnAddr.addEventListener("click", () => { driven = false; hideAddresses = !hideAddresses; render(true); });
 
   render(false);
 
   // Narration / scroll: a quick pulse of the default (sweet-spot) state.
   function intro(): void {
-    if (reduced) return;
+    if (driven || reduced) return;
     gsap.fromTo(stage.querySelectorAll(".pt-row, .pt-checks li"), { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.3, stagger: 0.04, ease: "power1.out" });
   }
   const io = new IntersectionObserver((entries) => {
@@ -148,4 +150,19 @@ function initPrivacy(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // The journey: tour the four privacy quadrants — transparent → the zSwap
+  // sweet spot (hide addresses only) → fully private → amounts-only.
+  const setHide = (amts: boolean, addr: boolean): void => { hideAmounts = amts; hideAddresses = addr; render(false); };
+  const journey = gsap.timeline({ paused: true });
+  journey.addLabel("transparent"); journey.call(() => setHide(false, false)); journey.to({}, { duration: 1.6 });
+  journey.addLabel("sweet-spot"); journey.call(() => setHide(false, true)); journey.to({}, { duration: 1.8 });
+  journey.addLabel("fully-private"); journey.call(() => setHide(true, true)); journey.to({}, { duration: 1.6 });
+  journey.addLabel("amounts-only"); journey.call(() => setHide(true, false)); journey.to({}, { duration: 1.6 });
+  registerFigureJourney("privacy-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; setHide(false, true); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

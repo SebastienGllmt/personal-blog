@@ -21,6 +21,7 @@
 //   - Commentable. Everything renders inside <figure id="diagram">, which is
 //     the unit the comment system anchors graphics to.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 const HEX = "0123456789abcdef";
 const randHex = () => HEX.charAt((Math.random() * 16) | 0);
@@ -200,11 +201,13 @@ function initHashFigure(figure: HTMLElement): void {
     void run(textInput.value);
   });
 
+  let driven = false; // a driver (capture/narrator) has exclusive control
+
   // Play the intro the first time the figure scrolls into view (covers the
   // silent reader). `once`-style: disconnect after firing.
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) {
-      if (e.isIntersecting) { io.disconnect(); void run(textInput.value); }
+      if (e.isIntersecting) { io.disconnect(); if (!driven) void run(textInput.value); }
     }
   }, { threshold: 0.35 });
   io.observe(figure);
@@ -214,10 +217,62 @@ function initHashFigure(figure: HTMLElement): void {
   let wasActive = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const active = figure.classList.contains("narration-active");
-    if (active && !wasActive) void run(textInput.value);
+    if (active && !wasActive && !driven) void run(textInput.value);
     wasActive = active;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
 
   hint.textContent = idleHint;
+
+  // ----- the journey (engine drivers) -----
+  // run()'s slot-machine settle is async + Math.random + detached per-cell
+  // tweens — unseekable. The journey re-authors it deterministically on ONE
+  // paused timeline: show a hash, flip ONE character, settle the new hash with
+  // the changed cells highlighted (the avalanche). Hashes are precomputed, so
+  // registration is async (once they resolve).
+  void (async () => {
+    const A = "hello";
+    const B = "hallo"; // one character flipped (e → a)
+    const hA = await sha256Hex(A);
+    const hB = await sha256Hex(B);
+    const changedN = [...hA].filter((c, i) => c !== hB[i]).length;
+
+    const settleCells = (t: gsap.core.Timeline, target: string, prev: string | null, at0: number): void => {
+      cells.forEach((cell, i) => {
+        const ch = target.charAt(i);
+        const changed = prev !== null && prev.charAt(i) !== ch;
+        t.add(() => { cell.textContent = ch; cell.className = "cell" + (changed ? " changed" : ""); }, at0 + i * 0.006);
+      });
+    };
+
+    const buildJourney = (): gsap.core.Timeline => {
+      const t = gsap.timeline({ paused: true });
+      t.addLabel("hash", 0);
+      t.add(() => { renderInput(A); hint.textContent = idleHint; }, 0);
+      settleCells(t, hA, null, 0.3);
+      t.to({}, { duration: 1.6 });
+      t.addLabel("avalanche");
+      const avAt = t.duration();
+      t.add(() => { renderInput(B, 1); }, avAt);
+      settleCells(t, hB, hA, avAt + 0.15);
+      t.add(() => { hint.innerHTML = `One character changed &rarr; <b>${changedN} of 64</b> hex digits flipped.`; });
+      t.to({}, { duration: 2.2 });
+      return t;
+    };
+
+    const journey = buildJourney();
+    registerFigureJourney("diagram", {
+      durationMs: journey.duration() * 1000,
+      steps: stepsFromLabels(journey.labels, journey.duration()),
+      reset() {
+        driven = true;
+        current?.kill();
+        renderInput(A);
+        cells.forEach((c) => { c.textContent = "·"; c.className = "cell"; });
+        displayed = "·".repeat(64);
+        journey.pause(0);
+      },
+      seek(ms: number) { journey.time(ms / 1000); },
+    });
+  })();
 }

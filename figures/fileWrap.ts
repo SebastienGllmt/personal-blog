@@ -14,6 +14,7 @@
 // `narration-active` replay, and reduced-motion awareness (a sensible static
 // final frame, no animation, no loop).
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 interface Step {
   icon: string;
@@ -76,33 +77,38 @@ function initFileWrap(figure: HTMLElement): void {
   const pkgLabel = stage.querySelector<HTMLElement>("[data-pkg-label]")!;
 
   // A throwaway hex blob to represent the raw serialized bytes (before encoding).
+  // Deterministic (no Math.random) so frame capture is reproducible/content-
+  // addressable; the exact digits are illustrative only.
   const randHex = (n: number) =>
-    "0x" + Array.from({ length: n }, () => "0123456789abcdef"[(Math.random() * 16) | 0]).join("") + "…";
+    "0x" + "9f3ac12b7e4d6051a8f2".slice(0, n) + "…";
 
   let tl: gsap.core.Timeline | null = null;
+  let driven = false;
+  const stopLive = (): void => { tl?.kill(); tl = null; };
 
-  function reset(): void {
-    tl?.kill();
-    tl = null;
+  function clearAll(): void {
     stepEls.forEach((el) => el.classList.remove("lit"));
     linkFills.forEach((el) => { el.style.width = "0%"; });
     pkg.classList.remove("show", "wrapped");
-    gsap.set(pkg, { clearProps: "all" });
-    gsap.set(pkgGlyph, { clearProps: "all" });
+    // Explicit reset (not clearProps:"all", whose leftover inline-style residue
+    // serializes inconsistently across runs → non-deterministic capture).
+    gsap.set(pkg, { x: 0, y: 6, opacity: 0, scale: 0.6 });
+    gsap.set(pkgGlyph, { rotation: 0 });
   }
 
   // Sensible static final frame for reduced motion: fully wrapped, last note.
   function showFinal(): void {
-    reset();
+    clearAll();
     stepEls.forEach((el) => el.classList.add("lit"));
     linkFills.forEach((el) => { el.style.width = "100%"; });
     pkg.classList.add("show", "wrapped");
     captionEl.innerHTML = STEPS[STEPS.length - 1]!.note;
   }
 
-  // One pass through the wrap cycle, appended to the given timeline.
+  // One pass through the wrap cycle, appended to the given timeline. Labeled per
+  // step; from/fromTo use immediateRender:false so building a paused instance is
+  // side-effect-free. The leading callback re-establishes the start each cycle.
   function buildCycle(t: gsap.core.Timeline): void {
-    // start of a cycle: clear the lit state so the loop reads as a fresh wrap
     t.add(() => {
       stepEls.forEach((el) => el.classList.remove("lit"));
       linkFills.forEach((el) => { el.style.width = "0%"; });
@@ -113,29 +119,24 @@ function initFileWrap(figure: HTMLElement): void {
 
     STEPS.forEach((s, i) => {
       const el = stepEls[i]!;
+      t.addLabel(`step-${i}`);
       t.add(() => { captionEl.innerHTML = s.note; });
       t.fromTo(el, { scale: 0.9 }, {
-        scale: 1, duration: 0.35, ease: "back.out(2.4)",
+        scale: 1, duration: 0.35, ease: "back.out(2.4)", immediateRender: false,
         onStart() { el.classList.add("lit"); },
       });
       t.to(el, { scale: 1, duration: 0.5 }); // dwell so the caption is readable
 
-      // The package emerges as serialization begins, then visibly "wraps"
-      // tighter at the bech32m step.
       if (i === 1) {
-        // serialize: the package shows the raw bytes (a hex blob), not yet encoded
         t.add(() => { pkg.classList.add("show"); pkgLabel.textContent = randHex(12); });
         t.to(pkg, { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: "back.out(2)" }, "<");
       }
       if (i === 2) {
-        // bech32m: those bytes become the human-readable zswapoffer1… string
         t.add(() => { pkg.classList.add("wrapped"); pkgLabel.textContent = "zswapoffer1…"; });
         t.to(pkgGlyph, { rotate: 360, duration: 0.5, ease: "power2.inOut" }, "<");
       }
 
-      if (i < linkFills.length) {
-        t.to(linkFills[i]!, { width: "100%", duration: 0.4, ease: "none" });
-      }
+      if (i < linkFills.length) t.to(linkFills[i]!, { width: "100%", duration: 0.4, ease: "none" });
     });
 
     // hand-off: the package slides out before the next cycle re-wraps it
@@ -144,19 +145,21 @@ function initFileWrap(figure: HTMLElement): void {
     t.to({}, { duration: 0.5 }); // breath between loops
   }
 
-  function play(): void {
-    if (reduced) { showFinal(); return; }
-    reset();
+  function playLive(): void {
+    if (driven) return;
+    if (reduced) { stopLive(); showFinal(); return; }
+    stopLive();
+    clearAll();
     const t = gsap.timeline({ repeat: -1 });
     tl = t;
     buildCycle(t);
   }
 
-  replayBtn.addEventListener("click", play);
+  replayBtn.addEventListener("click", () => { driven = false; playLive(); });
 
   // Silent reader: start the loop when scrolled into view.
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); play(); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
   }, { threshold: 0 });
   io.observe(figure);
 
@@ -164,8 +167,18 @@ function initFileWrap(figure: HTMLElement): void {
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) play();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // Journey: one paused cycle (no DOM spawned → built once).
+  const journey = gsap.timeline({ paused: true });
+  buildCycle(journey);
+  registerFigureJourney("filewrap-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; stopLive(); clearAll(); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

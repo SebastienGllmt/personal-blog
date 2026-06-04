@@ -17,6 +17,7 @@
 // contract is identical: static SVG fallback, `.mm-enhanced`,
 // IntersectionObserver intro, `narration-active` replay, reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 // Price geometry. The track spans LO..HI; we render prices as a top offset (%).
 const LO = 2.7;
@@ -120,6 +121,7 @@ function initMarketMaker(figure: HTMLElement): void {
   let lost = 0;
   let cancels = 0;
   let tl: gsap.core.Timeline | null = null;
+  let driven = false; // a driver (video capture / narrator) has exclusive control
 
   // place a quote line (and the price band) at a given fair price
   const placeQuotes = (fair: number, snap: boolean): void => {
@@ -260,6 +262,7 @@ function initMarketMaker(figure: HTMLElement): void {
   };
 
   const play = (): void => {
+    if (driven) return;
     if (reduced) {
       showFinal();
       readout.innerHTML = `On a fast chain the maker re-quotes instantly and keeps the spread. On the slow ZK chain each cancel is an on-chain tx that lands too late, so stale quotes get picked off at a loss &mdash; the case for cheap, fast cancels.`;
@@ -297,4 +300,94 @@ function initMarketMaker(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // ----- the journey (engine drivers: video capture today, narrator later) -----
+  // The live animation above moves quotes with DETACHED gsap.to (fine in real
+  // time, but not seekable). The journey re-authors the SLOW-chain story — the
+  // figure's whole point ("why we need cheap, fast cancels") — fully on one
+  // paused timeline so a forward seek reproduces every frame.
+  const askTop = (f: number) => yOf(f + SPREAD / 2);
+  const bidTop = (f: number) => yOf(f - SPREAD / 2);
+  const bandH = `${(SPREAD / (HI - LO)) * 100}%`;
+
+  const buildJourney = (): gsap.core.Timeline => {
+    const t = gsap.timeline({ paused: true });
+    t.add(() => {
+      setChain(SLOW);
+      earned = 0; lost = 0; cancels = 0; setStats();
+      flashEl.classList.remove("show");
+      stage.classList.remove("picked");
+      stage.classList.remove("stale");
+      fairPx.textContent = usd(FIRST);
+      askPx.textContent = usd(FIRST + SPREAD / 2);
+      bidPx.textContent = usd(FIRST - SPREAD / 2);
+      readout.innerHTML = `On the <b>slow ZK chain</b> a cancel is an on-chain tx with slow finality. Watch the quotes <b>lag</b> behind the price.`;
+    }, 0);
+    t.to(fairEl, { top: yOf(FIRST), duration: 0, immediateRender: false }, 0);
+    t.to(askEl, { top: askTop(FIRST), duration: 0, immediateRender: false }, 0);
+    t.to(bidEl, { top: bidTop(FIRST), duration: 0, immediateRender: false }, 0);
+    t.to(bandEl, { top: askTop(FIRST), height: bandH, duration: 0, immediateRender: false }, 0);
+    t.addLabel("intro", 0);
+    t.to({}, { duration: 0.9 });
+
+    for (let i = 1; i < WALK.length; i++) {
+      const prev = WALK[i - 1] ?? FIRST;
+      const fair = WALK[i] ?? FIRST;
+      const up = fair > prev;
+      t.addLabel(`tick-${i}`);
+      t.add(() => {
+        fairPx.textContent = usd(fair);
+        stage.classList.add("stale");
+        readout.innerHTML = `Price moved to <b>${usd(fair)}</b>. The old <b class="b">BUY</b>/<b class="a">SELL</b> are mispriced.`;
+      });
+      t.to(fairEl, { top: yOf(fair), duration: 0.45, ease: "power1.inOut" }, "<");
+      t.to({}, { duration: SLOW.lag * 0.55 }); // visible lag while quotes sit stale
+      t.add(() => {
+        lost += SPREAD; cancels += CANCELS_PER_MOVE; setStats();
+        flashEl.textContent = "Stale price → LOSS";
+        flashEl.classList.add("show");
+        stage.classList.add("picked");
+        readout.innerHTML = `Too slow. A taker hit your stale ${up ? "<b class='a'>SELL</b>" : "<b class='b'>BUY</b>"} at the old price &mdash; <b class="r">−${usd(SPREAD)}</b>.`;
+      });
+      t.fromTo(cancelsBox, { scale: 1.35 }, { scale: 1, duration: 0.5, ease: "back.out(2.5)", immediateRender: false }, "<");
+      t.to({}, { duration: 0.85 });
+      t.add(() => {
+        flashEl.classList.remove("show");
+        stage.classList.remove("picked");
+        stage.classList.remove("stale");
+      });
+      t.to(askEl, { top: askTop(fair), duration: 0.35, ease: "power2.out" }, "<");
+      t.to(bidEl, { top: bidTop(fair), duration: 0.35, ease: "power2.out" }, "<");
+      t.to(bandEl, { top: askTop(fair), height: bandH, duration: 0.35, ease: "power2.out" }, "<");
+      t.to({}, { duration: 0.4 });
+    }
+    t.addLabel("verdict");
+    t.add(() => {
+      readout.innerHTML = `Result on the <b>slow chain</b>: every lagging cancel is a chance to get picked off &mdash; <b class="r">${usd(lost)}</b> lost. <b>That's</b> why we need cheap, fast cancels.`;
+    });
+    t.to({}, { duration: 2.0 });
+    return t;
+  };
+
+  // A probe gives stable durationMs/steps; the journey is REBUILT on reset().
+  // We must `killTweensOf` the shared elements to stop the live path's detached
+  // quote tweens — but that also kills the journey's own tweens of those
+  // elements (killTweensOf reaches into the paused timeline), so a build-once
+  // journey would be dead after the first reset. Rebuilding afterwards restores
+  // fresh, seekable tweens. (Same pattern as utxoSwap.)
+  const probe = buildJourney();
+  let journeyTl: gsap.core.Timeline | null = null;
+  registerFigureJourney("mm-figure", {
+    durationMs: probe.duration() * 1000,
+    steps: stepsFromLabels(probe.labels, probe.duration()),
+    reset() {
+      driven = true;
+      tl?.kill();
+      tl = null;
+      gsap.killTweensOf([askEl, bidEl, bandEl, fairEl, cancelsBox]); // stop detached live tweens
+      journeyTl = buildJourney(); // fresh tweens (the kill above nuked any prior journey's)
+      journeyTl.pause(0);
+    },
+    seek(ms: number) { journeyTl?.time(ms / 1000); },
+  });
 }

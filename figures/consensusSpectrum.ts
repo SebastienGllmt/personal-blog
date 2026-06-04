@@ -12,6 +12,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 interface Opt {
   id: string;
@@ -78,7 +79,7 @@ function initConsensus(figure: HTMLElement): void {
   const meters = q<HTMLElement>("[data-meters]");
   const readout = q<HTMLElement>("[data-readout]");
 
-  function render(id: string): void {
+  function render(id: string, animate = true): void {
     const o = OPTIONS.find((x) => x.id === id)!;
     tabBtns.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.opt === id)));
     diagram.innerHTML = o.diagram;
@@ -88,18 +89,22 @@ function initConsensus(figure: HTMLElement): void {
       return `<div class="cns-metric"><span class="m-label">${label}</span><span class="m-bar">${segs}</span><span class="m-val">${LEVEL[lvl]}</span></div>`;
     }).join("");
     readout.innerHTML = o.note;
-    if (!reduced) gsap.from(meters.querySelectorAll(".seg.on"), { scaleX: 0, transformOrigin: "left", duration: 0.3, stagger: 0.04, ease: "power1.out" });
+    // The seg reveal is a detached one-shot; skip it for the journey (animate:false)
+    // so a forward seek stays reproducible.
+    if (!reduced && animate) gsap.from(meters.querySelectorAll(".seg.on"), { scaleX: 0, transformOrigin: "left", duration: 0.3, stagger: 0.04, ease: "power1.out" });
   }
 
-  tabBtns.forEach((b) => b.addEventListener("click", () => render(b.dataset.opt!)));
+  tabBtns.forEach((b) => b.addEventListener("click", () => { driven = false; render(b.dataset.opt!); }));
   render("single");
 
-  // Narration / scroll: step through the options so a listener sees the spectrum.
+  // Narration / scroll (live): step through the options in real time.
+  let driven = false;
   function tour(): void {
+    if (driven) return;
     if (reduced) { render("bft"); return; }
     render("single");
-    gsap.delayedCall(1.2, () => render("rr"));
-    gsap.delayedCall(2.4, () => render("bft"));
+    gsap.delayedCall(1.2, () => { if (!driven) render("rr"); });
+    gsap.delayedCall(2.4, () => { if (!driven) render("bft"); });
   }
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) if (e.isIntersecting) { io.disconnect(); tour(); }
@@ -113,4 +118,22 @@ function initConsensus(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // The journey: walk single → round-robin → BFT as a paused, labeled timeline.
+  const journey = gsap.timeline({ paused: true });
+  journey.addLabel("single", 0);
+  journey.call(() => render("single", false));
+  journey.to({}, { duration: 1.5 });
+  journey.addLabel("round-robin");
+  journey.call(() => render("rr", false));
+  journey.to({}, { duration: 1.5 });
+  journey.addLabel("bft");
+  journey.call(() => render("bft", false));
+  journey.to({}, { duration: 2.0 });
+  registerFigureJourney("consensus-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; render("single", false); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

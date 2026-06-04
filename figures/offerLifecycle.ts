@@ -12,6 +12,7 @@
 // contract is identical: static SVG fallback, `.lifecycle-enhanced`,
 // IntersectionObserver intro, `narration-active` replay, reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 interface Stage {
   icon: string;
@@ -66,62 +67,85 @@ function initLifecycle(figure: HTMLElement): void {
   const captionEl = stage.querySelector<HTMLElement>("[data-caption]")!;
   const playBtn = stage.querySelector<HTMLButtonElement>("[data-playpause]")!;
 
-  let tl: gsap.core.Timeline | null = null;
+  let liveTl: gsap.core.Timeline | null = null;
   let loopTimer: gsap.core.Tween | null = null;
   let playing = false;
+  let driven = false; // a driver (capture/narrator) has exclusive control
 
   function setBtn(): void {
     playBtn.innerHTML = playing ? "&#10073;&#10073; Pause" : "&#9654; Play the journey";
   }
 
-  function reset(): void {
-    tl?.kill();
-    tl = null;
-    loopTimer?.kill(); // cancel any pending auto-loop (manual pause/step wins)
-    loopTimer = null;
+  function resetVisual(): void {
     stageEls.forEach((el) => el.classList.remove("lit"));
     linkFills.forEach((el) => { el.style.width = "0%"; });
   }
+  function stopLive(): void {
+    liveTl?.kill();
+    liveTl = null;
+    loopTimer?.kill();
+    loopTimer = null;
+  }
 
-  // Statically show the journey up to (and including) step `i`, then pause.
+  // Statically show the journey up to (and including) step `i`, then pause —
+  // an interactive jump (the reader takes over → driven off).
   function goTo(i: number): void {
-    reset();
+    driven = false;
+    stopLive();
     playing = false;
     setBtn();
+    resetVisual();
     for (let k = 0; k <= i; k++) stageEls[k]!.classList.add("lit");
     linkFills.forEach((el, k) => { el.style.width = k < i ? "100%" : "0%"; });
     captionEl.innerHTML = STAGES[i]!.note;
   }
 
-  function play(): void {
-    if (reduced) { reset(); goTo(STAGES.length - 1); return; }
-    reset();
+  // The journey: each stage lights up, the connector fills. One labeled step
+  // per stage (the join-point for narration-driven stepping).
+  function buildJourney(): gsap.core.Timeline {
+    const t = gsap.timeline({ paused: true });
+    STAGES.forEach((s, i) => {
+      t.addLabel(`step-${i}`);
+      t.add(() => { captionEl.innerHTML = s.note; });
+      t.fromTo(stageEls[i]!, { scale: 0.9 }, {
+        scale: 1, duration: 0.35, ease: "back.out(2.4)", immediateRender: false,
+        onStart() { stageEls[i]!.classList.add("lit"); },
+      });
+      t.to(stageEls[i]!, { scale: 1, duration: 0.5 }); // dwell so the caption is readable
+      if (i < linkFills.length) t.to(linkFills[i]!, { width: "100%", duration: 0.4, ease: "none" });
+    });
+    return t;
+  }
+
+  function playLive(): void {
+    if (driven) return;
+    if (reduced) {
+      stopLive();
+      resetVisual();
+      stageEls.forEach((el) => el.classList.add("lit"));
+      linkFills.forEach((el) => { el.style.width = "100%"; });
+      captionEl.innerHTML = STAGES[STAGES.length - 1]!.note;
+      return;
+    }
+    stopLive();
+    resetVisual();
     playing = true;
     setBtn();
-    const t = gsap.timeline({ onComplete: () => {
+    const t = buildJourney();
+    t.eventCallback("onComplete", () => {
       playing = false; setBtn();
-      loopTimer = gsap.delayedCall(3.5, play); // auto-loop after a few seconds
-    } });
-    tl = t;
-    STAGES.forEach((s, i) => {
-      const el = stageEls[i]!;
-      t.add(() => { captionEl.innerHTML = s.note; });
-      t.fromTo(el, { scale: 0.9 }, {
-        scale: 1, duration: 0.35, ease: "back.out(2.4)",
-        onStart() { el.classList.add("lit"); },
-      });
-      t.to(el, { scale: 1, duration: 0.5 }); // dwell so the caption is readable
-      if (i < linkFills.length) {
-        t.to(linkFills[i]!, { width: "100%", duration: 0.4, ease: "none" });
-      }
+      loopTimer = gsap.delayedCall(3.5, playLive);
     });
+    liveTl = t;
+    t.play();
   }
 
   // Play / pause toggle: resume an in-flight timeline, else (re)start it.
   playBtn.addEventListener("click", () => {
-    if (playing) { tl?.pause(); playing = false; setBtn(); return; }
-    if (tl && tl.progress() > 0 && tl.progress() < 1) { tl.resume(); playing = true; setBtn(); return; }
-    play();
+    driven = false;
+    if (playing) { liveTl?.pause(); playing = false; setBtn(); return; }
+    if (liveTl && liveTl.progress() > 0 && liveTl.progress() < 1) { liveTl.resume(); playing = true; setBtn(); return; }
+    playLive();
   });
 
   // Click any step to jump there and pause.
@@ -129,7 +153,7 @@ function initLifecycle(figure: HTMLElement): void {
 
   // Silent reader: play once when scrolled into view.
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); play(); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
   }, { threshold: 0.3 });
   io.observe(figure);
 
@@ -137,8 +161,16 @@ function initLifecycle(figure: HTMLElement): void {
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) play();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  const journey = buildJourney();
+  registerFigureJourney("lifecycle-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; stopLive(); resetVisual(); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

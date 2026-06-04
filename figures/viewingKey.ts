@@ -13,6 +13,7 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 const CELLS = 120;
 const MINE = [13, 27, 58, 79, 103]; // which sample cells are "yours"
@@ -100,18 +101,42 @@ function initViewingKey(figure: HTMLElement): void {
     meterEl.innerHTML = `A user can realistically prove ~<b>${fmtBig(USER_BUDGET)}</b> swaps &mdash; about the <b>last ${fmtDur(provableSec)}</b> of history. The L2 runs forever. <b class="bad">Infeasible.</b>`;
   }
 
-  function prove(): void {
-    if (!revealed) reveal();
-    readout.innerHTML = `To withdraw you must <b>prove your balance</b> &mdash; and that means proving, for <b>every</b> swap (not just your 5), whether it's yours. Watch: the circuit has to sweep the entire history.`;
-    if (reduced) { afterSweep(); return; }
-    const tl = gsap.timeline({ onComplete: afterSweep });
-    cellEls.forEach((c, i) => {
-      tl.add(() => { c.classList.add("scan"); gsap.delayedCall(0.18, () => c.classList.remove("scan")); }, i * (0.5 / CELLS));
-    });
-  }
+  let liveTl: gsap.core.Timeline | null = null;
+  let driven = false;
+  const stopLive = (): void => { liveTl?.kill(); liveTl = null; };
 
   function afterSweep(): void {
     readout.innerHTML = `Done &mdash; your proof had to account for the <b>whole</b> history just to establish a balance that touches 5 swaps. A recursive SNARK can fold those statements, but the prover still does work for <b>every single swap</b>. At this throughput that's hopeless for a user. <b>This is the wall.</b>`;
+  }
+
+  // The journey: reveal which swaps are yours, then sweep the WHOLE history (the
+  // prove circuit). Scan on/off are PAIRED timeline callbacks (not detached
+  // gsap.delayedCall), so a forward seek reproduces every frame.
+  function buildSweep(): gsap.core.Timeline {
+    const t = gsap.timeline({ paused: true });
+    t.addLabel("sweep", 0);
+    t.add(() => {
+      reveal();
+      readout.innerHTML = `To withdraw you must <b>prove your balance</b> &mdash; and that means proving, for <b>every</b> swap (not just your 5), whether it's yours. Watch: the circuit has to sweep the entire history.`;
+    });
+    cellEls.forEach((c, i) => {
+      const at = i * (0.5 / CELLS);
+      t.add(() => c.classList.add("scan"), at);
+      t.add(() => c.classList.remove("scan"), at + 0.18);
+    });
+    t.addLabel("wall");
+    t.add(() => afterSweep());
+    t.to({}, { duration: 1.5 }); // dwell on the conclusion
+    return t;
+  }
+
+  function prove(): void {
+    driven = false;
+    stopLive();
+    if (reduced) { reveal(); afterSweep(); return; }
+    const t = buildSweep();
+    liveTl = t;
+    t.play();
   }
 
   q<HTMLButtonElement>('[data-act="prove"]').addEventListener("click", prove);
@@ -132,4 +157,12 @@ function initViewingKey(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  const journey = buildSweep();
+  registerFigureJourney("viewingkey-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() { driven = true; stopLive(); journey.pause(0); },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }

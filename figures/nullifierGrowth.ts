@@ -14,9 +14,11 @@
 // only. Progressive enhancement over a static SVG; narration-synced; reduced
 // motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
-const HEX = "0123456789abcdef";
-const randTag = () => "🔒 " + Array.from({ length: 4 }, () => HEX[(Math.random() * 16) | 0]).join("");
+// Deterministic per-index tag (was Math.random — non-deterministic breaks frame
+// capture). The hex digits are illustrative only.
+const tagFor = (i: number) => "🔒 " + ((0xa1c4 + i * 0x1111) & 0xffff).toString(16).padStart(4, "0");
 const MAX_CHIPS = 28;
 const YEAR_S = 31_536_000;
 
@@ -73,7 +75,7 @@ function initNullifier(figure: HTMLElement): void {
     if (tags.childElementCount < MAX_CHIPS) {
       const chip = document.createElement("span");
       chip.className = "nf-tag";
-      chip.textContent = randTag();
+      chip.textContent = tagFor(tags.childElementCount);
       tags.appendChild(chip);
       if (!reduced) gsap.from(chip, { opacity: 0, scale: 0.5, duration: 0.25, ease: "back.out(3)" });
     } else if (!tags.querySelector(".nf-more")) {
@@ -112,13 +114,14 @@ function initNullifier(figure: HTMLElement): void {
     figure.classList.toggle("nf-heavy", t * YEAR_S > 1e8);
   }
 
-  q<HTMLButtonElement>('[data-act="spend"]').addEventListener("click", spend);
-  q<HTMLButtonElement>('[data-act="double"]').addEventListener("click", doubleSpend);
-  tps.addEventListener("input", updateProj);
+  let driven = false;
+  q<HTMLButtonElement>('[data-act="spend"]').addEventListener("click", () => { driven = false; spend(); });
+  q<HTMLButtonElement>('[data-act="double"]').addEventListener("click", () => { driven = false; doubleSpend(); });
+  tps.addEventListener("input", () => { driven = false; updateProj(); });
   updateProj();
 
   function intro(): void {
-    if (reduced || count > 0) return;
+    if (driven || reduced || count > 0) return;
     spend(); gsap.delayedCall(0.3, spend); gsap.delayedCall(0.6, spend);
   }
   const io = new IntersectionObserver((entries) => {
@@ -133,4 +136,70 @@ function initNullifier(figure: HTMLElement): void {
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // The journey: spend a few coins (the set grows) → a double-spend is rejected
+  // (set unchanged) → crank throughput (the set balloons over a year). Spawns
+  // chips, so rebuild fresh on reset().
+  const buildJourney = (): gsap.core.Timeline => {
+    count = 0;
+    countEl.textContent = "0";
+    tags.innerHTML = "";
+    tps.value = "50";
+    updateProj();
+    const chips: HTMLElement[] = [];
+    for (let i = 0; i < 3; i++) {
+      const chip = document.createElement("span");
+      chip.className = "nf-tag";
+      chip.textContent = tagFor(i);
+      tags.appendChild(chip);
+      chips.push(chip);
+    }
+    const t = gsap.timeline({ paused: true });
+    t.addLabel("spend", 0);
+    t.add(() => { readout.innerHTML = DEFAULT; }, 0);
+    chips.forEach((chip, i) => {
+      t.add(() => {
+        count = i + 1;
+        countEl.textContent = String(count);
+        readout.innerHTML = "Spent. The UTXO's <b>nullifier</b> joins the set &mdash; marking that UTXO spent, and it stays there <b>forever</b>.";
+      });
+      t.fromTo(chip, { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(3)", immediateRender: false });
+      t.to({}, { duration: 0.4 });
+    });
+    t.to({}, { duration: 0.5 });
+    t.addLabel("double-spend");
+    t.add(() => { readout.innerHTML = "Rejected &mdash; the same UTXO always produces the <b>same</b> nullifier, already in the set (highlighted). Double-spend prevented, privately &mdash; the set is <b>unchanged</b>."; });
+    t.fromTo(chips[0]!, { backgroundColor: "#fbdcdc" }, { backgroundColor: "#efeafb", duration: 0.8, ease: "power1.out", immediateRender: false });
+    t.to({}, { duration: 0.8 });
+    t.addLabel("growth");
+    t.add(() => {
+      tps.value = "500";
+      updateProj();
+      readout.innerHTML = "Crank L2 throughput and the set balloons over a year &mdash; and <b>nothing is ever removed</b>. That's the open question.";
+    });
+    t.to({}, { duration: 2.0 });
+    return t;
+  };
+
+  const probe = buildJourney();
+  const probeDur = probe.duration();
+  const probeSteps = stepsFromLabels(probe.labels, probeDur);
+  probe.kill();
+  count = 0;
+  countEl.textContent = "0";
+  tags.innerHTML = "";
+  tps.value = "50";
+  updateProj();
+  readout.innerHTML = DEFAULT;
+  let journeyTl: gsap.core.Timeline | null = null;
+  registerFigureJourney("nullifier-figure", {
+    durationMs: probeDur * 1000,
+    steps: probeSteps,
+    reset() {
+      driven = true;
+      journeyTl = buildJourney();
+      journeyTl.pause(0);
+    },
+    seek(ms: number) { journeyTl?.time(ms / 1000); },
+  });
 }

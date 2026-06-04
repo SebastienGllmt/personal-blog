@@ -14,6 +14,7 @@
 // contract is identical: static SVG fallback, `.idx-enhanced`,
 // IntersectionObserver intro, `narration-active` replay, reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 type Source = "celestia" | "midnight";
 
@@ -87,6 +88,9 @@ function initIndexer(figure: HTMLElement): void {
   const replayBtn = q<HTMLButtonElement>("[data-replay]");
 
   let tl: gsap.core.Timeline | null = null;
+  let loopTimer: gsap.core.Tween | null = null;
+  let driven = false;
+  const stopLive = (): void => { tl?.kill(); tl = null; loopTimer?.kill(); loopTimer = null; };
 
   const makeChip = (ev: Event): HTMLElement => {
     const chip = document.createElement("div");
@@ -104,8 +108,7 @@ function initIndexer(figure: HTMLElement): void {
     return row;
   };
 
-  function reset(): void {
-    tl?.kill();
+  function clearAll(): void {
     trackCel.innerHTML = "";
     trackMid.innerHTML = "";
     book.innerHTML = "";
@@ -115,7 +118,7 @@ function initIndexer(figure: HTMLElement): void {
 
   // Final, fully-reconciled state for reduced-motion / fallback.
   function renderFinal(): void {
-    reset();
+    clearAll();
     EVENTS.forEach((ev) => {
       if (ev.source === "celestia") {
         const row = makeRow(ev);
@@ -128,46 +131,30 @@ function initIndexer(figure: HTMLElement): void {
     captionEl.innerHTML = CAPTIONS.done!;
   }
 
-  function play(): void {
-    if (reduced) { renderFinal(); return; }
-    reset();
-    // Auto-loop: once the stream finishes, pause a beat and replay from scratch.
-    const t = gsap.timeline({ onComplete: () => { gsap.delayedCall(2.5, play); } });
-    tl = t;
-
-    EVENTS.forEach((ev) => {
+  // One pass as a paused, labeled timeline (the journey). Caller clears first;
+  // this appends fresh chips/rows. The box-pulse is a PAIR of timeline
+  // callbacks (no detached delayedCall); from/fromTo use immediateRender:false.
+  function buildPass(): gsap.core.Timeline {
+    const t = gsap.timeline({ paused: true });
+    EVENTS.forEach((ev, i) => {
       const track = ev.source === "celestia" ? trackCel : trackMid;
+      // Created detached; appended by the callback BELOW (at its reveal moment),
+      // not here at build time. With immediateRender:false on the reveal tween,
+      // a build-time append would leave every not-yet-revealed chip visible at
+      // its natural position at seek(0) — all chips at once, overflowing the track.
       const chip = makeChip(ev);
-      track.appendChild(chip);
 
-      // Chip enters its stream track, then flies into the EffectStream box.
-      t.add(() => { captionEl.innerHTML = CAPTIONS[ev.source]!; });
-      t.fromTo(chip, { x: -24, opacity: 0 }, {
-        x: 0, opacity: 1, duration: 0.35, ease: "power2.out",
-      });
-      t.to(chip, { duration: 0.45 }); // dwell so the chip is readable
-      t.to(chip, {
-        opacity: 0, scale: 0.6, duration: 0.4, ease: "power2.in",
-        onComplete() { chip.remove(); },
-      });
+      t.addLabel(`ev-${i}`);
+      t.add(() => { captionEl.innerHTML = CAPTIONS[ev.source]!; track.appendChild(chip); });
+      t.fromTo(chip, { x: -24, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "power2.out", immediateRender: false });
+      t.to(chip, { duration: 0.45 }); // dwell
+      t.add(() => box.classList.add("idx-pulse"));
+      t.to(chip, { opacity: 0, scale: 0.6, duration: 0.4, ease: "power2.in", onComplete() { chip.remove(); } });
 
-      // Box pulses as it ingests the event.
-      t.add(() => {
-        box.classList.add("idx-pulse");
-        gsap.delayedCall(0.4, () => box.classList.remove("idx-pulse"));
-      });
-
-      // Book reacts: add on offer, strike on spend.
       if (ev.source === "celestia") {
         const row = makeRow(ev);
         t.add(() => book.appendChild(row));
-        // Reveal with transforms only (opacity/translate/scale) — never `height`,
-        // whose `back.out` overshoot transiently grew the book and shifted the
-        // page. The book reserves space for all rows (CSS min-height), so
-        // appending never changes the figure's height either.
-        t.fromTo(row, { opacity: 0, y: 8, scale: 0.96 }, {
-          opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "back.out(1.8)",
-        });
+        t.fromTo(row, { opacity: 0, y: 8, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "back.out(1.8)", immediateRender: false });
       } else {
         t.add(() => {
           const row = book.querySelector<HTMLElement>(`.idx-row[data-id="${ev.id}"]`);
@@ -175,16 +162,30 @@ function initIndexer(figure: HTMLElement): void {
         });
         t.to({}, { duration: 0.4 });
       }
+      t.add(() => box.classList.remove("idx-pulse"));
     });
-
+    t.addLabel("done");
     t.add(() => { captionEl.innerHTML = CAPTIONS.done!; });
+    t.to({}, { duration: 1.5 }); // dwell on the reconciled book
+    return t;
   }
 
-  replayBtn.addEventListener("click", play);
+  function playLive(): void {
+    if (driven) return;
+    if (reduced) { stopLive(); renderFinal(); return; }
+    stopLive();
+    clearAll();
+    const t = buildPass();
+    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(2.5, playLive); });
+    tl = t;
+    t.play();
+  }
+
+  replayBtn.addEventListener("click", () => { driven = false; playLive(); });
 
   // Silent reader: play once when scrolled into view.
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); play(); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
   }, { threshold: 0.3 });
   io.observe(figure);
 
@@ -192,10 +193,31 @@ function initIndexer(figure: HTMLElement): void {
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) play();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  // Journey: spawns chips/rows, so probe for stable duration/steps then rebuild
+  // fresh on reset().
+  const probe = buildPass();
+  const probeDur = probe.duration();
+  const probeSteps = stepsFromLabels(probe.labels, probeDur);
+  probe.kill();
+  clearAll();
+  let journeyTl: gsap.core.Timeline | null = null;
+  registerFigureJourney("indexer-figure", {
+    durationMs: probeDur * 1000,
+    steps: probeSteps,
+    reset() {
+      driven = true;
+      stopLive();
+      clearAll();
+      journeyTl = buildPass();
+      journeyTl.pause(0);
+    },
+    seek(ms: number) { journeyTl?.time(ms / 1000); },
+  });
 }
 
 // Run-guard at the very bottom: all const arrow helpers above are defined by

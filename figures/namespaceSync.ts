@@ -23,6 +23,7 @@
 // the house pattern: static SVG fallback, `.ns-enhanced`, IntersectionObserver
 // intro, `narration-active` replay, reduced-motion aware.
 import { gsap } from "gsap";
+import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 // One row per "chain row" in each stack. `mine` marks the rows that belong to
 // YOUR app's namespace (the Offer-File lane); everything else is unrelated.
@@ -141,90 +142,72 @@ function initFigure(figure: HTMLElement): void {
   };
   setFootText();
 
-  let tl: gsap.core.Timeline | null = null;
-
   // Vertical centre of a row relative to its stack, so the cursor can ride it.
   const rowCenterY = (stackEl: HTMLElement, row: HTMLElement): number =>
     row.offsetTop + row.offsetHeight / 2 - stackEl.clientHeight / 2;
 
-  function play(): void {
-    tl?.kill();
-    setFootText();
-
-    if (reduced) {
-      showFinal(ethRows, ethCursor, ethFoot, tiaRows, tiaCursor, tiaFoot);
-      return;
-    }
-
-    resetSide(ethRows, ethCursor, ethFoot);
-    resetSide(tiaRows, tiaCursor, tiaFoot);
-
-    const t = gsap.timeline({
-      repeat: -1,
-      repeatDelay: LOOP_GAP,
-      onRepeat() {
-        resetSide(ethRows, ethCursor, ethFoot);
-        resetSide(tiaRows, tiaCursor, tiaFoot);
-      },
+  // One cycle of the parallel scan as a paused, labeled timeline (the journey).
+  // The leading `.add` re-establishes the start state on play/seek; the cursor
+  // reveal is a duration:0 + immediateRender:false tween so building the
+  // registered instance doesn't reveal cursors on the live page.
+  function buildPass(): gsap.core.Timeline {
+    const t = gsap.timeline({ paused: true });
+    t.add(() => {
+      resetSide(ethRows, ethCursor, ethFoot);
+      resetSide(tiaRows, tiaCursor, tiaFoot);
+      setFootText();
     });
-    tl = t;
+    t.addLabel("scan", 0);
+    t.to([ethCursor, tiaCursor], { opacity: 1, y: rowCenterY(ethStack, ethRows[0]!), duration: 0, immediateRender: false }, 0);
 
-    // Reveal both cursors at the top of their stacks.
-    t.set([ethCursor, tiaCursor], { opacity: 1, y: rowCenterY(ethStack, ethRows[0]!) });
-
-    // LEFT (Ethereum): the cursor crawls down EVERY row, ingesting each one.
-    // This is the slow path — it has to touch all of them.
+    // LEFT (Ethereum): the cursor crawls down EVERY row — the slow path.
     const ethPer = 0.42;
     ethRows.forEach((row, i) => {
       const startAt = i * ethPer;
-      t.to(ethCursor, {
-        y: rowCenterY(ethStack, row),
-        duration: ethPer * 0.6,
-        ease: "none",
-      }, startAt);
-      t.add(() => {
-        row.classList.add("scanning");
-        row.classList.add("pulled");
-      }, startAt + ethPer * 0.5);
+      t.to(ethCursor, { y: rowCenterY(ethStack, row), duration: ethPer * 0.6, ease: "none" }, startAt);
+      t.add(() => { row.classList.add("scanning"); row.classList.add("pulled"); }, startAt + ethPer * 0.5);
     });
     const ethEnd = ethRows.length * ethPer;
     t.add(() => ethFoot.classList.add("done"), ethEnd);
 
-    // RIGHT (Celestia): the cursor visits ONLY the highlighted namespace rows,
-    // pulling each cleanly; the rest grey out immediately and are skipped.
-    // All of this runs in parallel with the left side (note absolute times),
-    // and finishes far sooner — making the asymmetry obvious.
+    // RIGHT (Celestia): the cursor visits ONLY the namespace rows; the rest grey
+    // out immediately. Runs in parallel (absolute times) and finishes sooner.
+    t.addLabel("namespace", 0.15);
     tiaRows.forEach((row) => {
-      if (row.dataset.mine !== "1") {
-        t.add(() => row.classList.add("skipped"), 0.15);
-      }
+      if (row.dataset.mine !== "1") t.add(() => row.classList.add("skipped"), 0.15);
     });
     const mineRows = tiaRows.filter((r) => r.dataset.mine === "1");
     const tiaPer = 0.5;
     mineRows.forEach((row, i) => {
       const startAt = 0.25 + i * tiaPer;
-      t.to(tiaCursor, {
-        y: rowCenterY(tiaStack, row),
-        duration: tiaPer * 0.55,
-        ease: "power1.inOut",
-      }, startAt);
-      t.add(() => {
-        row.classList.add("scanning");
-        row.classList.add("pulled");
-      }, startAt + tiaPer * 0.45);
+      t.to(tiaCursor, { y: rowCenterY(tiaStack, row), duration: tiaPer * 0.55, ease: "power1.inOut" }, startAt);
+      t.add(() => { row.classList.add("scanning"); row.classList.add("pulled"); }, startAt + tiaPer * 0.45);
     });
     const tiaEnd = 0.25 + mineRows.length * tiaPer;
     t.add(() => tiaFoot.classList.add("done"), tiaEnd);
-
-    // Park the right cursor (it's idle while the left keeps grinding).
     t.to(tiaCursor, { opacity: 0, duration: 0.3 }, tiaEnd);
-    // Hide the left cursor only once it has finished the whole stack.
     t.to(ethCursor, { opacity: 0, duration: 0.3 }, ethEnd);
+    return t;
+  }
+
+  let liveTl: gsap.core.Timeline | null = null;
+  let loopTimer: gsap.core.Tween | null = null;
+  let driven = false;
+  const stopLive = (): void => { liveTl?.kill(); liveTl = null; loopTimer?.kill(); loopTimer = null; };
+
+  function playLive(): void {
+    if (driven) return;
+    if (reduced) { stopLive(); showFinal(ethRows, ethCursor, ethFoot, tiaRows, tiaCursor, tiaFoot); return; }
+    stopLive();
+    const t = buildPass();
+    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(LOOP_GAP, playLive); });
+    liveTl = t;
+    t.play();
   }
 
   // Silent reader: start when scrolled into view.
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); play(); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
   }, { threshold: 0.3 });
   io.observe(figure);
 
@@ -232,10 +215,24 @@ function initFigure(figure: HTMLElement): void {
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) play();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
+
+  const journey = buildPass();
+  registerFigureJourney("namespace-figure", {
+    durationMs: journey.duration() * 1000,
+    steps: stepsFromLabels(journey.labels, journey.duration()),
+    reset() {
+      driven = true;
+      stopLive();
+      resetSide(ethRows, ethCursor, ethFoot);
+      resetSide(tiaRows, tiaCursor, tiaFoot);
+      journey.pause(0);
+    },
+    seek(ms: number) { journey.time(ms / 1000); },
+  });
 }
 
 // --- run-guard: MUST stay at the very bottom, after the const-arrow helpers

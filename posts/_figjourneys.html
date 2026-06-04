@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Figure journey conformance fixture</title>
+    <!--
+      DEV/TEST FIXTURE — exercises figures that no published post embeds, so the
+      FigureJourney conformance test (engine e2e/figureJourney.e2e.ts) can cover
+      them. The `_` prefix marks it a fixture/draft: the dev route table
+      (post-routes.ts globs posts/**/*.html) serves it, but build-html skips
+      `_`-prefixed entries so it never reaches dist/ and is never deployed.
+      Intentionally has NO <meta name="author-email"> so share-card/feeds skip it.
+      - #diagram        → hashAvalanche (needs only the figure element)
+      - #volume-figure  → offerVolume   (data-gated on the inline #dexie-xch-usdc JSON)
+    -->
+  </head>
+  <body>
+    <article>
+      <figure id="diagram"></figure>
+      <script type="module" src="../figures/hashAvalanche.ts"></script>
+
+      <figure id="volume-figure"></figure>
+      <script id="dexie-xch-usdc" type="application/json">
+{"totalAllAssets":982604,"usdCount":421000,"asOf":"2026-05-22","weeks":[
+{"w":"2024-W30","nAll":120,"vu":3400,"p":31.8},
+{"w":"2024-W31","nAll":180,"vu":5200,"p":32.4},
+{"w":"2024-W32","nAll":260,"vu":8100,"p":33.0},
+{"w":"2024-W33","nAll":210,"vu":6400,"p":34.2},
+{"w":"2024-W34","nAll":300,"vu":9900,"p":35.1},
+{"w":"2024-W35","nAll":280,"vu":8700,"p":34.6}
+]}
+      </script>
+      <script type="module" src="../figures/offerVolume.ts"></script>
+    </article>
+  </body>
+</html>
