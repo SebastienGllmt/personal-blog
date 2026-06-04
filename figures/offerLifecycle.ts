@@ -15,18 +15,23 @@ import { gsap } from "gsap";
 import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
 interface Stage {
+  // Semantic GSAP timeline label for this stage — the join-point a narration
+  // `step=` cue addresses (proposal 48). Stable + meaningful so a cue reads as
+  // `step="posted"`, not `step="step-2"`. Renaming these is cache-neutral
+  // (labels are not narration text — proposal 48 §2/§7.3).
+  label: string;
   icon: string;
   title: string;
   note: string;
 }
 
 const STAGES: Stage[] = [
-  { icon: "👛", title: "Create &amp; prove", note: "Your wallet builds an imbalanced partial transaction and proves it &mdash; no chain touched yet." },
-  { icon: "🔡", title: "Encode", note: "Serialize the proven offer and bech32m-encode it: one self-contained <code>zswapoffer1…</code> string." },
-  { icon: "🟪", title: "Post to Celestia", note: "Drop it in the shared namespace. The batcher pays the TIA fee, so you never need Celestia's token." },
-  { icon: "🛰️", title: "Index both chains", note: "EffectStream watches Celestia for new offers <em>and</em> Midnight for spent UTXOs (fills &amp; expiries)." },
-  { icon: "📖", title: "Shared order book", note: "One liquidity pool. Every DEX or marketplace is just a filter and a frontend over the same offers." },
-  { icon: "🤝", title: "Match &amp; settle", note: "A taker merges the matching half and settles the single balanced transaction on Midnight." },
+  { label: "created", icon: "👛", title: "Create &amp; prove", note: "Your wallet builds an imbalanced partial transaction and proves it &mdash; no chain touched yet." },
+  { label: "encoded", icon: "🔡", title: "Encode", note: "Serialize the proven offer and bech32m-encode it: one self-contained <code>zswapoffer1…</code> string." },
+  { label: "posted", icon: "🟪", title: "Post to Celestia", note: "Drop it in the shared namespace. The batcher pays the TIA fee, so you never need Celestia's token." },
+  { label: "indexed", icon: "🛰️", title: "Index both chains", note: "EffectStream watches Celestia for new offers <em>and</em> Midnight for spent UTXOs (fills &amp; expiries)." },
+  { label: "book", icon: "📖", title: "Shared order book", note: "One liquidity pool. Every DEX or marketplace is just a filter and a frontend over the same offers." },
+  { label: "settled", icon: "🤝", title: "Match &amp; settle", note: "A taker merges the matching half and settles the single balanced transaction on Midnight." },
 ];
 
 const fig = document.getElementById("lifecycle-figure");
@@ -105,7 +110,7 @@ function initLifecycle(figure: HTMLElement): void {
   function buildJourney(): gsap.core.Timeline {
     const t = gsap.timeline({ paused: true });
     STAGES.forEach((s, i) => {
-      t.addLabel(`step-${i}`);
+      t.addLabel(s.label);
       t.add(() => { captionEl.innerHTML = s.note; });
       t.fromTo(stageEls[i]!, { scale: 0.9 }, {
         scale: 1, duration: 0.35, ease: "back.out(2.4)", immediateRender: false,

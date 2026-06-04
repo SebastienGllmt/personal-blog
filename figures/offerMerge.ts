@@ -79,7 +79,10 @@ function initMergeFigure(figure: HTMLElement): void {
         <div class="delta-row"><span class="tok night">🌙 NIGHT</span><span class="bar"><span class="fill" data-bar-night></span></span><span class="delta" data-delta-night></span></div>
         <div class="delta-row"><span class="tok ROCK">🪨 ROCK</span><span class="bar"><span class="fill" data-bar-ROCK></span></span><span class="delta" data-delta-ROCK></span></div>
       </div>
-      <p class="verdict" data-verdict></p>
+      <div class="verdict-wrap">
+        <p class="verdict-sizer" aria-hidden="true">${BALANCED_VERDICT}</p>
+        <p class="verdict" data-verdict></p>
+      </div>
     </div>`;
 
   const caption = figure.querySelector("figcaption");
@@ -181,12 +184,27 @@ function initMergeFigure(figure: HTMLElement): void {
     });
   });
 
-  function intro(): void {
+  // ----- self-play drives the SAME tour the journey exposes ---------------
+  // Proposal 43 rule 1 (and proposal 46 §4): the page animation must not
+  // diverge from the journey. The old divergent `intro()` stagger is gone —
+  // the page now plays the balanced → break → rebalance tour itself (looping),
+  // exactly what the narrator and the video renderer drive via seek(). Stands
+  // down once a driver claims the figure (`driven`), so the two never fight.
+  let loopTimer: gsap.core.Tween | null = null;
+  function playLive(): void {
     if (driven) return; // a driver owns the figure; stay out of its way
-    if (reduced) { render(false); return; }
-    const legs = stage.querySelectorAll(".maker .leg, .taker .stepper-row");
-    track(gsap.from(legs, { opacity: 0, y: 12, duration: 0.3, stagger: 0.07, ease: "back.out(2)" }));
-    render(false);
+    if (reduced) {
+      // Reduced motion: show the settled (balanced) state, no real-time motion.
+      tour.pause(0);
+      applyDiscrete(5, 3);
+      gsap.set([barNight, barROCK], { width: "0%" });
+      return;
+    }
+    loopTimer?.kill();
+    tour.eventCallback("onComplete", () => {
+      loopTimer = gsap.delayedCall(2.5, playLive);
+    });
+    tour.play(0);
   }
 
   // ----- self-playing tour: balanced → break it → rebalance (one paused,
@@ -215,17 +233,21 @@ function initMergeFigure(figure: HTMLElement): void {
     return tl;
   }
 
-  // Silent reader: play once when scrolled into view.
+  // Silent reader: play the tour once when scrolled into view (no-narration
+  // case — proposal 46 §3 option A). A driver claiming the figure stands this
+  // down via `driven`.
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { io.disconnect(); intro(); }
+    for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
   }, { threshold: 0.3 });
   io.observe(figure);
 
-  // Listener: replay when narration reaches the paired mark.
+  // Listener: replay the tour when narration reaches the paired mark. Once a
+  // driver claims the figure (`driven`), playLive() no-ops, so this can't fight
+  // the driver — the guard the §7 e2e test exercises.
   let active = figure.classList.contains("narration-active");
   const mo = new MutationObserver(() => {
     const now = figure.classList.contains("narration-active");
-    if (now && !active) intro();
+    if (now && !active) playLive();
     active = now;
   });
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
@@ -241,6 +263,8 @@ function initMergeFigure(figure: HTMLElement): void {
     steps: stepsFromLabels(tour.labels, tour.duration()),
     reset() {
       driven = true;
+      loopTimer?.kill(); // stop the self-play loop scheduler
+      loopTimer = null;
       liveTweens.forEach((t) => t.kill()); // stop in-flight live tweens (NOT killTweensOf — it'd nuke the tour)
       liveTweens.length = 0;
       tour.pause(0);

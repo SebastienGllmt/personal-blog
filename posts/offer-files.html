@@ -65,18 +65,18 @@
      posts/common-terms.pls, merged in by the generator. -->
 
 <script type="text/narration" data-chapter-id="intro" data-chapter-title="Welcome">
-  <mark name="title"/>
+  <mark name="title" figure="none"/>
   Hi everyone, and welcome to today's talk.
-  <mark name="lede"/>
+  <mark name="lede" figure="none"/>
   I want to tell you about an idea that's been catching on in the Midnight
   ecosystem - a way to trade assets where the order book itself never
   touches a blockchain. They're called Offer Files.
 </script>
 
 <script type="text/narration" data-chapter-id="problem" data-chapter-title="The throughput wall">
-  <mark name="problem-heading"/>
+  <mark name="problem-heading" figure="none"/>
   Let's start with the problem, because it's one every zero-knowledge chain runs into.
-  <mark name="problem-body"/>
+  <mark name="problem-body" figure="none"/>
   Privacy comes with a computational cost - you have to generate proofs - and
   that compute comes with a throughput cost. So a chain like Midnight will never have the
   transactions-per-second of a chain that does no private computation at all. And that squeezes
@@ -86,42 +86,42 @@
   usual escape is an automated market maker, which keeps the order flow off chain - but an AMM is a
   general-purpose smart contract, and on a privacy chain a general contract means a heavy proof, far
   more expensive than just placing an order. Either way, the naive exchange is costly here.
-  <mark name="problem-intents"/>
+  <mark name="problem-intents" figure="intent-figure"/>
   The modern answer to this is intents. You broadcast what you *want* off chain,
   and the chain is only touched when someone actually fills it. Offer Files are
   exactly that pattern - but with a twist that makes them unusually clean on Midnight.
 </script>
 
 <script type="text/narration" data-chapter-id="p-zswap" data-chapter-title="zSwap intro">
-  <mark name="p-zswap"/>
+  <mark name="p-zswap" figure="none"/>
   And the twist is a primitive called zSwap.
 </script>
 
 <script type="text/narration" data-chapter-id="zswap" data-chapter-title="swaps live in the L1" data-chapter-parent="p-zswap">
-  <mark name="zswap-body"/>
+  <mark name="zswap-body" figure="none"/>
   Most chains make you write a smart contract to swap two assets. Midnight doesn't.
   Atomic swaps are built directly into the base layer. The unit you work with is an
   offer, and the key thing to understand is that an offer is a deliberately
   *unbalanced* transaction. It puts some assets in, and it takes other assets out,
   and on its own it doesn't add up.
-  <mark name="zswap-delta"/>
+  <mark name="zswap-delta" figure="merge-figure"/>
   Concretely, an offer carries a little ledger of signed numbers - one per token.
   Alice's offer says: plus five NIGHT, minus three ROCK. The chain will only ever accept
   a transaction where every one of those numbers nets to zero. So an offer alone is
   never valid. It's half of a trade, waiting for its other half.
-  <mark name="merge-figure"/>
+  <mark name="merge-figure" figure="merge-figure"/>
   Here's where it gets fun. Look at the figure. Alice posted the offer on the left.
   You assemble the matching half on the right - you take the NIGHT she's giving,
   and you give the ROCK she wants. Watch the merged ledger in the middle: when your half
   exactly mirrors hers, every token snaps to zero, and suddenly we have a single,
   balanced, submittable transaction. Try nudging the amounts and you'll see it fall
   out of balance again.
-  <mark name="zswap-merge"/>
+  <mark name="zswap-merge" figure="merge-figure"/>
   That merge is the magic trick. Two offers combine by just unioning their pieces and
   adding up those signed numbers. And because each offer already carries its own
   zero-knowledge proof inside it, nobody has to re-prove anything to combine them.
   The taker doesn't even need a proving system. It's completely non-interactive.
-  <mark name="zswap-trustless"/>
+  <mark name="zswap-trustless" figure="none"/>
   It's also tamper-proof. Change a single byte of someone's offer and its proof no
   longer verifies, so it's worthless. You can hand an offer to a complete stranger and
   the worst they can do is throw it away - they can never alter your terms, and
@@ -129,18 +129,18 @@
 </script>
 
 <script type="text/narration" data-chapter-id="offer-anatomy" data-chapter-title="zSwap vs. a ZswapOffer" data-chapter-parent="p-zswap">
-  <mark name="anatomy-heading"/>
+  <mark name="anatomy-heading" figure="none"/>
   Quick aside on names, because the Midnight codebase is precise about this and it matters for what's coming.
-  <mark name="anatomy-naming"/>
+  <mark name="anatomy-naming" figure="none"/>
   zSwap, lowercase z, is the whole system - the shielded, private token machinery. A zSwap Offer is one
   thing inside it: that concrete bundle of inputs, outputs, and the deltas, which encodes the difference
   between the two.
-  <mark name="offer-anatomy-figure"/>
+  <mark name="offer-anatomy-figure" figure="offer-anatomy-figure"/>
   Now the privacy model, which is the part that surprises people. At the level of an individual coin, zSwap hides
   everything - not just who owns it, but the asset type and the amount too, all sealed inside commitments.
   The only person who can read what an output actually contains is the receiver, through an encrypted note meant
   just for them.
-  <mark name="anatomy-deltas"/>
+  <mark name="anatomy-deltas" figure="offer-anatomy-figure"/>
   So how does anyone know what's being traded? One field is public, by necessity: the deltas. The chain has to see
   the net imbalance per token to check the offer balances, so deltas sits there in plaintext - plus five of
   this, minus three of that. The trade terms, and nothing else: not the funding coins, not the parties, not your
@@ -148,35 +148,35 @@
 </script>
 
 <script type="text/narration" data-chapter-id="offer-file" data-chapter-title="From a swap to a file" data-chapter-parent="p-zswap">
-  <mark name="file-heading"/>
+  <mark name="file-heading" figure="none"/>
   So here's the leap. If an offer is a self-contained, tamper-proof, mergeable object
   - why keep it on the chain at all?
-  <mark name="file-body"/>
+  <mark name="file-body" figure="filewrap-figure"/>
   You don't have to. You serialize that proven offer, wrap it in an encoding called
   bech32, and what you get is a plain text string. That string *is* the Offer File,
   and it has a built-in checksum so a copy-paste typo can't silently corrupt it.
-  <mark name="file-public"/>
+  <mark name="file-public" figure="filewrap-figure"/>
   And here's why it's safe to share, which isn't obvious. Remember the trade terms live in the public deltas, while
   the coins and the parties stay private. So the file says what's on offer - gives five NIGHT, wants three
   ROCK - and nothing else. You can post it in the open and let anyone match it, without leaking who you are
   or what else you hold.
-  <mark name="file-encoding"/>
+  <mark name="file-encoding" figure="filewrap-figure"/>
   It's not tiny - the zero-knowledge proofs dominate, so a simple offer runs to
   about sixteen thousand characters. Too big for a QR code. But it's just text, so you
   can paste it in a chat, drop it in a file, or host it at a URL. No complex setup required
-  <mark name="file-invalidate"/>
+  <mark name="file-invalidate" figure="none"/>
   And it stays live until one of two things happens: the maker spends the coins it was
   built from, or its time-to-live expires. Both of those are things you check against
   the current chain state - which, as we'll see, is exactly half of the indexing problem.
 </script>
 
 <script type="text/narration" data-chapter-id="p-celestia" data-chapter-title="Where do offers live?">
-  <mark name="p-celestia"/>
+  <mark name="p-celestia" figure="none"/>
   So where do offer files actually go? Well, the simplest answer is: anywhere you like.
 </script>
 
 <script type="text/narration" data-chapter-id="celestia" data-chapter-title="P2P Offer Files" data-chapter-parent="p-celestia">
-  <mark name="celestia-body"/>
+  <mark name="celestia-body" figure="discord-figure"/>
   You can keep one private and hand it straight to a friend - and that's already useful.
   Remember NFT mania, when people traded by posting in Discord? That needed a trusted escrow,
   because either side could back out. An offer file gives you that same casual trade with no
@@ -184,19 +184,19 @@
 </script>
 
 <script type="text/narration" data-chapter-id="public-offers" data-chapter-title="Public Offer Files" data-chapter-parent="p-celestia">
-  <mark name="public-offers-heading"/>
+  <mark name="public-offers-heading" figure="none"/>
   But peer to peer, only the people you message can see it.
-  <mark name="celestia-shared"/>
+  <mark name="celestia-shared" figure="none"/>
   The bigger prize is shared liquidity - getting your offer in front of as many takers as possible.
   And for that, our reference design uses Celestia as a public bulletin board. Celestia is a
   data-availability layer: a chain whose only job is to take a blob of data and guarantee
   everyone can download it. It doesn't execute the data, it just makes it available.
-  <mark name="celestia-namespace"/>
+  <mark name="celestia-namespace" figure="namespace-figure"/>
   And the feature that makes it perfect here is namespaces. Every app gets its own labelled
   lane in the data. So a wallet can sync *only* the Offer-File namespace - not the whole
   chain - and still get a cryptographic guarantee that it's seeing every offer that was
   posted, with nothing hidden from it. That's full-node-grade assurance from a light node.
-  <mark name="celestia-retention"/>
+  <mark name="celestia-retention" figure="none"/>
   One honest caveat: Celestia guarantees the data was *published*, not that it's stored forever.
   Light clients keep roughly a week of history - but that's not really a limitation here, because
   Midnight's L1 enforces a two-week time-to-live on offers anyway, so a live offer never outlives that
@@ -204,39 +204,48 @@
 </script>
 
 <script type="text/narration" data-chapter-id="plumbing" data-chapter-title="Two genuinely hard parts" data-chapter-parent="p-celestia">
-  <mark name="plumbing-heading"/>
+  <mark name="plumbing-heading" figure="none"/>
   Beautiful in theory. In practice there are two genuinely hard parts, and our reference
   implementation is built around solving exactly these two.
-  <mark name="plumbing-index"/>
+  <mark name="plumbing-index" figure="indexer-figure"/>
   The first: to show a correct order book, you have to watch *two* chains at once. Celestia tells
   you which offers were *created*. But Midnight tells you which offers are *dead* - because
   the moment any coin an offer was built from gets spent, that offer can never be filled. So you
   index Celestia for the new offers, and you index Midnight for the spends that invalidate them.
   A framework called EffectStream lets a single program watch both chains as one unified stream,
   which is what makes this tractable.
-  <mark name="plumbing-batcher"/>
+  <mark name="plumbing-batcher" figure="batcher-figure"/>
   The second: posting to Celestia costs a fee, paid in Celestia's own token. But your users are
   Midnight users, so most of them won't hold Celestia tokens at all. So EffectStream ships a
   batcher. The user hands their offer to the batcher, and the batcher posts it and pays the fee on
   their behalf. The user never has to know Celestia exists.
-  <mark name="lifecycle-figure"/>
-  Now that all the pieces are on the table, let me play the whole journey end to end. An offer is
-  created and proven in your wallet, encoded into that text string, and posted to Celestia
-  with the batcher covering the fee. EffectStream indexes both chains to track it, it shows up in a
-  shared order book, and finally a taker matches it and settles the trade on Midnight. Press play,
+  <mark name="lifecycle-figure" figure="lifecycle-figure"/>
+  Now that all the pieces are on the table, let me play the whole journey end to end.
+  <mark name="lc-created" step="created"/>
+  An offer is created and proven in your wallet,
+  <mark name="lc-encoded" step="encoded"/>
+  encoded into that text string,
+  <mark name="lc-posted" step="posted"/>
+  and posted to Celestia with the batcher covering the fee.
+  <mark name="lc-indexed" step="indexed"/>
+  EffectStream indexes both chains to track it,
+  <mark name="lc-book" step="book"/>
+  it shows up in a shared order book,
+  <mark name="lc-settled" step="settled"/>
+  and finally a taker matches it and settles the trade on Midnight. Press play,
   or click any step to walk through it yourself.
 </script>
 
 <script type="text/narration" data-chapter-id="liquidity" data-chapter-title="The payoff: shared liquidity" data-chapter-parent="p-celestia">
-  <mark name="liquidity-heading"/>
+  <mark name="liquidity-heading" figure="none"/>
   So step back and look at what this gives us.
-  <mark name="liquidity-body"/>
+  <mark name="liquidity-body" figure="sharedliquidity-figure"/>
   Every exchange, every NFT marketplace built this way is reading from the *same* pool of Offer
   Files. The trades don't live inside any one app. An app becomes just two things: a filter that
   picks which offers to show, and a frontend to show them. Liquidity that one site attracts is
   liquidity every other site can match against. The network effect stops being captured by a
   single venue.
-  <mark name="liquidity-forward"/>
+  <mark name="liquidity-forward" figure="none"/>
   Now, that's the technical payoff - but elegant architecture isn't the same as a thing people will
   actually use. Whether any of this gets real traction is a separate question, and an important one. There's
   even a real-world experiment that speaks to it - a chain called Chia ran this exact shape for years
@@ -245,18 +254,18 @@
 </script>
 
 <script type="text/narration" data-chapter-id="orderbook" data-chapter-title="Now build a DEX with it" data-chapter-parent="p-celestia">
-  <mark name="orderbook-heading"/>
+  <mark name="orderbook-heading" figure="none"/>
   So let's actually build a DEX with this. The order book almost falls out for free: every offer file is a
   resting order. A taker browses them, picks one, and settles it with a single on-chain transaction. Listing
   and updating orders costs nothing on-chain at all.
-  <mark name="orderbook-body"/>
+  <mark name="orderbook-body" figure="utxo-figure"/>
   But there's a catch, and to see it you need one fact about how Midnight works underneath. A zSwap offer is
   built from a specific coin - what's called a UTXO, an unspent output. The offer stays valid only for
   as long as that coin stays unspent.
-  <mark name="utxo-figure"/>
+  <mark name="utxo-figure" figure="utxo-figure"/>
   Play with the figure. Creating and sharing the offer is free - it's just a file, so copies can be
   anywhere. When a taker fills it, settling spends that coin on-chain. Fine. But now try to cancel it.
-  <mark name="cancel-cost"/>
+  <mark name="cancel-cost" figure="utxo-figure"/>
   Cancelling also costs an on-chain transaction - and that isn't a detail we can optimize away, it's
   fundamental. Copies of your offer are already out in the world. The only way to make every one of them
   un-fillable is to spend the coin they all point at. Off-chain there is no undo; on a UTXO chain a cancel
@@ -264,141 +273,141 @@
 </script>
 
 <script type="text/narration" data-chapter-id="market-making" data-chapter-title="The market-maker wall" data-chapter-parent="p-celestia">
-  <mark name="mm-heading"/>
+  <mark name="mm-heading" figure="none"/>
   Here's why that one fact decides whether your DEX lives or dies. A good order book needs market makers
   - the people who quote both a buy price and a sell price and earn the small spread between them.
-  <mark name="mm-spread"/>
+  <mark name="mm-spread" figure="mm-figure"/>
   When two offers cross - someone selling a touch cheap, someone buying a touch high - a market
   maker fills both and pockets the difference. Do that all day and you get tight prices and deep liquidity.
   That's the whole reason exchanges court market makers.
-  <mark name="mm-figure"/>
+  <mark name="mm-figure" figure="mm-figure"/>
   But drag the fair price in the figure. The instant the market moves, the maker's entire ladder of quotes is
   mispriced and has to be cancelled and re-posted. Real market makers do this constantly - they cancel
   far more orders than they ever fill.
-  <mark name="mm-bottleneck"/>
+  <mark name="mm-bottleneck" figure="mm-figure"/>
   And every one of those cancels is an on-chain transaction. A zero-knowledge chain like Midnight clears only
   a handful of transactions a second, with slow finality. A market maker who needs to re-quote dozens of times
   a second simply can't keep up. The cancel cost quietly makes serious market making impossible.
-  <mark name="l2-teaser"/>
+  <mark name="l2-teaser" figure="none"/>
   So that's the missing piece. Offer files give us a shared, off-chain order book and real settlement on the
   base layer - but to make it a venue market makers can actually work, cancels have to be fast and nearly
   free. The answer is a layer two, purpose-built for offer files. So let's design it.
 </script>
 
 <script type="text/narration" data-chapter-id="p-l2" data-chapter-title="The L2">
-  <mark name="p-l2"/>
+  <mark name="p-l2" figure="none"/>
   When you build a layer two on a privacy chain, two questions dominate everything else.
 </script>
 
 <script type="text/narration" data-chapter-id="l2-design" data-chapter-title="Designing the L2: integrity vs privacy" data-chapter-parent="p-l2">
-  <mark name="l2-axes"/>
+  <mark name="l2-axes" figure="none"/>
   First, integrity: under what assumptions can someone prove a balance on the layer two and withdraw it back
   to the layer one? And second, privacy: who, if anyone, gets to see the state of the layer two? On Midnight,
   privacy isn't optional - it's the whole point - so both questions are live at once.
-  <mark name="l2-midnightcity"/>
+  <mark name="l2-midnightcity" figure="trustmodel-figure"/>
   There's a great reference point. Another Midnight project, Midnight City, already built a layer two. For
   privacy they use a proof system called Ligero; for the chain itself they use the Sovereign SDK; and for
   integrity they run the sequencer inside a trusted execution environment - a secure hardware enclave
   - and settle to a Midnight contract.
-  <mark name="l2-crypto"/>
+  <mark name="l2-crypto" figure="trustmodel-figure"/>
   That's a perfectly reasonable design. But our use-case is financial, and for money we don't want to settle
   for hardware trust. A trusted enclave is one disclosed vulnerability away from forged withdrawals. We want
   cryptographic integrity: a proof, not a promise from a chip. And that, it turns out, is genuinely hard here.
 </script>
 
 <script type="text/narration" data-chapter-id="balance-proof" data-chapter-title="The hard part: proving a private balance" data-chapter-parent="p-l2">
-  <mark name="balance-heading"/>
+  <mark name="balance-heading" figure="none"/>
   Here's why it's hard, and it comes straight from how zSwap works.
-  <mark name="balance-body"/>
+  <mark name="balance-body" figure="viewingkey-figure"/>
   On a zSwap chain, balances are private. They live as commitments and nullifiers that nobody can attribute to
   an owner just by looking. So when you want to withdraw, the layer two can't simply vouch for your balance -
   the sequencer genuinely does not know it. The proof has to come from you.
-  <mark name="viewingkey-figure"/>
+  <mark name="viewingkey-figure" figure="viewingkey-figure"/>
   Midnight gives you a tool for this: a viewing key. It lets you, and only you, tell which swaps involved your
   address. Look at the grid - every swap is opaque, until your viewing key lights up the handful that are
   yours.
-  <mark name="balance-scan"/>
+  <mark name="balance-scan" figure="viewingkey-figure"/>
   But here's the trap. To prove your balance, it's not enough to point at your five swaps. You have to prove,
   for every other swap too, that it is not yours - otherwise you could be hiding deposits or inventing them.
   So your proof has to sweep the entire history of the layer two.
-  <mark name="balance-infeasible"/>
+  <mark name="balance-infeasible" figure="viewingkey-figure"/>
   Drag the throughput up and watch. Even a modest layer two produces more swaps in a day than any user could
   ever fold into a single proof, recursive SNARKs and all. You'd only ever be able to prove the last few minutes
   of history. At any real throughput, this approach is simply dead.
-  <mark name="solution-teaser"/>
+  <mark name="solution-teaser" figure="none"/>
   So that's the corner we've painted ourselves into: cryptographic integrity demands a proof, privacy means only
   you can build it, and building it naively means re-proving the whole chain for every user. Fortunately, there's
   a clever way out.
 </script>
 
 <script type="text/narration" data-chapter-id="solution" data-chapter-title="One proof for everyone" data-chapter-parent="p-l2">
-  <mark name="solution-heading"/>
+  <mark name="solution-heading" figure="none"/>
   Here's the trick. The problem was that every user has to prove their own balance, and each of those proofs has
   to sweep the whole history. So stop making users do it. Have the sequencer prove it once, for everyone at the
   same time.
-  <mark name="solution-keys"/>
+  <mark name="solution-keys" figure="sequencer-proof-figure" step="keys"/>
   But to compute everyone's balance, the prover needs everyone's viewing key - the very thing that's
   supposed to stay private. So this is where the trusted enclave comes back, in a much smaller role. Each user
   sends their viewing key into the sequencer's TEE. Inside that sealed box the keys can be used, but the operator
   running the machine can never read them out.
-  <mark name="sequencer-proof-figure"/>
+  <mark name="sequencer-proof-figure" figure="sequencer-proof-figure" step="proof"/>
   And now look what becomes possible. Inside the enclave, a single recursive SNARK folds the entire swap history
   exactly once, and because it's inside the TEE it can see every user's balance. Out comes one succinct proof
   that covers all of them at once. Drag the user count: proving separately means thousands of proofs; batched in
   the enclave, it's always just one. That's the only thing that scales.
-  <mark name="solution-succinct"/>
+  <mark name="solution-succinct" figure="sequencer-proof-figure"/>
   And because the proof is succinct, it reveals none of those balances. It just commits to them - and each
   user can later open their own slice of that commitment to withdraw, without ever re-proving the whole chain.
-  <mark name="solution-trust"/>
+  <mark name="solution-trust" figure="sequencer-proof-figure"/>
   Here's the part I love. Notice what the enclave is and isn't doing. It is not vouching for the money -
   the proof does that, cryptographically. The TEE only keeps the keys private. So unlike a design that trusts
   hardware for integrity, if our enclave is ever broken, you lose privacy, but you can never forge a withdrawal.
   Integrity is math; the hardware is only guarding the curtain.
-  <mark name="solution-closing"/>
+  <mark name="solution-closing" figure="none"/>
   So we've got integrity and privacy: one proof in an enclave settles the whole L2 back to Midnight,
   cryptographically and without revealing a thing. But that same proof does one more job worth pausing on
   - it's also how you get your funds back out.
 </script>
 
 <script type="text/narration" data-chapter-id="offboard" data-chapter-title="Getting your funds back out" data-chapter-parent="p-l2">
-  <mark name="offboard-heading"/>
+  <mark name="offboard-heading" figure="none"/>
   Which raises the obvious question: once your funds live on the L2, how do you get them back out to the L1?
-  <mark name="offboard-lock"/>
+  <mark name="offboard-lock" figure="offboard-figure"/>
   On the L2 you've got more than just create-offer and cancel-offer. There's a third move: offboard. An offboard
   is an unbalanced swap that locks the funds you want to withdraw and makes them unspendable on the L2. That
   imbalance - funds leaving with nothing coming back - is exactly your exit amount.
-  <mark name="offboard-figure"/>
+  <mark name="offboard-figure" figure="offboard-figure" step="claim-self"/>
   And here's the neat part. That offboard is part of the L2 state, so it's baked into the very same recursive proof
   we post to the L1. The L1 contract reads the proof, sees that this address offboarded this much, and completes
   the other half by paying those funds to the same address on the L1.
-  <mark name="offboard-claim"/>
+  <mark name="offboard-claim" figure="offboard-figure" step="claim-other"/>
   Same address on both sides is the whole security. Only the address that locked the funds on the L2 can claim
   them on the L1, so nobody can intercept your exit. Try claiming as someone else in the figure and the L1 simply refuses.
-  <mark name="offboard-frame"/>
+  <mark name="offboard-frame" figure="none"/>
   And step back - it's an offer file again, just split across two layers. One half lives on the L2, the other
   on the L1, bound together by a shared address. The very pattern we opened with is also how you leave. With that
   the core design is complete, and all that's left is making it fast.
 </script>
 
 <script type="text/narration" data-chapter-id="p-scaling" data-chapter-title="Scaling">
-  <mark name="p-scaling"/>
+  <mark name="p-scaling" figure="none"/>
   Here's something reassuring about that enclave: it isn't in the way of anyone actually using the system.
 </script>
 
 <script type="text/narration" data-chapter-id="hot-path" data-chapter-title="the TEE off the hot path" data-chapter-parent="p-scaling">
-  <mark name="hotpath-body"/>
+  <mark name="hotpath-body" figure="hotpath-figure" step="hot"/>
   Remember that an offer file shows the assets and amounts in the clear - it only hides the addresses. So
   the everyday path needs no enclave at all. A user hands their offer file to an ordinary sequencer, which orders
   it and shows it on explorers and order books right away. Fast, simple, no special hardware.
-  <mark name="hotpath-figure"/>
+  <mark name="hotpath-figure" figure="hotpath-figure" step="bundle"/>
   The TEE lives off to the side, as a separate system. Every so often it pulls the latest swaps from the indexer,
   decrypts them with the viewing keys, runs that one big proof, and posts it to the L1. It's the prover, not the
   gatekeeper - nothing waits on it.
-  <mark name="hotpath-optional"/>
+  <mark name="hotpath-optional" figure="hotpath-figure"/>
   Keeping the enclave off the hot path is a choice, not a requirement - you could run the whole sequencer
   inside a TEE if you wanted. But the less code that has to run inside an enclave, the simpler the whole thing is
   to build and audit, so we keep the trusted part small.
-  <mark name="visible-stats"/>
+  <mark name="visible-stats" figure="privacy-figure"/>
   And it's worth being clear about what we keep public here, because it's the quiet reason this can work at all.
   An offer file hides the addresses but shows the amounts - so a DEX built on it can display real volume,
   liquidity, and prices, while never revealing who traded. That's deliberate. The fully private DEXs that hid the
@@ -406,26 +415,26 @@
   liquidity and price, so total privacy fights the very people it's meant to help; hiding amounts usually drags in
   MPC or FHE, a huge jump in complexity; and producing trustworthy liquidity statistics without leaking the
   private state is genuinely hard to do. Public amounts with hidden addresses sidesteps all three.
-  <mark name="privacy-figure"/>
+  <mark name="privacy-figure" figure="privacy-figure"/>
   The figure makes this tangible. Flip the two switches over the order book: hide just the addresses and the
   market stays fully readable while the traders go anonymous - that's our design. Now also hide the
   amounts and watch the whole book black out, with the checklist flipping red. What you hide is the whole game.
 </script>
 
 <script type="text/narration" data-chapter-id="consensus" data-chapter-title="consensus without trust" data-chapter-parent="p-scaling">
-  <mark name="consensus-heading"/>
+  <mark name="consensus-heading" figure="none"/>
   The next piece is consensus - how the L2 orders transactions and finalizes them.
-  <mark name="consensus-decouple"/>
+  <mark name="consensus-decouple" figure="consensus-figure"/>
   And here's what makes this easy: because our security is cryptographic - it's a ZK rollup, the proof
   guarantees correctness - consensus doesn't have to provide security at all. It only has to order
   transactions. That frees us to choose it purely for speed and for keeping MEV low.
-  <mark name="consensus-figure"/>
+  <mark name="consensus-figure" figure="consensus-figure"/>
   So we can run a Byzantine-fault-tolerant system, and pick anywhere along a spectrum. At one end, a single
   sequencer: fastest and simplest, but it can stall or censor. In the middle, round-robin, where the proposer
   rotates through a known set, so there's no single point of failure. And at the far end, a proper BFT like
   Simplex, where a committee agrees each block and a BLS threshold signature certifies the result in one tiny
   signature the L1 can check.
-  <mark name="consensus-why"/>
+  <mark name="consensus-why" figure="consensus-figure"/>
   Three reasons BFT is the right fit. Security is already cryptographic, so consensus is free to optimize for
   something else. We care about performance, and BFT gives fast, deterministic finality by design. And we want to
   minimize MEV - and a known committee with threshold signing is a good foundation to build that on. Things
@@ -434,42 +443,42 @@
 </script>
 
 <script type="text/narration" data-chapter-id="da" data-chapter-title="abstracting away the data layer" data-chapter-parent="p-scaling">
-  <mark name="da-heading"/>
+  <mark name="da-heading" figure="none"/>
   The last piece is the data layer. Remember, the original Offer File proposal posts the files to Celestia, and
   everyone reads them from there.
-  <mark name="da-problem"/>
+  <mark name="da-problem" figure="da-figure"/>
   That's a fine starting point, but it puts two frictions right in front of users. Celestia today has roughly
   six-second blocks, but gives you instant finality - decent for a live order book. However, it drags a
   foreign token into the experience: to post an offer you need Celestia's token, or you lean on a batcher to pay it
   for you. Either way, the data layer is something users and developers have to think about.
-  <mark name="da-figure"/>
+  <mark name="da-figure" figure="da-figure"/>
   The L2 quietly dissolves both. Once the L2 exists, tools just sync the L2 directly - and by construction it
   already contains every offer and every fill, so there's no separate namespace to scan and no special token in the
   user's face. Look at the figure: the top panel, what users and developers see, never changes.
-  <mark name="da-abstract"/>
+  <mark name="da-abstract" figure="da-figure"/>
   And underneath? The L2 can still use Celestia for data availability, or swap in a different layer, or just post to
   Midnight itself. Click through the options - the user's view stays identical every time. The data layer has
   become an implementation detail the sequencers choose, not a concern anyone building or using the DEX has to carry.
 </script>
 
 <script type="text/narration" data-chapter-id="p-openq" data-chapter-title="Open questions">
-  <mark name="p-openq"/>
+  <mark name="p-openq" figure="none"/>
   That's the core design. But I want to end honestly, with a few problems we <em>haven't</em> solved. Here's the first.
 </script>
 
 <script type="text/narration" data-chapter-id="open-q1" data-chapter-title="the nullifier set never shrinks" data-chapter-parent="p-openq">
-  <mark name="oq1-what"/>
+  <mark name="oq1-what" figure="nullifier-figure"/>
   Most zero-knowledge systems, Midnight included, stop double-spends with something called a nullifier. On a normal
   UTXO chain you'd just mark a spent output as spent. zSwap wants the same guarantee - each UTXO spent at most
   once - but without revealing which UTXO it was. So instead of marking the UTXO directly, spending it
   publishes a nullifier: a private, deterministic tag derived from that UTXO that reveals nothing about it. The
   ledger keeps the set of nullifiers - effectively, the set of spent UTXOs - and rejects any it has
   already seen. Same UTXO, same nullifier, so it can't be spent twice.
-  <mark name="nullifier-figure"/>
+  <mark name="nullifier-figure" figure="nullifier-figure"/>
   Play with the figure. Spend a UTXO and its nullifier joins the set; try to spend it again and you're rejected,
   because the same UTXO always produces the same nullifier. But here's the catch: nullifiers are <em>never</em>
   removed. A spent UTXO stays spent forever, so the nullifier set only ever grows.
-  <mark name="oq1-problem"/>
+  <mark name="oq1-problem" figure="nullifier-figure"/>
   On the base layer that's fine. But the whole point of our L2 is high throughput - and every single swap adds
   a nullifier that never goes away. Drag the throughput up: at real volumes that set balloons into the billions, and
   every proof has to be made against it. Keeping that state from blowing up, without giving up the privacy the
@@ -477,42 +486,42 @@
 </script>
 
 <script type="text/narration" data-chapter-id="open-q2" data-chapter-title="fees and ordering" data-chapter-parent="p-openq">
-  <mark name="oq2-what"/>
+  <mark name="oq2-what" figure="none"/>
   Open question number two: how should the L2 price and order transactions? Fees, first-come, something else? It
   sounds mundane, but three forces pull against each other and there's no obvious right answer.
-  <mark name="oq2-forces"/>
+  <mark name="oq2-forces" figure="fee-figure"/>
   First, MEV and ordering. If there are no fees, you tend to get off-chain backroom deals - people quietly
   paying block producers to jump the queue. A trusted committee mitigates that, but only because you're trusting
   them. Second, market makers. Real exchanges charge makers and takers differently precisely so makers aren't
   punished - and makers cancel and replace orders constantly, so any meaningful fee bleeds them dry. And third,
   spam: set fees to zero and you invite junk transactions, which slow proofs and - remember the last problem
   - balloon the nullifier set permanently.
-  <mark name="fee-figure"/>
+  <mark name="fee-figure" figure="fee-figure"/>
   Play with the knobs. Push fees up and the market makers leave; drop them to zero and spam takes over; switch
   ordering to fee-priority and you've built an MEV auction. The closest you get is a low flat fee with first-come
   ordering - and even then, ordering stays a caveat, not a clean win, because first-come is only fair on-chain.
-  <mark name="oq2-dilemma"/>
+  <mark name="oq2-dilemma" figure="fee-figure"/>
   But even the best setting - a low flat fee with first-come ordering - isn't clean. First-come only
   stops bidding for position on-chain; off-chain, you're still trusting the committee not to take a bribe to reorder. And a single flat fee can't do what exchanges do with
   separate maker and taker fees. So how fees and ordering should really work on this L2 is still open.
 </script>
 
 <script type="text/narration" data-chapter-id="open-q3" data-chapter-title="time to market" data-chapter-parent="p-openq">
-  <mark name="oq3-what"/>
+  <mark name="oq3-what" figure="none"/>
   And the last open question isn't really technical at all - it's about timing. How much complexity do we
   actually want to build? A perfect system takes longer, and the catch is that this whole L2 has a shelf life.
-  <mark name="oq3-window"/>
+  <mark name="oq3-window" figure="ttm-figure"/>
   Two things could make it unnecessary. One: Midnight's base layer keeps improving, and it runs general-purpose
   zero-knowledge smart contracts, not just zSwaps - so if the L1 itself gets fast enough, you don't need this
   L2 at all. Two: Nightstream, a more general Midnight L2 built as a full zero-knowledge virtual machine. Once that
   matures, the case for a zSwap-specific network shrinks. But neither is here yet: it's unclear how long until the
   L1 matches a purpose-built zSwap L2, and Nightstream has no clear path to connect to the L1 today and is far
   slower than this L2 would be.
-  <mark name="ttm-figure"/>
+  <mark name="ttm-figure" figure="ttm-figure"/>
   So there's a window where this L2 is genuinely useful - but nobody knows how wide it is. Drag the build
   scope: ship something lean and you're comfortably inside the window; chase perfection and you risk spending the
   whole window building, and launching just as it closes.
-  <mark name="oq3-takeaway"/>
+  <mark name="oq3-takeaway" figure="none"/>
   Which points to a clear answer, even if it's an uncomfortable one for engineers: don't aim for perfect. Get
   something good to market soon, while the window is open. That's the design, and the honest open questions that
   come with it. But there's one more question I promised to come back to - the one that decides whether any
@@ -520,10 +529,10 @@
 </script>
 
 <script type="text/narration" data-chapter-id="p-business" data-chapter-title="Will anyone trade?">
-  <mark name="p-business"/>
+  <mark name="p-business" figure="none"/>
   So let's switch hats. Everything up to now was engineering - how to build offer files, and how to make
   them fast.
-  <mark name="business-lead"/>
+  <mark name="business-lead" figure="none"/>
   That's the easy half to feel good about, and the dangerous half to stop at, because a protocol that's elegant
   and unused is just a clever way to spend a budget. So put on the investor's hat and ask the only question that
   really decides things: will people actually trade on this? We can't prove the future - but we're not
@@ -531,19 +540,19 @@
 </script>
 
 <script type="text/narration" data-chapter-id="business-intro" data-chapter-title="the Chia precedent" data-chapter-parent="p-business">
-  <mark name="business-precedent"/>
+  <mark name="business-precedent" figure="none"/>
   That experiment was Chia.
-  <mark name="bp-real"/>
+  <mark name="bp-real" figure="adoption-figure"/>
   A marketplace called dexie shipped a nearly identical offer-file system, and it's the closest thing the industry
   has to a controlled test of the idea. The headline is reassuring: it worked. Over four and a half years and
   several boom-and-bust waves, it settled close to a million real, on-chain trades, all carried by offer files. I
   pulled and analyzed eight hundred thirty-three thousand of them - there's a whole companion post on the data.
-  <mark name="adoption-figure"/>
+  <mark name="adoption-figure" figure="adoption-figure"/>
   And here's the shape of it - completed offers per month, ramping through 2022 and then sustained for
   years, wave after wave. Real, durable use - not a launch-day spike.
-  <mark name="precedent-figure"/>
+  <mark name="precedent-figure" figure="precedent-figure"/>
   Now the same record on one card: real and durable on the left, small and retail on the right. Both true at once.
-  <mark name="bp-small"/>
+  <mark name="bp-small" figure="precedent-figure"/>
   But read the same numbers the other way and they sting. To avoid a misleading dollar figure on a chain whose
   token collapsed, the honest number is coin-denominated: the median trade held around a fifth of an XCH (Chia's native coin) - the whole
   way through - worth about thirty-four dollars at 2022 prices, but under a dollar today. The busiest pair cleared
@@ -553,44 +562,44 @@
 </script>
 
 <script type="text/narration" data-chapter-id="business-evidence" data-chapter-title="The receipts" data-chapter-parent="p-business">
-  <mark name="business-proven"/>
+  <mark name="business-proven" figure="none"/>
   So what did four years of receipts actually prove the primitive does well?
-  <mark name="bproven-body"/>
+  <mark name="bproven-body" figure="usecases-figure"/>
   Several things - and they carry over to Midnight, because they're properties of the offer itself, not of
   Chia. Settlement is trustless and atomic. Offers bundle many assets at once.
   They compose safely into an aggregator, because the worst case of routing through a stranger is simply that
   nothing happens. And the stream of settled prices is a free price oracle. Even NFT royalties got stronger, not
   weaker - though that one leans on Chia's particular NFT design.
-  <mark name="usecases-figure"/>
+  <mark name="usecases-figure" figure="usecases-figure"/>
   And it wasn't one niche keeping the lights on - NFTs, memecoins, and entire game economies all ran on
   offer files. The one serious financial use-case, stablecoins, stayed small.
-  <mark name="business-warning"/>
+  <mark name="business-warning" figure="none"/>
   Now the warnings - and these are about the market, not the mechanism.
-  <mark name="bwarn-body"/>
+  <mark name="bwarn-body" figure="amm-figure"/>
   Given total freedom, the market converged on exactly the thing offer files were built to avoid. Two-thirds of
   fills ended up taken by a single automated market maker, and discovery re-centralized on one aggregator. Worse
   for anyone hoping to provide liquidity: a resting offer is a free option you write to arbitrage bots, and the
   mispriced ones get picked off in seconds. So makers couldn't earn a spread by sitting still; they churned eight
   or nine wasted quotes for every trade that settled, and the liquidity that did appear had to be rented with a
   token subsidy - which then shrank five-fold.
-  <mark name="amm-figure"/>
+  <mark name="amm-figure" figure="amm-figure"/>
   You can watch it happen: the share of fills taken by that one automated market maker climbs past half and toward
   two-thirds - and that's only the bot we can actually label.
-  <mark name="outcomes-figure"/>
+  <mark name="outcomes-figure" figure="outcomes-figure"/>
   And step back to the whole lifecycle: of every offer file ever created, only about one in eight ever settles
   - the rest, millions of them, are cancelled or expired. On a UTXO chain every one of those cancels costs a
   transaction - exactly the cost our layer two exists to crush.
 </script>
 
 <script type="text/narration" data-chapter-id="business-midnight" data-chapter-title="The Midnight lens" data-chapter-parent="p-business">
-  <mark name="business-midnight"/>
+  <mark name="business-midnight" figure="none"/>
   Here's where our specific chain changes the math - in both directions.
-  <mark name="bmid-lead"/>
+  <mark name="bmid-lead" figure="scorecard-figure"/>
   Those last points were argued without picking a chain. Midnight is not neutral about them.
-  <mark name="scorecard-figure"/>
+  <mark name="scorecard-figure" figure="scorecard-figure"/>
   Look at the three columns: where Midnight helps, where it adds a cost Chia never paid, and where it's genuinely
   unresolved.
-  <mark name="bmid-helps"/>
+  <mark name="bmid-helps" figure="scorecard-figure"/>
   Midnight's biggest lever lands right on the bear case's strongest pillar - but it's a lever, not a cure.
   The maker-killer on Chia was that cancelling an order costs an on-chain transaction. The layer two makes cancels
   fast and nearly free, which removes the cost of churning. What it doesn't remove is the cause: a stale quote still
@@ -599,14 +608,14 @@
   market-making cheaper to attempt, not
   automatically profitable; that still hangs on its unsolved fee design. What does carry over cleanly is privacy
   - hidden traders over public prices - which Chia simply can't offer.
-  <mark name="bmid-hurts"/>
+  <mark name="bmid-hurts" figure="scorecard-figure"/>
   And Midnight imports a cost Chia never paid. Here the proof is still an expensive part - sixteen thousand
   characters per offer, only a handful of transactions a second, and a nullifier set that never stops growing.
   Those costs are real. But notice the shape of the bet: in ZK the hard part is rarely the idea, it's finding one
   cheap enough to run today - and an offer file is about as light as a useful primitive gets. That it consumed
   a fraction of Chia's compute is actually encouraging, because it's exactly what zSwap can afford now, where a
   general contract can't. The cost is genuine, but it's also why this primitive is the buildable bet.
-  <mark name="bmid-unknown"/>
+  <mark name="bmid-unknown" figure="scorecard-figure"/>
   Then the AMM - the relationship most people read backwards. Chia's market became one big automated market
   maker. But look at how - the pool didn't replace offer files, it plugged into them, filling offers on the same rail.
   So the market becoming a pool isn't offer files losing, it's offer files succeeding as the substrate. On
@@ -614,7 +623,7 @@
   as the technology allows, with the offer chain always underneath as a fallback rather than a cliff. And since a
   new pool can bootstrap its liquidity from the shared offer pool, this may even soften the winner-take-all tendency of
   pooled exchanges. The one caveat: if pools never get cheap enough, offer files have to carry liquidity alone.
-  <mark name="bmid-demand"/>
+  <mark name="bmid-demand" figure="none"/>
   And under all of it: who is this for? Public prices with hidden traders is a specific want - over-the-counter
   desks, treasuries dodging front-running, anyone allergic to MEV. Not Chia's couple-of-dollars retail trader, so be careful
   extrapolating. But that cuts the other way too: maybe the bigger players never came to Chia precisely because it
@@ -624,9 +633,9 @@
 </script>
 
 <script type="text/narration" data-chapter-id="business-verdict" data-chapter-title="The honest verdict" data-chapter-parent="p-business">
-  <mark name="business-verdict"/>
+  <mark name="business-verdict" figure="none"/>
   So - the honest verdict.
-  <mark name="bverdict-bull"/>
+  <mark name="bverdict-bull" figure="none"/>
   The optimist's case, in one breath: the shape is proven to clear real trades for years; our layer two directly
   attacks the defect that crippled market-making on Chia by making cancels cheap; privacy is a real edge no
   transparent exchange has; and while pooled exchanges stay hard to build here, offer files may be the natural first
@@ -634,7 +643,7 @@
   pool would struggle to offer hidden traders over public prices - so for the buyer who wants exactly that,
   there's little pool to lose to. If that reading holds, the move is the one the timing question already pointed to - ship
   something lean, and catch the window before it closes.
-  <mark name="bverdict-bear"/>
+  <mark name="bverdict-bear" figure="none"/>
   The skeptic's case, just as honest: the proven shape proved small - a couple-of-dollars-median bazaar -
   and it drifted to a pooled market maker and a central aggregator anyway, no matter how trustless the rail
   underneath was. Chia's data is silent on the cold start, and Chia still had to rent liquidity with a subsidy -
@@ -643,7 +652,7 @@
   don't fully remove already has a rival answer shipping elsewhere - batch-auction designs like Penumbra that
   clear in sealed batches instead of letting quotes rest. Though a competitor existing cuts both ways: a sharper
   rival, but also a sign the demand is real. By this reading the bar is higher on Midnight than it ever was on Chia.
-  <mark name="bverdict-close"/>
+  <mark name="bverdict-close" figure="none"/>
   Both readings are built from the same receipts, and that's the point. The evidence is strong enough to justify
   building something, and honest enough that nobody should pretend the traction is guaranteed. What it really turns
   on is a demand no one has measured yet: whether enough people want a market that's transparent in its prices and
@@ -1113,32 +1122,32 @@
              client/figures/offerLifecycle.ts. -->
         <svg class="lifecycle-static" viewBox="0 0 640 110" role="img" aria-label="An offer's lifecycle: created and proven in a wallet, encoded, posted to Celestia, indexed off both chains, surfaced in a shared order book, then matched and settled on Midnight.">
           <g font-family="system-ui, sans-serif" font-size="10" text-anchor="middle">
-            <g>
+            <g id="lc-created">
               <rect x="6"   y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
               <text x="52" y="44" font-size="20">👛</text>
               <text x="52" y="68" font-weight="600">Create &amp; prove</text>
             </g>
-            <g>
+            <g id="lc-encoded">
               <rect x="116" y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
               <text x="162" y="44" font-size="20">🔡</text>
               <text x="162" y="68" font-weight="600">Encode</text>
             </g>
-            <g>
+            <g id="lc-posted">
               <rect x="226" y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
               <text x="272" y="44" font-size="20">🟪</text>
               <text x="272" y="68" font-weight="600">Post to Celestia</text>
             </g>
-            <g>
+            <g id="lc-indexed">
               <rect x="336" y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
               <text x="382" y="44" font-size="20">🛰️</text>
               <text x="382" y="68" font-weight="600">Index both</text>
             </g>
-            <g>
+            <g id="lc-book">
               <rect x="446" y="20" width="92" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
               <text x="492" y="44" font-size="20">📖</text>
               <text x="492" y="68" font-weight="600">Order book</text>
             </g>
-            <g>
+            <g id="lc-settled">
               <rect x="556" y="20" width="78" height="58" rx="8" fill="#f3f0fb" stroke="#9a82d8"/>
               <text x="595" y="44" font-size="20">🤝</text>
               <text x="595" y="68" font-weight="600">Settle</text>

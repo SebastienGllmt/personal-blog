@@ -180,11 +180,25 @@
 .merge-fig .delta.deficit { color: #b23b3b; }
 .merge-fig .delta.zero { color: #3a9b5c; }
 
-.merge-fig .verdict {
+/* Fixed-height verdict: a hidden sizer holding the LONGER (balanced) verdict
+ * reserves the height, the live verdict is overlaid, so the 1-line↔2-line swap
+ * as the tour animates can't shift the article below it (same idiom as
+ * batcherFlow's caption sizer). */
+.merge-fig .verdict-wrap {
+  position: relative;
   margin: 0.85rem 0 0;
+}
+.merge-fig .verdict-sizer,
+.merge-fig .verdict {
+  margin: 0;
   font-size: 0.9rem;
+  line-height: 1.4;
+}
+.merge-fig .verdict-sizer { visibility: hidden; }
+.merge-fig .verdict {
+  position: absolute;
+  inset: 0;
   color: #555;
-  min-height: 1.3em;
 }
 #merge-figure:not(.is-balanced) .merge-fig .verdict { color: #b23b3b; }
 #merge-figure.is-balanced .merge-fig .verdict { color: #2f7d4d; }
