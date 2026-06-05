@@ -21,9 +21,10 @@ const LOOP_GAP = 3.5;
 
 interface Stage {
   // Semantic GSAP timeline label for this stage — the join-point a narration
-  // `step=` cue addresses (proposal 48). Stable + meaningful so a cue reads as
-  // `step="posted"`, not `step="step-2"`. Renaming these is cache-neutral
-  // (labels are not narration text — proposal 48 §2/§7.3).
+  // `step=` cue addresses (methodology.md → "Staging a figure from narration").
+  // Stable + meaningful so a cue
+  // reads as `step="posted"`, not `step="step-2"`. Renaming these is cache-neutral
+  // (labels are not narration text — methodology.md → "Audio caching").
   label: string;
   icon: string;
   title: string;

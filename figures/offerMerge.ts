@@ -190,7 +190,7 @@ function initMergeFigure(figure: HTMLElement): void {
   });
 
   // ----- self-play drives the SAME tour the journey exposes ---------------
-  // Proposal 43 rule 1 (and proposal 46 §4): the page animation must not
+  // See the `figure-journey` skill — rule 1 (and rule 7): the page animation must not
   // diverge from the journey. The old divergent `intro()` stagger is gone —
   // the page now plays the balanced → break → rebalance tour itself (looping),
   // exactly what the narrator and the video renderer drive via seek(). Stands
@@ -239,7 +239,7 @@ function initMergeFigure(figure: HTMLElement): void {
   }
 
   // Silent reader: play the tour once when scrolled into view (no-narration
-  // case — proposal 46 §3 option A). A driver claiming the figure stands this
+  // case — methodology.md → "Live figure driving", autoplay option A). A driver claiming the figure stands this
   // down via `driven`.
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) if (e.isIntersecting) { io.disconnect(); playLive(); }
