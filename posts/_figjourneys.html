@@ -12,7 +12,16 @@
       Intentionally has NO <meta name="author-email"> so share-card/feeds skip it.
       - #diagram        → hashAvalanche (needs only the figure element)
       - #volume-figure  → offerVolume   (data-gated on the inline #dexie-xch-usdc JSON)
+
+      Stylesheets mirror a real post's context so the height-invariance gate
+      (e2e/figureHeight.e2e.ts) measures these fixture-only figures the way a
+      reader would see them: base.css (Red Hat font, design tokens, the 768px
+      column), narrator.css (the figure box padding), and each figure's own CSS.
     -->
+    <link rel="stylesheet" href="../engine/client/base.css" />
+    <link rel="stylesheet" href="../engine/client/narrator.css" />
+    <link rel="stylesheet" href="../figures/hashAvalanche.css" />
+    <link rel="stylesheet" href="../figures/offerVolume.css" />
   </head>
   <body>
     <article>

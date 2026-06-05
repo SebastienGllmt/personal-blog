@@ -10,7 +10,7 @@
 }
 
 .idx-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -83,7 +83,7 @@
 }
 .idx-fig .idx-chip-verb { font-weight: 700; }
 .idx-fig .idx-chip-tag {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.92em;
   opacity: 0.85;
 }
@@ -138,8 +138,10 @@
   flex-direction: column;
   gap: 0.25rem;
   /* Reserve space for the fully-populated book (4 offers) so rows animating in
-   * never grow the figure and shift the page below. */
-  min-height: 104px;
+   * never grow the figure and shift the page below. The 4-row block is 114px
+   * under the Red Hat metrics (the old 104px was ~10px short, so the book grew
+   * past the streams column near the end of the stream); 116px pins it. */
+  min-height: 116px;
 }
 .idx-fig .idx-row {
   display: flex;
@@ -154,7 +156,7 @@
 }
 .idx-fig .idx-row-mark { color: #8a6fd0; font-size: 0.7em; }
 .idx-fig .idx-row-tag {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   color: #4b3b8f;
 }
 .idx-fig .idx-row.idx-dead {

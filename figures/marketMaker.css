@@ -7,7 +7,7 @@
 }
 
 .mm-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -95,7 +95,7 @@
 .mm-fig .mm-cancels b {
   font-size: 2rem;
   line-height: 1;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-weight: 800;
 }
 .mm-fig .mm-cancels span {
@@ -118,7 +118,7 @@
 .mm-fig .axis {
   position: relative;
   width: 2.7rem;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.66rem;
   color: #999;
   flex-shrink: 0;
@@ -172,7 +172,7 @@
   white-space: nowrap;
   margin-left: 0.3rem;
 }
-.mm-fig .line .lbl b { font-family: ui-monospace, monospace; font-weight: 700; }
+.mm-fig .line .lbl b { font-family: var(--font-mono); font-weight: 700; }
 
 .mm-fig .line.ask::before { background: #d96b6b; }
 .mm-fig .line.ask .lbl { color: #b23b3b; background: #fbe7e7; }
@@ -228,7 +228,7 @@
   display: inline-flex;
   flex-direction: column;
 }
-.mm-fig .stat b { font-size: 1.1rem; font-family: ui-monospace, monospace; color: #333; }
+.mm-fig .stat b { font-size: 1.1rem; font-family: var(--font-mono); color: #333; }
 .mm-fig .stat.earn b { color: #2f7d4d; }
 .mm-fig .stat.loss b { color: #b23b3b; }
 .mm-fig .stat.tx b { color: #9a5b1e; }
@@ -241,7 +241,7 @@
   line-height: 1.5;
   min-height: 3.4em;
 }
-.mm-fig .readout b { font-family: ui-monospace, monospace; }
+.mm-fig .readout b { font-family: var(--font-mono); }
 .mm-fig .readout b.a { color: #b23b3b; }
 .mm-fig .readout b.b { color: #2f7d4d; }
 .mm-fig .readout b.g { color: #2f7d4d; }

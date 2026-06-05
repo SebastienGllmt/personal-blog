@@ -10,7 +10,7 @@
 }
 
 .dc-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -117,7 +117,7 @@
 }
 .dc-channel.lit { opacity: 1; }
 .dc-ch-glyph { font-size: 0.8rem; }
-.dc-ch-pill { font-size: 0.74rem; font-weight: 700; font-family: ui-monospace, monospace; }
+.dc-ch-pill { font-size: 0.74rem; font-weight: 700; font-family: var(--font-mono); }
 
 /* the travelling offer chip (anchored at the stage's top-left; GSAP moves it) */
 .dc-chip {
@@ -132,7 +132,7 @@
   pointer-events: none;
 }
 .dc-chip code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: #4b3b8f;
 }
@@ -163,7 +163,7 @@
   line-height: 1.45;
 }
 .dc-readout code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   background: #efeafb;
   padding: 0.05em 0.3em;

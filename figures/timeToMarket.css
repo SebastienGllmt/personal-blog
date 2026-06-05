@@ -7,14 +7,14 @@
 }
 
 .ttm-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
 .ttm-controls { margin-bottom: 1.4rem; }
 .ttm-controls label { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #555; }
 .ttm-controls input[type="range"] { width: 180px; accent-color: #6a4fb0; }
-.ttm-controls b { font-family: ui-monospace, monospace; color: #4b3b8f; min-width: 6rem; }
+.ttm-controls b { font-family: var(--font-mono); color: #4b3b8f; min-width: 6rem; }
 
 /* timeline */
 .ttm-track {

@@ -7,7 +7,7 @@
 }
 
 .fo-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -20,7 +20,7 @@
 }
 .fo-fee { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #555; }
 .fo-fee input[type="range"] { width: 150px; accent-color: #6a4fb0; }
-.fo-fee b { font-family: ui-monospace, monospace; color: #4b3b8f; min-width: 4rem; }
+.fo-fee b { font-family: var(--font-mono); color: #4b3b8f; min-width: 4rem; }
 .fo-order { font-size: 0.82rem; color: #555; display: inline-flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
 .fo-order button {
   appearance: none;
@@ -51,7 +51,10 @@
   font-size: 0.86rem;
   color: #555;
   line-height: 1.45;
-  min-height: 4.4em;
+  /* Reserve the tallest readout branch (the longest fee/ordering verdict runs 4
+     lines) so changing the fee slider / ordering along the journey doesn't
+     reflow the figure. 4 × 1.45 = 5.8em; round to 6em so min-height governs. */
+  min-height: 6em;
 }
 .fo-readout b { color: #4b3b8f; }
 

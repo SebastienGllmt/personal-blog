@@ -12,7 +12,7 @@
 }
 
 .merge-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -91,7 +91,7 @@
 .merge-fig .dir.give { color: #b06a2f; }
 .merge-fig .dir.want { color: #2f7bb0; }
 .merge-fig .amt {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   font-size: 1.05rem;
   min-width: 1.2rem;
@@ -172,7 +172,7 @@
 .merge-fig .fill.deficit { background: #d96b6b; }
 .merge-fig .fill.zero { background: #5bb87a; }
 .merge-fig .delta {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   text-align: right;
 }

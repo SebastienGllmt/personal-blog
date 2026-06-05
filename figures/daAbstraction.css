@@ -14,7 +14,7 @@
 }
 
 .da-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
   max-width: 460px;
   margin: 0 auto; /* center the figure within the article column */
@@ -91,10 +91,12 @@
 .da-note {
   font-size: 0.78rem;
   color: #555;
-  min-height: 2.4em;
+  /* Reserve the tallest backend note (2 lines) so switching DA backends along
+     the journey doesn't reflow the figure. 2 × 1.4 = 2.8em; round to 3em. */
+  min-height: 3em;
   line-height: 1.4;
 }
-.da-note b { color: #4b3b8f; font-family: ui-monospace, monospace; }
+.da-note b { color: #4b3b8f; font-family: var(--font-mono); }
 
 .da-readout {
   margin: 0.8rem 0 0;

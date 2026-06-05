@@ -7,7 +7,7 @@
 }
 
 .cns-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -58,7 +58,9 @@
   font-size: 0.86rem;
   color: #555;
   line-height: 1.45;
-  min-height: 3.6em;
+  /* Reserve the tallest tab's note (3 lines) so touring the consensus tabs
+     doesn't reflow the figure. 3 × 1.45 = 4.35em; round to 4.5em. */
+  min-height: 4.5em;
 }
 .cns-readout b { color: #4b3b8f; }
 

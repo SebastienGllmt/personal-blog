@@ -9,7 +9,7 @@
 }
 
 .fw-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -86,7 +86,7 @@
   display: inline-block;
 }
 .fw-fig .fw-pkg-label {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: #6c6c7a;
   background: #f3f0fb;
@@ -124,7 +124,7 @@
   line-height: 1.45;
 }
 .fw-fig .fw-caption code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   background: #efeafb;
   padding: 0.05em 0.3em;

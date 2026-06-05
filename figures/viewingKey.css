@@ -8,7 +8,7 @@
 }
 
 .vk-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -21,7 +21,7 @@
 }
 .vk-fig .vk-controls label { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #555; }
 .vk-fig .vk-controls input[type="range"] { width: 150px; accent-color: #6a4fb0; }
-.vk-fig .vk-controls label b { font-family: ui-monospace, monospace; color: #333; }
+.vk-fig .vk-controls label b { font-family: var(--font-mono); color: #333; }
 .vk-fig .vk-controls button {
   padding: 0.42rem 0.75rem;
   border-radius: 7px;
@@ -50,7 +50,7 @@
   background: #ececf1;
   color: #b8b8c2;
   font-size: 10px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   transition: background 0.12s, color 0.12s, transform 0.12s;
 }
 .vk-fig .vk-cell.notmine { background: #f1f1f5; color: #c4c4cc; }
@@ -73,7 +73,7 @@
   margin-bottom: 0.6rem;
 }
 .vk-fig .stat { font-size: 0.72rem; color: #777; display: inline-flex; flex-direction: column; }
-.vk-fig .stat b { font-size: 1rem; font-family: ui-monospace, monospace; color: #333; }
+.vk-fig .stat b { font-size: 1rem; font-family: var(--font-mono); color: #333; }
 .vk-fig .stat.mine b { color: #4b3b8f; }
 .vk-fig .stat.cover b { color: #b23b3b; }
 
@@ -100,7 +100,7 @@
   background: #2f7d4d;
 }
 .vk-fig .vk-meter-label { font-size: 0.78rem; color: #555; margin-top: 0.35rem; }
-.vk-fig .vk-meter-label b { font-family: ui-monospace, monospace; }
+.vk-fig .vk-meter-label b { font-family: var(--font-mono); }
 .vk-fig .vk-meter-label b.bad { color: #b23b3b; font-family: inherit; }
 
 .vk-fig .vk-readout {
@@ -108,7 +108,10 @@
   font-size: 0.86rem;
   color: #555;
   line-height: 1.45;
-  min-height: 3.4em;
+  /* Reserve the tallest readout branch (the "Done — your proof…" note runs 3
+     lines) so the figure doesn't reflow as narration drives the prove step.
+     3 × 1.45 line-height = 4.35em; round to 4.5em so min-height governs. */
+  min-height: 4.5em;
 }
 .vk-fig .vk-readout b { color: #4b3b8f; }
 

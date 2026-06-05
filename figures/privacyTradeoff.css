@@ -8,7 +8,7 @@
 }
 
 .pt-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -84,8 +84,8 @@
 .pt-row .side { font-weight: 700; text-transform: uppercase; font-size: 0.62rem; }
 .pt-row .side.buy { color: #2f7d4d; }
 .pt-row .side.sell { color: #b23b3b; }
-.pt-row .who { font-family: ui-monospace, monospace; color: #555; }
-.pt-row .amt, .pt-row .px { font-family: ui-monospace, monospace; }
+.pt-row .who { font-family: var(--font-mono); color: #555; }
+.pt-row .amt, .pt-row .px { font-family: var(--font-mono); }
 .pt-row .redact {
   color: #b9b9c4;
   letter-spacing: 1px;

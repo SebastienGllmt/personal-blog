@@ -7,7 +7,7 @@
 }
 
 .sp-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -89,7 +89,7 @@
 .sp-controls { margin-top: 1rem; }
 .sp-controls label { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #555; }
 .sp-controls input[type="range"] { width: 200px; accent-color: #6a4fb0; }
-.sp-controls b { font-family: ui-monospace, monospace; color: #333; }
+.sp-controls b { font-family: var(--font-mono); color: #333; }
 
 .sp-compare { margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.4rem; }
 .sp-row { display: grid; grid-template-columns: 11rem 1fr 7rem; align-items: center; gap: 0.6rem; font-size: 0.76rem; }
@@ -98,7 +98,7 @@
 .sp-bar .fill { display: block; height: 100%; width: 0; border-radius: 999px; transition: width 0.3s ease; }
 .sp-row.alone .fill { background: #d96b6b; }
 .sp-row.batched .fill { background: #5bb87a; }
-.sp-row-val { font-family: ui-monospace, monospace; font-weight: 700; text-align: right; }
+.sp-row-val { font-family: var(--font-mono); font-weight: 700; text-align: right; }
 .sp-row.alone .sp-row-val { color: #b23b3b; }
 .sp-row.batched .sp-row-val { color: #2f7d4d; }
 
@@ -109,7 +109,7 @@
   line-height: 1.45;
   min-height: 4em;
 }
-.sp-readout b { color: #4b3b8f; font-family: ui-monospace, monospace; }
+.sp-readout b { color: #4b3b8f; font-family: var(--font-mono); }
 
 @media (max-width: 620px) {
   .sp-stage { grid-template-columns: 1fr; justify-items: center; }

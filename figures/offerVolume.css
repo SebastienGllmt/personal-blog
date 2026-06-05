@@ -10,7 +10,7 @@
 }
 
 .vol-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
   --swaps: #6a4fb0;
   --vol: #c08a1e;
@@ -30,7 +30,7 @@
 .vol-big b {
   font-size: 1.9rem;
   font-weight: 800;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   color: #1d1d1f;
   letter-spacing: -0.01em;
 }
@@ -76,8 +76,8 @@
 
 .vol-grid { stroke: #ececf1; stroke-width: 1; }
 .vol-grid.year { stroke: #e3e3ea; stroke-dasharray: 2 3; }
-.vol-xtick { fill: #999; font-size: 11px; font-family: ui-monospace, monospace; }
-.vol-ytick { font-size: 10.5px; font-family: ui-monospace, monospace; }
+.vol-xtick { fill: #999; font-size: 11px; font-family: var(--font-mono); }
+.vol-ytick { font-size: 10.5px; font-family: var(--font-mono); }
 .vol-ytick.swaps { fill: var(--swaps); }
 .vol-ytick.vol { fill: var(--vol); }
 .vol-ytick.price { fill: var(--price); }
@@ -101,7 +101,11 @@
   border-radius: 999px;
   padding: 2px;
 }
-.vol-modes[hidden] { display: none; }
+/* On the share/price tabs the per-week/cumulative toggle doesn't apply, but we
+   keep its row laid out (just invisible + non-interactive) instead of removing
+   it, so touring the tabs along the journey doesn't add/drop ~21px and shift the
+   page below. */
+.vol-modes[hidden] { display: inline-flex; visibility: hidden; }
 .vol-modes button {
   appearance: none;
   border: none;
@@ -120,7 +124,7 @@
 /* donut */
 .vol-slice.usd { fill: var(--usd); }
 .vol-slice.other { fill: var(--other); }
-.donut-pct { font-size: 28px; font-weight: 800; font-family: ui-monospace, monospace; fill: #4b3b8f; }
+.donut-pct { font-size: 28px; font-weight: 800; font-family: var(--font-mono); fill: #4b3b8f; }
 .donut-sub { font-size: 12px; fill: #888; }
 
 .vol-readout {
@@ -130,4 +134,4 @@
   line-height: 1.45;
   min-height: 3em;
 }
-.vol-readout b { color: #4b3b8f; font-family: ui-monospace, monospace; }
+.vol-readout b { color: #4b3b8f; font-family: var(--font-mono); }

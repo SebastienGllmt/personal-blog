@@ -9,7 +9,7 @@
 }
 
 .bat-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -147,7 +147,7 @@
   line-height: 1.45;
 }
 .bat-fig .step-caption code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   background: #efeafb;
   padding: 0.05em 0.3em;

@@ -11,7 +11,7 @@
 }
 
 .utxo-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
 }
 
@@ -121,7 +121,7 @@
 .utxo-fig .coin-state {
   margin-top: 0.3rem;
   font-size: 0.66rem;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   color: #2f7d4d;
 }
 .utxo-fig .coin.spent .coin-state { color: #b23b3b; }
@@ -144,7 +144,7 @@
 .utxo-fig .offer-file.void { opacity: 0.45; border-color: #d2b9b9; }
 .utxo-fig .file-cap { font-size: 0.62rem; color: #777; margin-bottom: 0.15rem; }
 .utxo-fig .file-tag {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   color: #4b3b8f;
   font-weight: 600;
   font-size: 0.74rem;
@@ -174,7 +174,7 @@
   font-size: 0.7rem;
   position: relative;
 }
-.utxo-fig .copy-tag { font-family: ui-monospace, monospace; color: #4b3b8f; font-weight: 600; }
+.utxo-fig .copy-tag { font-family: var(--font-mono); color: #4b3b8f; font-weight: 600; }
 .utxo-fig .copy-where { color: #888; }
 .utxo-fig .copy-status {
   font-size: 0.58rem;
@@ -237,7 +237,7 @@
   color: #555;
 }
 .utxo-fig .txbar b {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 1.15rem;
   color: #9a5b1e;
 }

@@ -7,7 +7,7 @@
 }
 
 .ob-fig {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: #222;
   max-width: 480px;
   margin: 0 auto;
@@ -50,7 +50,7 @@
 .ob-card-b { font-size: 0.88rem; line-height: 1.4; color: #333; }
 .ob-card-b small { color: #888; }
 .ob-addr { margin-top: 0.4rem; font-size: 0.72rem; color: #777; }
-.ob-addr code, .ob-claim code, .ob-link code, .ob-card-b code { font-family: ui-monospace, monospace; }
+.ob-addr code, .ob-claim code, .ob-link code, .ob-card-b code { font-family: var(--font-mono); }
 
 .ob-bridge { text-align: center; padding: 0.5rem 0; }
 .ob-proof { display: block; font-size: 0.7rem; color: #6a4fb0; }
@@ -76,7 +76,7 @@
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 .ob-claim button[aria-pressed="true"] { background: #efeafb; border-color: #9a82d8; color: #4b3b8f; }
 
@@ -85,6 +85,10 @@
   font-size: 0.86rem;
   color: #555;
   line-height: 1.45;
-  min-height: 3.8em;
+  /* Reserve the TALLER of the two claim notes so the figure doesn't reflow as
+     narration toggles self↔other: the "released" (self) note runs 4 lines while
+     the "blocked" note is 3. 4 × 1.45 line-height = 5.8em; round to 6em for a
+     sub-pixel margin so min-height (not the text) governs both states. */
+  min-height: 6em;
 }
 .ob-readout b { color: #4b3b8f; }
