@@ -23,7 +23,7 @@
 // the house pattern: static SVG fallback, `.ns-enhanced`, IntersectionObserver
 // intro, `narration-active` replay, reduced-motion aware.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
 
 // One row per "chain row" in each stack. `mine` marks the rows that belong to
 // YOUR app's namespace (the Offer-File lane); everything else is unrelated.
@@ -221,9 +221,15 @@ function initFigure(figure: HTMLElement): void {
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
 
   const journey = buildPass();
-  registerFigureJourney("namespace-figure", {
-    durationMs: journey.duration() * 1000,
-    steps: stepsFromLabels(journey.labels, journey.duration()),
+  // Bake the same LOOP_GAP dwell the in-page free-run loop uses into the
+  // registered journey, so the video compositor (and the narration driver's
+  // continuous loop) pause on the finished frame before looping instead of
+  // restarting the instant the motion ends.
+  registerFigureJourney("namespace-figure", buildLoopingJourney({
+    playMs: journey.duration() * 1000,
+    labels: journey.labels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => journey.time(ms / 1000),
     reset() {
       driven = true;
       stopLive();
@@ -231,8 +237,7 @@ function initFigure(figure: HTMLElement): void {
       resetSide(tiaRows, tiaCursor, tiaFoot);
       journey.pause(0);
     },
-    seek(ms: number) { journey.time(ms / 1000); },
-  });
+  }));
 }
 
 // --- run-guard: MUST stay at the very bottom, after the const-arrow helpers

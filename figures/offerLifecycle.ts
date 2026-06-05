@@ -12,7 +12,12 @@
 // contract is identical: static SVG fallback, `.lifecycle-enhanced`,
 // IntersectionObserver intro, `narration-active` replay, reduced-motion aware.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
+
+// Seconds to dwell on the final frame before the loop replays. Shared by the
+// in-page free-run loop and the registered journey (baked in via
+// buildLoopingJourney) so the page and the rendered video pause identically.
+const LOOP_GAP = 3.5;
 
 interface Stage {
   // Semantic GSAP timeline label for this stage — the join-point a narration
@@ -139,7 +144,7 @@ function initLifecycle(figure: HTMLElement): void {
     const t = buildJourney();
     t.eventCallback("onComplete", () => {
       playing = false; setBtn();
-      loopTimer = gsap.delayedCall(3.5, playLive);
+      loopTimer = gsap.delayedCall(LOOP_GAP, playLive);
     });
     liveTl = t;
     t.play();
@@ -172,10 +177,14 @@ function initLifecycle(figure: HTMLElement): void {
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
 
   const journey = buildJourney();
-  registerFigureJourney("lifecycle-figure", {
-    durationMs: journey.duration() * 1000,
-    steps: stepsFromLabels(journey.labels, journey.duration()),
+  // Bake the free-run LOOP_GAP dwell into the journey so the video compositor
+  // (and the narration driver's continuous loop) pause on the final frame
+  // before looping instead of restarting the instant the motion ends.
+  registerFigureJourney("lifecycle-figure", buildLoopingJourney({
+    playMs: journey.duration() * 1000,
+    labels: journey.labels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => journey.time(ms / 1000),
     reset() { driven = true; stopLive(); resetVisual(); journey.pause(0); },
-    seek(ms: number) { journey.time(ms / 1000); },
-  });
+  }));
 }

@@ -12,7 +12,12 @@
 // `.sl-enhanced`, IntersectionObserver intro (once), `narration-active`
 // replay, reduced-motion aware.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
+
+// Seconds to dwell on the final frame before the loop replays. Shared by the
+// in-page free-run loop and the registered journey (baked in via
+// buildLoopingJourney) so the page and the rendered video pause identically.
+const LOOP_GAP = 2;
 
 interface Node {
   icon: string;
@@ -179,7 +184,7 @@ const initFigure = (figure: HTMLElement): void => {
     stopLive();
     resetVisual();
     const t = buildPass();
-    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(2, playLive); });
+    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(LOOP_GAP, playLive); });
     liveTl = t;
     t.play();
   };
@@ -206,15 +211,21 @@ const initFigure = (figure: HTMLElement): void => {
   // journey is rebuilt fresh on reset() (a probe build gives stable duration/
   // steps; its chips are cleared so the live DOM stays clean).
   const probe = buildPass();
-  const probeDur = probe.duration();
-  const journeyDurationMs = probeDur * 1000;
-  const journeySteps = stepsFromLabels(probe.labels, probeDur);
+  const probePlayMs = probe.duration() * 1000;
+  const probeLabels = { ...probe.labels }; // clone before kill(), used below
   probe.kill();
   resetVisual();
   let journey: gsap.core.Timeline | null = null;
-  registerFigureJourney("sharedliquidity-figure", {
-    durationMs: journeyDurationMs,
-    steps: journeySteps,
+  // Bake the free-run LOOP_GAP dwell into the journey so the video compositor
+  // (and the narration driver's continuous loop) pause on the final frame
+  // before looping. This figure spawns chips during the animation, so the
+  // journey timeline is rebuilt fresh on reset(); duration/labels are probed
+  // off the throwaway build above.
+  registerFigureJourney("sharedliquidity-figure", buildLoopingJourney({
+    playMs: probePlayMs,
+    labels: probeLabels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => { journey?.time(ms / 1000); },
     reset() {
       driven = true;
       stopLive();
@@ -222,10 +233,7 @@ const initFigure = (figure: HTMLElement): void => {
       journey = buildPass();
       journey.pause(0);
     },
-    seek(ms: number) {
-      journey?.time(ms / 1000);
-    },
-  });
+  }));
 };
 
 // Run-guard at the very bottom: all const arrow helpers above are defined by

@@ -24,7 +24,12 @@
 // GSAP timeline, so the narrator can play/loop it on cue and the video renderer
 // can capture it frame-accurately. See engine client/figureAnimation.ts.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
+
+// Seconds to dwell on the final frame before the loop replays. Shared by the
+// in-page free-run loop and the registered journey (baked in via
+// buildLoopingJourney) so the page and the rendered video pause identically.
+const LOOP_GAP = 2.5;
 
 // Alice's posted offer is fixed: she puts 5 NIGHT into the pot and pulls 3 ROCK
 // out. Expressed as the offer's net contribution per token (its delta):
@@ -202,7 +207,7 @@ function initMergeFigure(figure: HTMLElement): void {
     }
     loopTimer?.kill();
     tour.eventCallback("onComplete", () => {
-      loopTimer = gsap.delayedCall(2.5, playLive);
+      loopTimer = gsap.delayedCall(LOOP_GAP, playLive);
     });
     tour.play(0);
   }
@@ -258,9 +263,14 @@ function initMergeFigure(figure: HTMLElement): void {
   // animation on reduced-motion via its own triggers, the renderer always
   // captures). Forward-seek contract; transport lives in engine drivers, not here.
   const tour = buildTour();
-  registerFigureJourney("merge-figure", {
-    durationMs: tour.duration() * 1000,
-    steps: stepsFromLabels(tour.labels, tour.duration()),
+  // Bake the free-run LOOP_GAP dwell into the journey so the video compositor
+  // (and the narration driver's continuous loop) pause on the final frame
+  // before looping instead of restarting the instant the motion ends.
+  registerFigureJourney("merge-figure", buildLoopingJourney({
+    playMs: tour.duration() * 1000,
+    labels: tour.labels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => tour.time(ms / 1000),
     reset() {
       driven = true;
       loopTimer?.kill(); // stop the self-play loop scheduler
@@ -271,8 +281,5 @@ function initMergeFigure(figure: HTMLElement): void {
       applyDiscrete(5, 3);
       gsap.set([barNight, barROCK], { width: "0%" });
     },
-    seek(ms: number) {
-      tour.time(ms / 1000);
-    },
-  });
+  }));
 }

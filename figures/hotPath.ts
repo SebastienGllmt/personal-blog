@@ -15,7 +15,12 @@
 // SVG attributes only. Progressive enhancement over a static SVG;
 // narration-synced; reduced-motion aware.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
+
+// Seconds the live loop dwells on the finished frame before replaying (the
+// master timeline's repeatDelay). Shared with the registered journey (baked in
+// via buildLoopingJourney) so the page and the rendered video pause identically.
+const LOOP_GAP = 0.6;
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -84,7 +89,7 @@ function initHotPath(figure: HTMLElement): void {
   // forever-loop; `!loop` → one paused, labeled cycle (the journey).
   function build(loop: boolean): gsap.core.Timeline {
     clearDots();
-    const master = gsap.timeline({ paused: true, repeat: loop ? -1 : 0, repeatDelay: 0.6 });
+    const master = gsap.timeline({ paused: true, repeat: loop ? -1 : 0, repeatDelay: LOOP_GAP });
 
     // Hot cycle: one packet arrives user → sequencer, then the sequencer forwards
     // it to BOTH the explorer and the indexer at the same instant (synced fork).
@@ -144,14 +149,20 @@ function initHotPath(figure: HTMLElement): void {
   // Journey (one cycle) for engine drivers. Probe for stable duration/steps,
   // then rebuild fresh on reset() (clearing the build-time .set side-effects).
   const probe = build(false);
-  const probeDur = probe.duration();
-  const probeSteps = stepsFromLabels(probe.labels, probeDur);
+  const probePlayMs = probe.duration() * 1000;
+  const probeLabels = { ...probe.labels }; // clone before kill(), used below
   probe.kill();
   clearDots();
   let journey: gsap.core.Timeline | null = null;
-  registerFigureJourney("hotpath-figure", {
-    durationMs: probeDur * 1000,
-    steps: probeSteps,
+  // Bake the live loop's repeatDelay dwell into the journey so the video
+  // compositor (and the narration continuous loop) pause on the final frame
+  // before looping, matching the page. Probe-based (rebuilt on reset) because
+  // the cycle clears/sets dots at build time.
+  registerFigureJourney("hotpath-figure", buildLoopingJourney({
+    playMs: probePlayMs,
+    labels: probeLabels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => { journey?.time(ms / 1000); },
     reset() {
       driven = true;
       tl?.pause();
@@ -159,6 +170,5 @@ function initHotPath(figure: HTMLElement): void {
       journey = build(false);
       journey.pause(0);
     },
-    seek(ms: number) { journey?.time(ms / 1000); },
-  });
+  }));
 }

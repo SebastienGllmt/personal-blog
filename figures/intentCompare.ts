@@ -22,7 +22,7 @@
 // `.intent-enhanced`, IntersectionObserver intro (once, threshold 0.3),
 // `narration-active` replay via MutationObserver, reduced-motion aware.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
 
 // A row that lands in a column. `kind` drives the row's look; `tx` whether it
 // bumps the on-chain counter.
@@ -242,12 +242,16 @@ function initFigure(figure: HTMLElement): void {
   mo.observe(figure, { attributes: true, attributeFilter: ["class"] });
 
   const journey = buildJourney();
-  registerFigureJourney("intent-figure", {
-    durationMs: journey.duration() * 1000,
-    steps: stepsFromLabels(journey.labels, journey.duration()),
+  // Bake the LOOP_GAP dwell into the registered journey so the video compositor
+  // (and the narration driver's continuous loop) pause on the final frame
+  // before looping, matching the in-page free-run loop.
+  registerFigureJourney("intent-figure", buildLoopingJourney({
+    playMs: journey.duration() * 1000,
+    labels: journey.labels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => journey.time(ms / 1000),
     reset() { driven = true; stopLive(); resetVisual(); journey.pause(0); },
-    seek(ms: number) { journey.time(ms / 1000); },
-  });
+  }));
 }
 
 // Run-guard MUST stay at the bottom: the const arrow helpers above are not

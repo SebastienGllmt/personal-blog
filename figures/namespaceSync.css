@@ -60,7 +60,11 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  padding-left: 14px; /* room for the cursor gutter */
+  /* Symmetric gutters: the left lane carries the read cursor; the matching
+     right gutter gives the pulled-row "pop" (translateX(4px) + scaleX(1.02),
+     which grows rightward from a left transform-origin) room to breathe
+     instead of spilling over the card's right edge. */
+  padding: 0 14px;
 }
 
 .ns-fig .ns-row {

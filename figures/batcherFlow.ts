@@ -13,7 +13,12 @@
 // contract is identical: static SVG fallback, `.bat-enhanced`,
 // IntersectionObserver intro, `narration-active` replay, reduced-motion aware.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
+
+// Seconds to dwell on the final frame before the loop replays. Shared by the
+// in-page free-run loop and the registered journey (baked in via
+// buildLoopingJourney) so the page and the rendered video pause identically.
+const LOOP_GAP = 3;
 
 interface Node {
   icon: string;
@@ -178,7 +183,7 @@ const initFigure = (figure: HTMLElement): void => {
     stopLive();
     resetState();
     const t = buildFlow();
-    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(3, playLive); });
+    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(LOOP_GAP, playLive); });
     liveTl = t;
     t.play();
   };
@@ -204,19 +209,21 @@ const initFigure = (figure: HTMLElement): void => {
   // paused instance, scrubbed forward; reset() takes exclusive control so the
   // page's auto-play can't fight the driver.
   const journey = buildFlow();
-  registerFigureJourney("batcher-figure", {
-    durationMs: journey.duration() * 1000,
-    steps: stepsFromLabels(journey.labels, journey.duration()),
+  // Bake the free-run LOOP_GAP dwell into the journey so the video compositor
+  // (and the narration driver's continuous loop) pause on the final frame
+  // before looping instead of restarting the instant the motion ends.
+  registerFigureJourney("batcher-figure", buildLoopingJourney({
+    playMs: journey.duration() * 1000,
+    labels: journey.labels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => journey.time(ms / 1000),
     reset() {
       driven = true;
       stopLive();
       resetState();
       journey.pause(0);
     },
-    seek(ms: number) {
-      journey.time(ms / 1000);
-    },
-  });
+  }));
 
   resetState();
 };

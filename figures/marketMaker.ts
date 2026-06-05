@@ -17,7 +17,12 @@
 // contract is identical: static SVG fallback, `.mm-enhanced`,
 // IntersectionObserver intro, `narration-active` replay, reduced-motion aware.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
+
+// Seconds the live loop dwells on the finished frame before replaying (the live
+// timeline's repeatDelay). Shared with the registered journey (baked in via
+// buildLoopingJourney) so the page and the rendered video pause identically.
+const LOOP_GAP = 0.6;
 
 // Price geometry. The track spans LO..HI; we render prices as a top offset (%).
 const LO = 2.7;
@@ -185,7 +190,7 @@ function initMarketMaker(figure: HTMLElement): void {
 
   // Build the looping timeline that walks the fair price and chases it.
   const build = (): gsap.core.Timeline => {
-    const t = gsap.timeline({ repeat: -1, repeatDelay: 0.6 });
+    const t = gsap.timeline({ repeat: -1, repeatDelay: LOOP_GAP });
     // start clean each loop
     t.add(() => {
       earned = 0;
@@ -377,9 +382,14 @@ function initMarketMaker(figure: HTMLElement): void {
   // fresh, seekable tweens. (Same pattern as utxoSwap.)
   const probe = buildJourney();
   let journeyTl: gsap.core.Timeline | null = null;
-  registerFigureJourney("mm-figure", {
-    durationMs: probe.duration() * 1000,
-    steps: stepsFromLabels(probe.labels, probe.duration()),
+  // Bake the live loop's repeatDelay dwell into the journey so the video
+  // compositor (and the narration continuous loop) pause on the final frame
+  // before looping, matching the page.
+  registerFigureJourney("mm-figure", buildLoopingJourney({
+    playMs: probe.duration() * 1000,
+    labels: probe.labels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => { journeyTl?.time(ms / 1000); },
     reset() {
       driven = true;
       tl?.kill();
@@ -388,6 +398,5 @@ function initMarketMaker(figure: HTMLElement): void {
       journeyTl = buildJourney(); // fresh tweens (the kill above nuked any prior journey's)
       journeyTl.pause(0);
     },
-    seek(ms: number) { journeyTl?.time(ms / 1000); },
-  });
+  }));
 }

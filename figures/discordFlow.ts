@@ -14,7 +14,12 @@
 // `.dc-enhanced`, IntersectionObserver intro, `narration-active` replay,
 // reduced-motion aware.
 import { gsap } from "gsap";
-import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
+import { registerFigureJourney, buildLoopingJourney } from "../engine/client/figureAnimation.ts";
+
+// Seconds to dwell on the final frame before the loop replays. Shared by the
+// in-page free-run loop and the registered journey (baked in via
+// buildLoopingJourney) so the page and the rendered video pause identically.
+const LOOP_GAP = 0.6;
 
 const STEPS: string[] = [
   "User A's wallet builds and proves an offer &mdash; a self-contained <code>zswapoffer1…</code> file. No chain touched, no escrow.",
@@ -153,7 +158,7 @@ function initFigure(figure: HTMLElement): void {
     if (reduced) { stopLive(); showFinal(); return; }
     stopLive();
     const t = buildPass();
-    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(0.6, playLive); });
+    t.eventCallback("onComplete", () => { loopTimer = gsap.delayedCall(LOOP_GAP, playLive); });
     liveTl = t;
     t.play();
   }
@@ -173,12 +178,16 @@ function initFigure(figure: HTMLElement): void {
 
   // Register the journey (one pass) for engine drivers.
   const journey = buildPass();
-  registerFigureJourney("discord-figure", {
-    durationMs: journey.duration() * 1000,
-    steps: stepsFromLabels(journey.labels, journey.duration()),
+  // Bake the free-run LOOP_GAP dwell into the journey so the video compositor
+  // (and the narration driver's continuous loop) pause on the final frame
+  // before looping instead of restarting the instant the motion ends.
+  registerFigureJourney("discord-figure", buildLoopingJourney({
+    playMs: journey.duration() * 1000,
+    labels: journey.labels,
+    loopGapMs: LOOP_GAP * 1000,
+    seek: (ms) => journey.time(ms / 1000),
     reset() { driven = true; stopLive(); resetVisuals(); journey.pause(0); },
-    seek(ms: number) { journey.time(ms / 1000); },
-  });
+  }));
 
   if (reduced) showFinal();
   else resetVisuals();
