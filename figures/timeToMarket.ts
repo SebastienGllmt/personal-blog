@@ -67,9 +67,14 @@ function initTtm(figure: HTMLElement): void {
   scope.addEventListener("input", () => { driven = false; render(true); });
   render(false);
 
+  // The intro is the figure's only self-play that writes inline transform/opacity
+  // on `ship` (a node outside the journey's tour). Keep the tween instance so a
+  // driver's reset() can kill it and restore `ship` to explicit values — leaving
+  // no history-dependent residue once the figure is claimed (rules 7 + 12 + 14b).
+  let introTween: gsap.core.Tween | undefined;
   function intro(): void {
     if (driven || reduced) return;
-    gsap.from(ship, { opacity: 0, y: -8, duration: 0.4, ease: "back.out(2)" });
+    introTween = gsap.from(ship, { opacity: 0, y: -8, duration: 0.4, ease: "back.out(2)" });
   }
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) if (e.isIntersecting) { io.disconnect(); intro(); }
@@ -94,7 +99,16 @@ function initTtm(figure: HTMLElement): void {
   registerFigureJourney("ttm-figure", {
     durationMs: journey.duration() * 1000,
     steps: stepsFromLabels(journey.labels, journey.duration()),
-    reset() { driven = true; setScope(12); journey.pause(0); },
+    reset() {
+      driven = true;
+      // Stand the intro self-play down and restore `ship` to its settled state
+      // explicitly (never clearProps), so a claimed figure's frame 0 is the same
+      // whether or not the intro ever fired.
+      introTween?.kill();
+      gsap.set(ship, { opacity: 1, y: 0 });
+      setScope(12);
+      journey.pause(0);
+    },
     seek(ms: number) { journey.time(ms / 1000); },
   });
 }
