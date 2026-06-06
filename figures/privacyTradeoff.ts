@@ -71,11 +71,12 @@ function initPrivacy(figure: HTMLElement): void {
     for (const r of ROWS) {
       const row = document.createElement("div");
       row.className = "pt-row";
-      // data-contrast="exempt": the redaction chips are deliberately obscured
-      // (the faintness IS the "hidden" signal); not text to read (DESIGN.md §1).
-      const who = hideAddresses ? `<span class="redact" data-contrast="exempt">🕶 hidden</span>` : r.who;
-      const amt = hideAmounts ? `<span class="redact" data-contrast="exempt">${REDACT}</span>` : r.amt;
-      const px = hideAmounts ? `<span class="redact" data-contrast="exempt">${REDACT}</span>` : r.px;
+      // The redaction chips hide the *value*, not the fact-of-redaction: the
+      // pill + 🕶/••••• stay legible (see .redact in the css) so the cell reads
+      // as deliberately hidden, not empty — no contrast exemption needed.
+      const who = hideAddresses ? `<span class="redact">🕶 hidden</span>` : r.who;
+      const amt = hideAmounts ? `<span class="redact">${REDACT}</span>` : r.amt;
+      const px = hideAmounts ? `<span class="redact">${REDACT}</span>` : r.px;
       row.innerHTML = `<span class="side ${r.side}">${r.side}</span><span class="who">${who}</span><span class="amt">${amt}</span><span class="px">${px}</span>`;
       rowsBox.appendChild(row);
     }

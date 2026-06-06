@@ -87,7 +87,10 @@
 .pt-row .who { font-family: var(--font-mono); color: #555; }
 .pt-row .amt, .pt-row .px { font-family: var(--font-mono); }
 .pt-row .redact {
-  color: #b9b9c4;
+  /* Legible redaction chip: the pill + 🕶/••••• say "hidden"; the indicator
+     itself stays readable (#5b5b6b on #f1f1f5 ≈ 5.9:1) so a low-vision reader
+     sees the cell is *redacted*, not empty. */
+  color: #5b5b6b;
   letter-spacing: 1px;
   background: #f1f1f5;
   border-radius: 4px;
