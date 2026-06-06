@@ -36,4 +36,4 @@
   font-weight: 600;
 }
 .hp-replay:hover { background: #e4dcf8; }
-.hp-hint { font-size: 0.74rem; color: #999; max-width: 30rem; }
+.hp-hint { font-size: 0.74rem; color: var(--fig-faint); max-width: 30rem; }

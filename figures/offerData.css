@@ -38,7 +38,7 @@
   }
   .offer-data figcaption {
     font-size: 0.85rem;
-    color: #718096;
+    color: var(--fig-muted);
     text-align: center;
     margin-top: 0.5rem;
     max-width: 680px;
@@ -61,7 +61,7 @@
     font-size: 0.8rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #718096;
+    color: var(--fig-muted);
     font-weight: 700;
     margin-bottom: 0.15rem;
   }

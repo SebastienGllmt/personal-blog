@@ -60,7 +60,7 @@
   padding: 0.1rem 0.5rem;
 }
 .merge-fig .badge.flip {
-  color: #277;
+  color: #1f6b6b;
   background: #d6efef;
   text-transform: none;
   letter-spacing: 0;
@@ -88,8 +88,8 @@
   width: 2.6rem;
   font-weight: 600;
 }
-.merge-fig .dir.give { color: #b06a2f; }
-.merge-fig .dir.want { color: #2f7bb0; }
+.merge-fig .dir.give { color: var(--fig-amber); }
+.merge-fig .dir.want { color: var(--fig-blue); }
 .merge-fig .amt {
   font-family: var(--font-mono);
   font-weight: 700;
@@ -102,7 +102,7 @@
   white-space: nowrap;
 }
 .merge-fig .tok.night { color: #4b3b8f; }
-.merge-fig .tok.star { color: #277; }
+.merge-fig .tok.star { color: #1f6b6b; }
 
 .merge-fig .step {
   width: 26px;
@@ -121,11 +121,11 @@
 .merge-fig .merge-op {
   font-size: 1.7rem;
   font-weight: 700;
-  color: #888;
+  color: var(--fig-faint);
   text-align: center;
   transform-origin: center;
 }
-#merge-figure.is-balanced .merge-op { color: #3a9b5c; }
+#merge-figure.is-balanced .merge-op { color: var(--fig-green); }
 
 /* delta ledger */
 .merge-fig .ledger {
@@ -140,7 +140,7 @@
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #888;
+  color: var(--fig-faint);
   margin-bottom: 0.7rem;
 }
 .merge-fig .delta-rows {
@@ -178,7 +178,7 @@
 }
 .merge-fig .delta.surplus { color: #a8730d; }
 .merge-fig .delta.deficit { color: #b23b3b; }
-.merge-fig .delta.zero { color: #3a9b5c; }
+.merge-fig .delta.zero { color: var(--fig-green); }
 
 /* Fixed-height verdict: a hidden sizer holding the LONGER (balanced) verdict
  * reserves the height, the live verdict is overlaid, so the 1-line↔2-line swap
@@ -201,7 +201,7 @@
   color: #555;
 }
 #merge-figure:not(.is-balanced) .merge-fig .verdict { color: #b23b3b; }
-#merge-figure.is-balanced .merge-fig .verdict { color: #2f7d4d; }
+#merge-figure.is-balanced .merge-fig .verdict { color: var(--fig-green); }
 
 @media (max-width: 560px) {
   .merge-fig .offers {

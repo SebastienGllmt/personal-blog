@@ -28,7 +28,9 @@
   background: #f7f7fb;
   padding: 0.7rem 0.5rem;
   text-align: center;
-  opacity: 0.5;
+  /* Inactive-node dim floored at 0.78 so the (darkened) label/note still clear
+     4.5:1 in the resting state (DESIGN.md §1 — opacity trap). */
+  opacity: 0.78;
   transition: opacity 0.3s, border-color 0.3s, background 0.3s, box-shadow 0.3s;
   transform-origin: center;
 }
@@ -51,7 +53,7 @@
 }
 .bat-fig .n-note {
   font-size: 0.72rem;
-  color: #666;
+  color: #444; /* dark enough to survive the node's inactive 0.78 opacity dim */
   line-height: 1.25;
   margin-top: 0.2rem;
 }
@@ -107,7 +109,7 @@
   box-shadow: 0 2px 8px rgba(180, 130, 20, 0.35);
 }
 .bat-fig .posted {
-  background: #2e9e5b;
+  background: var(--fig-green);
   color: #fff;
   box-shadow: 0 2px 8px rgba(30, 120, 70, 0.35);
 }

@@ -13,7 +13,7 @@
 
 .cns-const {
   font-size: 0.78rem;
-  color: #2f7d4d;
+  color: var(--fig-green);
   background: #e6f5ec;
   border: 1px solid #5bb87a;
   border-radius: 8px;
@@ -31,7 +31,7 @@
   padding: 0.4rem 0.7rem;
   font-size: 0.78rem;
   font-weight: 600;
-  color: #777;
+  color: var(--fig-faint);
   cursor: pointer;
 }
 .cns-tabs button:hover { color: #555; }

@@ -41,7 +41,9 @@ function initViewingKey(figure: HTMLElement): void {
       </label>
       <button type="button" data-act="prove">Prove my balance</button>
     </div>
-    <div class="vk-grid" data-grid></div>
+    <!-- data-contrast="exempt": the ▦ cells are a decorative key-grid texture,
+         not content to read (DESIGN.md §1) — skip the figure contrast gate. -->
+    <div class="vk-grid" data-grid data-contrast="exempt"></div>
     <div class="vk-stats">
       <span class="stat">swaps in a day at this rate <b data-perday>—</b></span>
       <span class="stat mine">actually yours <b>5</b></span>

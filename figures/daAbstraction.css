@@ -24,7 +24,7 @@
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #999;
+  color: var(--fig-faint);
   margin-bottom: 0.4rem;
   display: flex;
   align-items: center;
@@ -39,7 +39,7 @@
   padding: 0.05rem 0.5rem;
   font-size: 0.66rem;
 }
-.da-tag.fixed { color: #2f7d4d; background: #e6f5ec; }
+.da-tag.fixed { color: var(--fig-green); background: #e6f5ec; }
 .da-tag.choice { color: #6a4fb0; background: #efeafb; }
 
 .da-user, .da-backends {
@@ -63,7 +63,7 @@
 
 .da-pipe {
   text-align: center;
-  color: #aaa;
+  color: var(--fig-faint);
   font-size: 1.1rem;
   line-height: 1.2;
   margin: 0.3rem 0;

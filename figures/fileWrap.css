@@ -28,7 +28,9 @@
   background: #f7f7fb;
   padding: 0.7rem 0.5rem;
   text-align: center;
-  opacity: 0.5;
+  /* Inactive-step dim. Floored at 0.75 so the composited #444 label still clears
+     4.5:1 (SC 1.4.3) in the resting state — below ~0.72 it fails. (DESIGN.md §1.) */
+  opacity: 0.75;
   transition: opacity 0.3s, border-color 0.3s, background 0.3s, box-shadow 0.3s;
   transform-origin: center;
 }

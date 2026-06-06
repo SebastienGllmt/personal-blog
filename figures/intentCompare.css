@@ -42,7 +42,7 @@
   letter-spacing: 0.01em;
 }
 .intent-fig .panel-onchain .panel-title { color: #b23b3b; }
-.intent-fig .panel-intent .panel-title { color: #1f8a4c; }
+.intent-fig .panel-intent .panel-title { color: var(--fig-green); }
 
 /* the prominent on-chain transaction counter */
 .intent-fig .counter {
@@ -61,7 +61,7 @@
   font-size: 2.2rem;
   font-weight: 800;
   line-height: 1;
-  color: #777;
+  color: var(--fig-faint);
   font-variant-numeric: tabular-nums;
   transition: color 0.3s;
 }
@@ -70,7 +70,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #888;
+  color: var(--fig-faint);
 }
 .intent-fig .counter-hot.active {
   background: #fcefef;
@@ -83,7 +83,7 @@
   border-color: #7fc69a;
   box-shadow: 0 2px 12px rgba(39, 142, 79, 0.16);
 }
-.intent-fig .counter-cool.active .counter-num { color: #1f8a4c; }
+.intent-fig .counter-cool.active .counter-num { color: var(--fig-green); }
 
 /* columns inside a panel: 1 for on-chain, 2 for intent */
 .intent-fig .cols {
@@ -112,7 +112,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #8a8a96;
+  color: var(--fig-faint);
   margin-bottom: 0.45rem;
 }
 
@@ -128,7 +128,7 @@
 }
 .intent-fig .tag-free {
   background: #e6f6ec;
-  color: #1f8a4c;
+  color: var(--fig-green);
 }
 
 /* a single stacked row in a column */
@@ -211,7 +211,7 @@
   line-height: 1.45;
 }
 .intent-fig .hot-text { color: #c0392b; }
-.intent-fig .cool-text { color: #1f8a4c; }
+.intent-fig .cool-text { color: var(--fig-green); }
 
 @media (max-width: 600px) {
   .intent-fig .compare {

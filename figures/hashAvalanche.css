@@ -32,7 +32,7 @@
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #888;
+  color: var(--fig-faint);
   margin-bottom: 0.4rem;
 }
 
@@ -76,7 +76,7 @@
 }
 .hash-fig .machine-box small {
   font-weight: 400;
-  color: #a83;
+  color: var(--fig-amber);
   font-size: 10px;
 }
 
@@ -100,7 +100,7 @@
   color: #161;
 }
 .hash-fig .cell.scrambling {
-  color: #aaa;
+  color: var(--fig-faint);
   background: #f5f5f5;
   border-color: #d4d4d4;
 }

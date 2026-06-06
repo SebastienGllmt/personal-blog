@@ -29,7 +29,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #8a7fb0;
+  color: var(--fig-purple);
   text-align: center;
 }
 .sl-fig .sl-cap-src { grid-column: 1; grid-row: 1; }
@@ -62,7 +62,9 @@
   border-radius: 10px;
   background: #f7f7fb;
   padding: 0.45rem 0.65rem;
-  opacity: 0.55;
+  /* Inactive-node dim floored at 0.75 so the composited #444 label clears 4.5:1
+     in the resting state (DESIGN.md §1 — opacity trap). */
+  opacity: 0.75;
   transition: opacity 0.3s, border-color 0.3s, background 0.3s, box-shadow 0.3s;
   white-space: nowrap;
 }

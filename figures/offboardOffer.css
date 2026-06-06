@@ -17,7 +17,7 @@
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #999;
+  color: var(--fig-faint);
   margin-bottom: 0.6rem;
   text-align: center;
 }
@@ -46,10 +46,10 @@
 }
 .ob-lane.l1 .ob-tag { color: #555; }
 
-.ob-card-t { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: #888; margin-bottom: 0.3rem; }
+.ob-card-t { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fig-faint); margin-bottom: 0.3rem; }
 .ob-card-b { font-size: 0.88rem; line-height: 1.4; color: #333; }
-.ob-card-b small { color: #888; }
-.ob-addr { margin-top: 0.4rem; font-size: 0.72rem; color: #777; }
+.ob-card-b small { color: var(--fig-faint); }
+.ob-addr { margin-top: 0.4rem; font-size: 0.72rem; color: var(--fig-faint); }
 .ob-addr code, .ob-claim code, .ob-link code, .ob-card-b code { font-family: var(--font-mono); }
 
 .ob-bridge { text-align: center; padding: 0.5rem 0; }
@@ -62,10 +62,10 @@
   border-radius: 999px;
   padding: 0.12rem 0.6rem;
 }
-#offboard-figure.ob-ok .ob-link { color: #2f7d4d; background: #e6f5ec; }
+#offboard-figure.ob-ok .ob-link { color: var(--fig-green); background: #e6f5ec; }
 #offboard-figure.ob-blocked .ob-link { color: #b23b3b; background: #fbeded; }
 
-.ob-claim { margin-top: 0.5rem; font-size: 0.74rem; color: #777; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.ob-claim { margin-top: 0.5rem; font-size: 0.74rem; color: var(--fig-faint); display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
 .ob-claim button {
   appearance: none;
   border: 1px solid #c8c8d4;

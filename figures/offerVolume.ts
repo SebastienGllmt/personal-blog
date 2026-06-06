@@ -62,9 +62,9 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
     <div class="vol-tabs" role="tablist">
       ${TABS.map((t, i) => `<button type="button" role="tab" data-tab="${t.id}"${i === 0 ? ' aria-selected="true"' : ""}>${t.label}</button>`).join("")}
     </div>
-    <div class="vol-modes" data-modes hidden>
-      <button type="button" data-mode="weekly" aria-selected="true">per week</button>
-      <button type="button" data-mode="cumulative">cumulative</button>
+    <div class="vol-modes" data-modes hidden role="tablist" aria-label="Chart total mode">
+      <button type="button" role="tab" data-mode="weekly" aria-selected="true">per week</button>
+      <button type="button" role="tab" data-mode="cumulative">cumulative</button>
     </div>
     <div class="vol-chart" data-chart></div>
     <p class="vol-readout" data-readout></p>`;
@@ -113,9 +113,9 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
     }
   }
 
-  function bars(values: number[], color: string): { svg: SVGElement; rects: SVGElement[] } {
+  function bars(values: number[], color: string, label: string): { svg: SVGElement; rects: SVGElement[] } {
     const max = Math.max(1, ...values);
-    const svg = newSvg("");
+    const svg = newSvg(label);
     gridY(svg, max, (v) => (color === "vol" ? fmtUsd(v) : fmtInt(v)), color);
     yearTicks(svg);
     const bw = Math.max(1.2, PLOTW / n - 1.2);
@@ -128,9 +128,9 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
     return { svg, rects };
   }
 
-  function line(values: number[], color: string, fmt: (v: number) => string, area = false): { svg: SVGElement; path: SVGElement } {
+  function line(values: number[], color: string, fmt: (v: number) => string, area = false, label = ""): { svg: SVGElement; path: SVGElement } {
     const max = Math.max(1, ...values);
-    const svg = newSvg("");
+    const svg = newSvg(label);
     gridY(svg, max, fmt, color);
     yearTicks(svg);
     const pts = values.map((v, i) => `${x(i).toFixed(1)},${(PAD.t + (1 - v / max) * PLOTH).toFixed(1)}`);
@@ -215,7 +215,7 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
   function renderSeries(vals: number[], color: "swaps" | "vol", noun: string): void {
     const fmtV = color === "vol" ? fmtUsd : fmtInt;
     if (!cumulative) {
-      const { svg, rects } = bars(vals, color);
+      const { svg, rects } = bars(vals, color, `Per-week ${noun}, bar chart`);
       chartBox.appendChild(svg);
       animateIn(svg, "bars", rects);
       const total = vals.reduce((a, b) => a + b, 0);
@@ -224,7 +224,7 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
       hover(svg, (i) => { readout.innerHTML = `<b>week of ${weeks[i]!.w}</b> &mdash; ${fmtV(vals[i]!)}`; }, () => { readout.innerHTML = base; });
     } else {
       const cum = cumsum(vals);
-      const { svg, path } = line(cum, color, fmtV, true);
+      const { svg, path } = line(cum, color, fmtV, true, `Cumulative ${noun}, area chart`);
       chartBox.appendChild(svg);
       animateIn(svg, "line", path);
       const base = `<b>Cumulative</b> ${noun} &mdash; the running total to date (${fmtV(cum[n - 1]!)}). The "up and to the right" view.`;
@@ -249,7 +249,7 @@ function initFigure(figure: HTMLElement, ds: Dataset): void {
       readout.innerHTML = `Only about <b>${usdPct.toFixed(1)}%</b> of all swaps are priced against a USD stablecoin (wUSDC.b / wUSDC). Most Chia trading is token-to-token or NFT &mdash; so the dollar charts here describe a real but minority slice.`;
     } else {
       const vals = weeks.map((w) => w.p);
-      const { svg, path } = line(vals, "price", (v) => `$${v.toFixed(0)}`);
+      const { svg, path } = line(vals, "price", (v) => `$${v.toFixed(0)}`, false, "Chia price over time, line chart");
       chartBox.appendChild(svg);
       animateIn(svg, "line", path);
       const base = `Chia's price over the window (median of USD-paired swaps): from about $${weeks[0]!.p.toFixed(0)} to $${weeks[n - 1]!.p.toFixed(2)}. Context for the volume curve, not the headline.`;

@@ -72,7 +72,7 @@
   flex-wrap: wrap;
   margin-bottom: 0.6rem;
 }
-.vk-fig .stat { font-size: 0.72rem; color: #777; display: inline-flex; flex-direction: column; }
+.vk-fig .stat { font-size: 0.72rem; color: var(--fig-faint); display: inline-flex; flex-direction: column; }
 .vk-fig .stat b { font-size: 1rem; font-family: var(--font-mono); color: #333; }
 .vk-fig .stat.mine b { color: #4b3b8f; }
 .vk-fig .stat.cover b { color: #b23b3b; }

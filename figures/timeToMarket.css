@@ -43,7 +43,7 @@
   transform: translateY(-50%);
   font-size: 0.72rem;
   font-weight: 700;
-  color: #2f7d4d;
+  color: var(--fig-green);
 }
 .ttm-window {
   position: absolute;
@@ -84,7 +84,7 @@
   width: 2px;
   background: #6a4fb0;
 }
-#ttm-figure.ttm-in .ttm-ship-label { color: #2f7d4d; }
+#ttm-figure.ttm-in .ttm-ship-label { color: var(--fig-green); }
 #ttm-figure.ttm-near .ttm-ship-label { color: #9a5b1e; }
 #ttm-figure.ttm-miss .ttm-ship-label { color: #b23b3b; }
 #ttm-figure.ttm-in .ttm-ship::before { background: #5bb87a; }

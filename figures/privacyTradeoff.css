@@ -17,7 +17,7 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.78rem;
-  color: #777;
+  color: var(--fig-faint);
   margin-bottom: 0.7rem;
   flex-wrap: wrap;
 }
@@ -25,7 +25,7 @@
   appearance: none;
   border: 1px solid #c8c8d4;
   background: #f3f3f7;
-  color: #777;
+  color: var(--fig-faint);
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
   font-size: 0.78rem;
@@ -46,8 +46,8 @@
   margin-bottom: 0.5rem;
   color: #555;
 }
-#privacy-figure.is-sweet .pt-title { color: #2f7d4d; }
-#privacy-figure.is-private .pt-title { color: #b06a2f; }
+#privacy-figure.is-sweet .pt-title { color: var(--fig-green); }
+#privacy-figure.is-private .pt-title { color: var(--fig-amber); }
 
 .pt-grid {
   display: grid;
@@ -79,10 +79,10 @@
   font-size: 0.64rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #999;
+  color: var(--fig-faint);
 }
 .pt-row .side { font-weight: 700; text-transform: uppercase; font-size: 0.62rem; }
-.pt-row .side.buy { color: #2f7d4d; }
+.pt-row .side.buy { color: var(--fig-green); }
 .pt-row .side.sell { color: #b23b3b; }
 .pt-row .who { font-family: var(--font-mono); color: #555; }
 .pt-row .amt, .pt-row .px { font-family: var(--font-mono); }
@@ -102,7 +102,7 @@
   border-radius: 6px;
   line-height: 1.3;
 }
-.pt-checks li.ok { color: #2f7d4d; background: #eef7f1; }
+.pt-checks li.ok { color: var(--fig-green); background: #eef7f1; }
 .pt-checks li.bad { color: #b23b3b; background: #fbeded; }
 
 .pt-readout {

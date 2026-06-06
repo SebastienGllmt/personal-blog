@@ -28,7 +28,9 @@
   background: #f7f7fb;
   padding: 0.7rem 0.5rem;
   text-align: center;
-  opacity: 0.5;
+  /* Inactive-stage dim floored at 0.78 so the #444 s-title clears 4.5:1 at rest
+     (DESIGN.md §1 — opacity trap). */
+  opacity: 0.78;
   transition: opacity 0.3s, border-color 0.3s, background 0.3s, box-shadow 0.3s;
   transform-origin: center;
   cursor: pointer;
@@ -83,7 +85,7 @@
   font-weight: 600;
 }
 .lifecycle-fig .replay:hover { background: #e4dcf8; }
-.lifecycle-fig .lc-hint { margin-left: 0.5rem; font-size: 0.74rem; color: #999; }
+.lifecycle-fig .lc-hint { margin-left: 0.5rem; font-size: 0.74rem; color: var(--fig-faint); }
 .lifecycle-fig .step-caption {
   margin: 0.7rem 0 0;
   font-size: 0.9rem;

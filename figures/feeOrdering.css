@@ -42,7 +42,7 @@
   border-radius: 6px;
   line-height: 1.35;
 }
-.fo-checks li.ok { color: #2f7d4d; background: #eef7f1; }
+.fo-checks li.ok { color: var(--fig-green); background: #eef7f1; }
 .fo-checks li.warn { color: #9a5b1e; background: #fdf1e0; }
 .fo-checks li.bad { color: #b23b3b; background: #fbeded; }
 

@@ -34,7 +34,7 @@
   height: 12px;
   border-radius: 3px;
 }
-.utxo-fig .k.offchain { color: #2f7d4d; }
+.utxo-fig .k.offchain { color: var(--fig-green); }
 .utxo-fig .k.offchain::before { background: #cdeeda; border: 1px solid #5bb87a; }
 .utxo-fig .k.onchain { color: #9a5b1e; }
 .utxo-fig .k.onchain::before { background: #fde6c8; border: 1px solid #e0a13a; }
@@ -60,10 +60,10 @@
   flex-direction: column;
   align-items: center;
   line-height: 1.1;
-  color: #888;
+  color: var(--fig-faint);
 }
 .utxo-fig .conn-lbl { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.utxo-fig .conn-arr { font-size: 1.1rem; color: #aaa; }
+.utxo-fig .conn-arr { font-size: 1.1rem; color: var(--fig-faint); }
 
 /* SVG overlay holding the tether lines from the coin to each copy. */
 .utxo-fig .tethers {
@@ -122,13 +122,13 @@
   margin-top: 0.3rem;
   font-size: 0.66rem;
   font-family: var(--font-mono);
-  color: #2f7d4d;
+  color: var(--fig-green);
 }
 .utxo-fig .coin.spent .coin-state { color: #b23b3b; }
 
 .utxo-fig .arrow {
   font-size: 0.68rem;
-  color: #999;
+  color: var(--fig-faint);
   margin-bottom: 0.4rem;
 }
 
@@ -142,7 +142,7 @@
   transition: opacity 0.3s, border-color 0.3s;
 }
 .utxo-fig .offer-file.void { opacity: 0.45; border-color: #d2b9b9; }
-.utxo-fig .file-cap { font-size: 0.62rem; color: #777; margin-bottom: 0.15rem; }
+.utxo-fig .file-cap { font-size: 0.62rem; color: var(--fig-faint); margin-bottom: 0.15rem; }
 .utxo-fig .file-tag {
   font-family: var(--font-mono);
   color: #4b3b8f;
@@ -152,7 +152,7 @@
 .utxo-fig .file-tag.strike { text-decoration: line-through; color: #b23b3b; }
 .utxo-fig .file-empty,
 .utxo-fig .copies-empty {
-  color: #aaa;
+  color: var(--fig-faint);
   font-size: 0.82rem;
   font-style: italic;
 }
@@ -175,13 +175,13 @@
   position: relative;
 }
 .utxo-fig .copy-tag { font-family: var(--font-mono); color: #4b3b8f; font-weight: 600; }
-.utxo-fig .copy-where { color: #888; }
+.utxo-fig .copy-where { color: var(--fig-faint); }
 .utxo-fig .copy-status {
   font-size: 0.58rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #2f7d4d;
+  color: var(--fig-green);
 }
 .utxo-fig .copies.filled .copy { border-color: #5bb87a; }
 /* A killed copy: solid red-ish border, struck text, faded. */
@@ -224,10 +224,10 @@
   font-size: 0.82rem;
   font-weight: 600;
 }
-.utxo-fig .actions button[data-act="create"] { border-color: #5bb87a; background: #e6f5ec; color: #2f7d4d; }
+.utxo-fig .actions button[data-act="create"] { border-color: #5bb87a; background: #e6f5ec; color: var(--fig-green); }
 .utxo-fig .actions button[data-act="fill"],
 .utxo-fig .actions button[data-act="cancel"] { border-color: #e0a13a; background: #fdf1e0; color: #9a5b1e; }
-.utxo-fig .actions button.ghost { border-color: #ccc; background: #fff; color: #777; font-weight: 500; }
+.utxo-fig .actions button.ghost { border-color: #ccc; background: #fff; color: var(--fig-faint); font-weight: 500; }
 .utxo-fig .actions button:hover:not(:disabled) { filter: brightness(0.96); }
 .utxo-fig .actions button:disabled { opacity: 0.4; cursor: default; }
 
@@ -249,7 +249,7 @@
   line-height: 1.45;
   min-height: 3.2em;
 }
-.utxo-fig .readout b.ok { color: #2f7d4d; }
+.utxo-fig .readout b.ok { color: var(--fig-green); }
 .utxo-fig .readout b.cost { color: #b23b3b; }
 
 @media (max-width: 560px) {

@@ -109,7 +109,7 @@
 .mm-fig .mm-cancels-top span { color: #9a5b1e; }
 /* bottom half: green spread earned on the fast chain, red loss on Midnight */
 .mm-fig .mm-cancels-bot b,
-.mm-fig .mm-cancels-bot span { color: #2f7d4d; }
+.mm-fig .mm-cancels-bot span { color: var(--fig-green); }
 .mm-fig.is-slow .mm-cancels-bot b,
 .mm-fig.is-slow .mm-cancels-bot span { color: #b23b3b; }
 .mm-fig .mm-cancels.flash {
@@ -120,7 +120,7 @@
   width: 2.7rem;
   font-family: var(--font-mono);
   font-size: 0.66rem;
-  color: #999;
+  color: var(--fig-faint);
   flex-shrink: 0;
 }
 .mm-fig .axis .ax-hi { position: absolute; top: 0; right: 0; }
@@ -177,7 +177,7 @@
 .mm-fig .line.ask::before { background: #d96b6b; }
 .mm-fig .line.ask .lbl { color: #b23b3b; background: #fbe7e7; }
 .mm-fig .line.bid::before { background: #4fae72; }
-.mm-fig .line.bid .lbl { color: #2f7d4d; background: #e3f4ea; }
+.mm-fig .line.bid .lbl { color: var(--fig-green); background: #e3f4ea; }
 
 .mm-fig .line.fair::before {
   background: #6a4fb0;
@@ -224,12 +224,12 @@
 }
 .mm-fig .stat {
   font-size: 0.7rem;
-  color: #888;
+  color: var(--fig-faint);
   display: inline-flex;
   flex-direction: column;
 }
 .mm-fig .stat b { font-size: 1.1rem; font-family: var(--font-mono); color: #333; }
-.mm-fig .stat.earn b { color: #2f7d4d; }
+.mm-fig .stat.earn b { color: var(--fig-green); }
 .mm-fig .stat.loss b { color: #b23b3b; }
 .mm-fig .stat.tx b { color: #9a5b1e; }
 
@@ -243,6 +243,6 @@
 }
 .mm-fig .readout b { font-family: var(--font-mono); }
 .mm-fig .readout b.a { color: #b23b3b; }
-.mm-fig .readout b.b { color: #2f7d4d; }
-.mm-fig .readout b.g { color: #2f7d4d; }
+.mm-fig .readout b.b { color: var(--fig-green); }
+.mm-fig .readout b.g { color: var(--fig-green); }
 .mm-fig .readout b.r { color: #b23b3b; }

@@ -27,14 +27,14 @@
   background: #fafafc;
   font-weight: 600;
 }
-.nf-split { align-self: center; font-size: 0.72rem; color: #999; }
+.nf-split { align-self: center; font-size: 0.72rem; color: var(--fig-faint); }
 .nf-face {
   flex: 1 1 150px;
   border-radius: 8px;
   padding: 0.5rem 0.7rem;
   font-size: 0.82rem;
 }
-.nf-face small { display: block; font-size: 0.68rem; color: #888; font-weight: 400; margin-top: 0.2rem; line-height: 1.35; }
+.nf-face small { display: block; font-size: 0.68rem; color: var(--fig-faint); font-weight: 400; margin-top: 0.2rem; line-height: 1.35; }
 .nf-face.null { background: #f3f0fb; border: 1px solid #b9a9e6; }
 .nf-face.null b:first-child { color: #4b3b8f; }
 
@@ -56,7 +56,7 @@
   border-radius: 5px;
   padding: 0.05rem 0.3rem;
 }
-.nf-tag.nf-more { color: #888; background: #f1f1f5; border-color: #ddd; }
+.nf-tag.nf-more { color: var(--fig-faint); background: #f1f1f5; border-color: #ddd; }
 
 .nf-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.7rem; }
 .nf-actions button {

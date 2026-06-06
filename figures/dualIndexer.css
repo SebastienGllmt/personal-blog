@@ -111,7 +111,7 @@
 }
 .idx-fig .idx-box-sub {
   font-size: 0.68rem;
-  color: #7a6bb0;
+  color: var(--fig-purple);
   margin-top: 0.1rem;
 }
 
@@ -154,7 +154,7 @@
   overflow: hidden;
   transition: background 0.3s, opacity 0.3s, color 0.3s;
 }
-.idx-fig .idx-row-mark { color: #8a6fd0; font-size: 0.7em; }
+.idx-fig .idx-row-mark { color: var(--fig-purple); font-size: 0.7em; }
 .idx-fig .idx-row-tag {
   font-family: var(--font-mono);
   color: #4b3b8f;
@@ -163,9 +163,9 @@
   background: #f0f0f2;
   opacity: 0.55;
 }
-.idx-fig .idx-row.idx-dead .idx-row-mark { color: #aaa; }
+.idx-fig .idx-row.idx-dead .idx-row-mark { color: var(--fig-faint); }
 .idx-fig .idx-row.idx-dead .idx-row-tag {
-  color: #888;
+  color: var(--fig-faint);
   text-decoration: line-through;
 }
 
