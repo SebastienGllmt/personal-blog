@@ -1,0 +1,117 @@
+/* Styles for the "k value" figure (posts/offer-files.html, Scaling part 4).
+ * External stylesheet for the production CSP (`style-src 'self'`); the figure is
+ * an SVG plot whose markers ride the curve via GSAP-animated attributes.
+ * Scoped under `.kv-fig`.
+ *
+ * Rule 16: the plot's box is a fixed-aspect SVG (constant height at the column
+ * width — only marker positions animate, never layout), and the readout reserves
+ * its tallest branch, so the article never reflows as the figure is toggled or
+ * driven.
+ * Rule 16a: blog font tokens, never a bare system-ui stack.
+ * Rule 17: load-bearing text (axis ticks, titles, marker tags) uses the shared
+ * --fig-* palette. The curve / dots / guides are non-text graphics that are
+ * REDUNDANT with the axis (you read k off the x-axis and size off the y-axis)
+ * and with the readout, so they're a visual aid, not the sole channel — hence no
+ * data-contrast="graphic" (and the gate can't measure SVG strokes against a
+ * gridded backdrop anyway). */
+
+#kvalue-figure.kv-enhanced .kv-static {
+  display: none;
+}
+
+.kv-fig {
+  font-family: var(--font-sans);
+  color: var(--fig-ink);
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+.kv-cap {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fig-faint);
+  margin-bottom: 0.6rem;
+  text-align: center;
+}
+
+.kv-switch {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+.kv-switch button {
+  appearance: none;
+  border: 1px solid #c8c8d4;
+  background: #fff;
+  color: var(--fig-muted);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.kv-switch button[aria-pressed="true"] {
+  background: var(--fig-purple-bg);
+  border-color: #9a82d8;
+  color: var(--fig-purple);
+}
+
+.kv-plot { width: 100%; }
+.kv-svg { display: block; width: 100%; height: auto; }
+
+/* The simple, always-static establishing curve (no enhancement, no buttons) that
+   sits just before the interactive kvalue-figure. Same look, just the bare
+   exponential. It has no JS, so it must size its SVG itself. */
+#kcurve-figure .kc-svg {
+  display: block;
+  width: 100%;
+  max-width: 540px;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* --- plot chrome --- */
+.kv-grid { stroke: #dfe2e7; stroke-width: 1; stroke-dasharray: 3 3; }
+.kv-axis { stroke: #9aa0a8; stroke-width: 1; }
+.kv-curve { stroke: var(--fig-ink); stroke-width: 2.25; }
+
+.kv-ytick,
+.kv-xtick {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--fig-muted);
+}
+.kv-axtitle {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  fill: var(--fig-muted);
+}
+
+/* --- markers riding the curve --- */
+.kv-dot.spend { fill: var(--fig-purple); }
+.kv-dot.output { fill: var(--fig-blue); }
+.kv-guide { stroke-width: 1; stroke-dasharray: 2 3; }
+.kv-guide.spend { stroke: var(--fig-purple); }
+.kv-guide.output { stroke: var(--fig-blue); }
+.kv-tag {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+}
+.kv-tag.spend { fill: var(--fig-purple); }
+.kv-tag.output { fill: var(--fig-blue); }
+
+.kv-readout {
+  margin: 0.7rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--fig-muted);
+  /* Reserve the tallest branch (the SHA-256 readout, ~4 lines at this width):
+     4 × 1.45 = 5.8em, rounded up so min-height governs both states. */
+  min-height: 6em;
+}
+.kv-readout b { color: var(--fig-ink); }
+.kv-readout code { font-family: var(--font-mono); }

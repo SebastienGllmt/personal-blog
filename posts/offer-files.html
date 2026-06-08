@@ -30,6 +30,9 @@
 <link rel="stylesheet" href="../figures/nullifierGrowth.css" />
 <link rel="stylesheet" href="../figures/feeOrdering.css" />
 <link rel="stylesheet" href="../figures/timeToMarket.css" />
+<link rel="stylesheet" href="../figures/deltasVanish.css" />
+<link rel="stylesheet" href="../figures/kValue.css" />
+<link rel="stylesheet" href="../figures/zswapCost.css" />
 <script type="module" src="../engine/client/narratorLoader.ts"></script>
 <script type="module" src="../engine/client/commentsLoader.ts"></script>
 <script type="module" src="../engine/client/byline.ts"></script>
@@ -62,6 +65,9 @@
 <script type="module" src="../figures/nullifierGrowth.ts"></script>
 <script type="module" src="../figures/feeOrdering.ts"></script>
 <script type="module" src="../figures/timeToMarket.ts"></script>
+<script type="module" src="../figures/deltasVanish.ts"></script>
+<script type="module" src="../figures/kValue.ts"></script>
+<script type="module" src="../figures/zswapCost.ts"></script>
 
 <!-- Pronunciation lexicon for this post's technical terms now lives in the shared
      posts/common-terms.pls, merged in by the generator. -->
@@ -143,10 +149,24 @@
   The only person who can read what an output actually contains is the receiver, through an encrypted note meant
   just for them.
   <mark name="anatomy-deltas" figure="offer-anatomy-figure"/>
-  So how does anyone know what's being traded? One field is public, by necessity: the deltas. The chain has to see
-  the net imbalance per token to check the offer balances, so deltas sits there in plaintext - plus five of
+  So how does anyone know what's being traded? One field is public, by necessity: the deltas. You have to see
+  the net imbalance per token to know how to balance the trade, so deltas sits there in plaintext - plus five of
   this, minus three of that. The trade terms, and nothing else: not the funding coins, not the parties, not your
   other holdings.
+  <mark name="deltas-vanish" figure="deltas-vanish-figure" step="box1"/>
+  But notice the deltas are only a temporary concern - they can be stripped once the transaction is balanced.
+  Picture each offer as a box, with its deltas printed on a label stuck to the outside - public only so you can
+  read how the trade should balance. One box alone is imbalanced; that imbalance is the trade, so the label has to
+  be in the clear. Watch the running sum.
+  <mark name="deltas-vanish-figure" step="box2"/>
+  Bring in another offer. Its label adds into the running sum - still not zero.
+  <mark name="deltas-vanish-point" step="box3"/>
+  And a third that completes the set. Now every token's running sum lands exactly on zero - together, these offers
+  balance.
+  <mark name="deltas-vanish-drop" step="load"/>
+  And here's the twist. Once the sum is zero and a proof certifies the bundle balances, those public labels have
+  nothing left to say. They peel off, and the boxes load into a single transaction. The deltas were public only
+  until the trade was proven balanced - then you don't care about them any more, and they're dropped.
 </script>
 
 <script type="text/narration" data-chapter-id="offer-file" data-chapter-title="From a swap to a file" data-chapter-parent="p-zswap">
@@ -460,6 +480,33 @@
   And underneath? The L2 can still use Celestia for data availability, or swap in a different layer, or just post to
   Midnight itself. Click through the options - the user's view stays identical every time. The data layer has
   become an implementation detail the sequencers choose, not a concern anyone building or using the DEX has to carry.
+</script>
+
+<script type="text/narration" data-chapter-id="crypto-swap" data-chapter-title="cheaper cryptography, same shape" data-chapter-parent="p-scaling">
+  <mark name="cryptoswap-heading" figure="none"/>
+  There's one more lever, and it comes almost for free once we own the layer two.
+  <mark name="cryptoswap-idea" figure="none"/>
+  Because we control the L2 end to end, it can change its own cryptography without changing anything users see. An
+  offer file's shape - its fields, its encoding - stays byte for byte identical. What we're free to swap is the
+  machinery underneath, starting with the hash function the zSwap circuits lean on.
+  <mark name="cryptoswap-k" figure="kcurve-figure"/>
+  To compare how heavy two circuits are, you only need one number: a circuit's k. And the one thing to feel about
+  it is this curve - a circuit's proof time grows exponentially in k. Almost flat for small k, then it explodes.
+  <mark name="cryptoswap-circuits" figure="zswapcost-figure" step="in1"/>
+  A zSwap offer is built from two main circuits, and the cost is really just a count of coins. Every coin you spend
+  needs one spend circuit - here, two coins go in, so two spends.
+  <mark name="zswapcost-figure" step="output"/>
+  They feed into one zSwap, and out comes a single output UTXO - that's one output circuit, even though that one
+  coin can bundle several tokens. So the cost here is two spends plus one output; it scales with how many coins go
+  in and out, not the tokens packed inside them. Hashing dominates all of it, and today that hash is SHA-256.
+  <mark name="cryptoswap-win" figure="kvalue-figure" step="sha256"/>
+  Look at the curve. Because size is two-to-the-k, it's exponential - and with SHA-256 the two circuits sit high
+  up it: spend at k equals fifteen, output at fourteen.
+  <mark name="kvalue-figure" step="poseidon1"/>
+  Now swap SHA-256 for a zero-knowledge-friendly hash like Poseidon1. Each circuit slides two steps left - spend
+  to thirteen, output to twelve. And because the curve is exponential, two steps down is about a quarter of the
+  size, roughly four times cheaper to prove. The offer file itself never changed: the same files, the same wallets,
+  on a materially cheaper layer two.
 </script>
 
 <script type="text/narration" data-chapter-id="p-openq" data-chapter-title="Open questions">
@@ -845,8 +892,72 @@
         actually holds is its receiver, through a note encrypted just for them. So how does
         anyone learn what's being traded? <strong>One thing is public, by necessity: the
         offer's <code>deltas</code></strong> - its net imbalance per token
-        (<code>{ NIGHT: +5, ROCK: &minus;3 }</code>), declared in the clear. The chain
-        <em>must</em> see it to confirm the offer balances, so it can't be hidden.
+        (<code>{ NIGHT: +5, ROCK: &minus;3 }</code>), declared in the clear. You
+        <em>must</em> see it to know how to balance the transaction, so it can't be hidden.
+      </p>
+
+      <p id="deltas-vanish">
+        Note that the <code>deltas</code> are just a <strong>temporary</strong> concern - they can
+        be stripped once the transaction is balanced. Picture each offer as a <strong>box</strong>,
+        with its <code>deltas</code> printed on a label stuck to the outside - public
+        <em>only</em> because you need it to work out how to balance the trade. On
+        its own, an offer's <code>deltas</code> are non-zero; that imbalance <em>is</em> the
+        trade, so the label has to be in the clear.
+      </p>
+
+      <figure id="deltas-vanish-figure">
+        <!-- Enhanced into a four-step "loading dock" animation by figures/deltasVanish.ts:
+             boxes accumulate with a running Σ, then labels peel off and the boxes load
+             into a transaction container. -->
+        <svg class="dv-static" viewBox="0 0 520 200" role="img" aria-label="Three zSwap offer-boxes, each carrying a public deltas label, whose running sum nets to zero; once a proof certifies the bundle, the labels peel off and the boxes load into a single transaction.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12" fill="#444">
+            <rect x="8" y="8" width="504" height="30" rx="7" fill="#fafbfc" stroke="#d2d2dc"/>
+            <text x="20" y="27" fill="#656c74" font-size="11">running &Sigma; deltas</text>
+            <text x="150" y="27" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#147a35">🌙 0&nbsp;&nbsp;&nbsp;🪨 0</text>
+            <text x="300" y="27" fill="#147a35" font-weight="700" font-size="11">balanced</text>
+            <!-- three kraft offer-boxes with white package labels -->
+            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10">
+              <rect x="40" y="64" width="120" height="48" rx="5" fill="#e7cfa3" stroke="#c39a5c"/>
+              <rect x="52" y="54" width="96" height="18" rx="3" fill="#ffffff" stroke="#c8c8c8"/><text x="103" y="67" text-anchor="middle" fill="#24292f">🌙+5 🪨&minus;3</text>
+              <rect x="200" y="64" width="120" height="48" rx="5" fill="#e7cfa3" stroke="#c39a5c"/>
+              <rect x="212" y="54" width="96" height="18" rx="3" fill="#ffffff" stroke="#c8c8c8"/><text x="263" y="67" text-anchor="middle" fill="#24292f">🌙&minus;2 🪨+1</text>
+              <rect x="360" y="64" width="120" height="48" rx="5" fill="#e7cfa3" stroke="#c39a5c"/>
+              <rect x="372" y="54" width="96" height="18" rx="3" fill="#ffffff" stroke="#c8c8c8"/><text x="423" y="67" text-anchor="middle" fill="#24292f">🌙&minus;3 🪨+2</text>
+            </g>
+            <text x="100" y="104" text-anchor="middle" font-weight="800" fill="#4a3a23" font-size="11">zSwap</text>
+            <text x="260" y="104" text-anchor="middle" font-weight="800" fill="#4a3a23" font-size="11">zSwap</text>
+            <text x="420" y="104" text-anchor="middle" font-weight="800" fill="#4a3a23" font-size="11">zSwap</text>
+            <text x="260" y="134" text-anchor="middle" fill="#999" font-size="11">&darr; labels peel off &middot; boxes load in &darr;</text>
+            <rect x="135" y="146" width="250" height="46" rx="6" fill="#2b6486" stroke="#1f4d68" stroke-width="2"/>
+            <text x="260" y="165" text-anchor="middle" font-weight="800" fill="#ffffff" font-size="11">transaction</text>
+            <text x="260" y="183" text-anchor="middle" fill="#ffffff" font-size="11">&check; proof &mdash; balances</text>
+          </g>
+        </svg>
+        <figcaption>
+          Each offer is a <strong>box</strong> whose public <code>deltas</code> ride on a
+          label. Stack offers that complete each other and the <strong>running &Sigma;</strong>
+          nets to zero; then a <strong>validity proof</strong> certifies the bundle, the
+          all-zero labels <strong>peel off</strong>, and the boxes load into one transaction.
+          The deltas were public only until the trade was proven balanced. (Steps through as
+          the narration plays.)
+        </figcaption>
+      </figure>
+
+      <p id="deltas-vanish-point">
+        Now stack several offers whose labels add up, inside one transaction, and watch the
+        <strong>running sum</strong>. Merging unions their coins and <em>sums</em> the
+        per-token deltas - and when the offers complete each other, every token's running
+        sum lands on <strong>zero</strong>.
+      </p>
+
+      <p id="deltas-vanish-drop">
+        And here's the payoff. Once the sum is zero and the bundle carries a
+        <strong>validity proof</strong> that it balances, those all-zero labels say nothing
+        the proof hasn't already guaranteed - so they <strong>peel off</strong>, and the
+        boxes load into one transaction. The intuition is worth holding onto: deltas have to
+        be public so you know how to balance the transaction, but once you have a proof that
+        it <em>is</em> balanced, you don't care about the deltas any more - and they're
+        dropped from the bundle.
       </p>
 
       <details id="anatomy-aside" class="aside">
@@ -1783,6 +1894,161 @@
         developers ever touch - and the speed worry moves to the L2's own fast finality from
         <a href="#consensus-heading">part 2</a>, which we control.
       </p>
+    </section>
+
+    <section>
+      <h2 id="cryptoswap-heading">Scaling, part 4: same shape, cheaper cryptography</h2>
+      <p id="cryptoswap-idea">
+        Owning the L2 buys one more lever. Because we control it end to end, the L2 can
+        <strong>change its own cryptography</strong> without changing anything users see. An
+        offer file's <em>shape</em> - its fields, its <code>bech32m</code> encoding - stays
+        byte-for-byte identical; what we're free to swap is the machinery underneath, starting
+        with the <strong>hash function</strong> the zSwap circuits lean on.
+      </p>
+
+      <p id="cryptoswap-k">
+        To compare how heavy two circuits are, you only need one number: a circuit's
+        <strong><code>k</code></strong>. The one thing to feel about it is the shape - a
+        circuit's <strong>proof time grows exponentially in <code>k</code></strong>:
+      </p>
+
+      <figure id="kcurve-figure">
+        <svg class="kc-svg" viewBox="0 0 520 290" role="img" aria-label="Proof time grows exponentially with k: a curve that is almost flat for small k and then shoots up steeply as k approaches 16.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif">
+            <line x1="60" y1="18" x2="502" y2="18" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <line x1="60" y1="131" x2="502" y2="131" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <line x1="60" y1="187.5" x2="502" y2="187.5" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <line x1="60" y1="18" x2="60" y2="244" stroke="#9aa0a8"/>
+            <line x1="60" y1="244" x2="502" y2="244" stroke="#9aa0a8"/>
+            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#555c63" text-anchor="middle">
+              <text x="60" y="263">0</text><text x="115.25" y="263">2</text><text x="170.5" y="263">4</text><text x="225.75" y="263">6</text><text x="281" y="263">8</text><text x="336.25" y="263">10</text><text x="391.5" y="263">12</text><text x="446.75" y="263">14</text><text x="502" y="263">16</text>
+            </g>
+            <text x="58" y="12" font-size="10" fill="#555c63">proof time</text>
+            <text x="281" y="284" text-anchor="middle" font-size="10" fill="#555c63">k</text>
+            <path d="M60,244 L87.6,244 L115.3,244 L142.9,243.97 L170.5,243.94 L198.1,243.89 L225.8,243.78 L253.4,243.56 L281,243.12 L308.6,242.23 L336.3,240.47 L363.9,236.94 L391.5,229.9 L419.1,215.75 L446.8,187.5 L474.4,131 L502,18" fill="none" stroke="#24292f" stroke-width="2.25"/>
+          </g>
+        </svg>
+        <figcaption>
+          Proof time is exponential in <code>k</code>: almost flat for small <code>k</code>, then
+          it explodes. So shaving even a step or two off a circuit's <code>k</code> is a large
+          saving - which is exactly the lever the next graph uses.
+        </figcaption>
+      </figure>
+
+      <p id="cryptoswap-circuits">
+        A zSwap offer is built from two main circuits. The <strong><code>spend</code></strong>
+        circuit (<code>k=15</code>) runs <em>once per UTXO you consume</em>; the
+        <strong><code>output</code></strong> circuit (<code>k=14</code>) runs <em>once per UTXO
+        you create</em> - and a single UTXO can hold several tokens at once. Hashing dominates
+        the cost of both, and today that hash is <strong>SHA-256</strong>.
+      </p>
+
+      <figure id="zswapcost-figure">
+        <!-- Enhanced into a stepped flow (2 inputs -> zSwap -> 1 output, with the
+             cost tally) by figures/zswapCost.ts. -->
+        <svg class="zc-static" viewBox="0 0 520 200" role="img" aria-label="Two input UTXOs - one holding both 5 NIGHT and 3 ROCK, the other 4 GOLD - each need one spend circuit; they feed into a zSwap and produce one output UTXO (8 GOLD and 1 GEM) needing one output circuit. The proving cost is two spends plus one output.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <rect x="8" y="14" width="122" height="52" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="69" y="29" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="69" y="44" text-anchor="middle" font-weight="600">🌙 5 NIGHT</text>
+            <text x="69" y="58" text-anchor="middle" font-weight="600">🪨 3 ROCK</text>
+            <text x="69" y="78" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">spend · k=15</text>
+            <rect x="8" y="100" width="122" height="38" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="69" y="114" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="69" y="128" text-anchor="middle" font-weight="600">🪙 4 GOLD</text>
+            <text x="69" y="150" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">spend · k=15</text>
+            <line x1="134" y1="48" x2="172" y2="80" stroke="#9aa0a8"/>
+            <line x1="134" y1="119" x2="172" y2="92" stroke="#9aa0a8"/>
+            <rect x="174" y="64" width="92" height="42" rx="9" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="220" y="90" text-anchor="middle" font-weight="800" fill="#5a45a8" font-size="13">zSwap</text>
+            <text x="293" y="90" text-anchor="middle" font-size="16" fill="#9aa0a8">&rarr;</text>
+            <rect x="318" y="54" width="132" height="52" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="384" y="70" text-anchor="middle" font-weight="600">🪙 8 GOLD</text>
+            <text x="384" y="84" text-anchor="middle" font-weight="600">💎 1 GEM</text>
+            <text x="384" y="120" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0969da">output · k=14</text>
+            <text x="260" y="190" text-anchor="middle" font-size="11" font-weight="700">
+              <tspan fill="#24292f" font-family="'Red Hat Mono', ui-monospace, monospace">cost =&nbsp;&nbsp;</tspan><tspan fill="#5a45a8">spend k=15</tspan><tspan fill="#656c74">&nbsp;&nbsp;+&nbsp;&nbsp;</tspan><tspan fill="#5a45a8">spend k=15</tspan><tspan fill="#656c74">&nbsp;&nbsp;+&nbsp;&nbsp;</tspan><tspan fill="#0969da">output k=14</tspan>
+            </text>
+          </g>
+        </svg>
+        <figcaption>
+          A swap's proving cost is just a count of coins. Two input UTXOs - one of them holding
+          <em>two</em> tokens at once - each need one <strong>spend</strong> circuit
+          (<code>k=15</code>); they feed a zSwap and come out as one output UTXO - one
+          <strong>output</strong> circuit (<code>k=14</code>). So the cost is <strong>2 &times;
+          spend + 1 &times; output</strong>: it scales with how many coins go in and out, not the
+          tokens packed inside them.
+        </figcaption>
+      </figure>
+
+      <p id="cryptoswap-win">
+        SHA-256 is expensive to prove. Swap it for a ZK-friendly hash like
+        <strong>Poseidon1</strong> and <code>k</code> drops two steps on each circuit -
+        <code>spend</code> from 15 to 13, <code>output</code> from 14 to 12 - which, at
+        roughly a doubling per step, is about <strong>4&times; cheaper</strong> per circuit. And
+        because the offer-file format never changed, none of this is visible from the outside:
+        the same files, the same wallets, on a materially cheaper L2.
+      </p>
+
+      <figure id="kvalue-figure">
+        <!-- Enhanced into an exponential k-vs-circuit-size plot by figures/kValue.ts;
+             two markers ride the curve as the hash swaps SHA-256 -> Poseidon1. -->
+        <svg class="kv-static" viewBox="0 0 520 290" role="img" aria-label="Circuit size grows as 2 to the power k - an exponential curve from k=0. With SHA-256 the spend circuit sits at k=15 and output at k=14, high on the curve; switching to Poseidon1 slides them two steps left to k=13 and k=12, about a quarter of the size and roughly four times cheaper to prove.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif">
+            <line x1="60" y1="18" x2="502" y2="18" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <line x1="60" y1="131" x2="502" y2="131" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <line x1="60" y1="187.5" x2="502" y2="187.5" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <text x="52" y="22" text-anchor="end" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#555c63">2¹⁶</text>
+            <text x="52" y="135" text-anchor="end" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#555c63">2¹⁵</text>
+            <text x="52" y="191" text-anchor="end" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#555c63">2¹⁴</text>
+            <line x1="60" y1="18" x2="60" y2="244" stroke="#9aa0a8"/>
+            <line x1="60" y1="244" x2="502" y2="244" stroke="#9aa0a8"/>
+            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#555c63" text-anchor="middle">
+              <text x="60" y="263">0</text><text x="115.25" y="263">2</text><text x="170.5" y="263">4</text><text x="225.75" y="263">6</text><text x="281" y="263">8</text><text x="336.25" y="263">10</text><text x="391.5" y="263">12</text><text x="446.75" y="263">14</text><text x="502" y="263">16</text>
+            </g>
+            <text x="58" y="12" font-size="10" fill="#555c63">circuit size (rows)</text>
+            <text x="281" y="284" text-anchor="middle" font-size="10" fill="#555c63">k  (circuit size = 2ᵏ rows)</text>
+            <path d="M60,244 L87.6,244 L115.3,244 L142.9,243.97 L170.5,243.94 L198.1,243.89 L225.8,243.78 L253.4,243.56 L281,243.12 L308.6,242.23 L336.3,240.47 L363.9,236.94 L391.5,229.9 L419.1,215.75 L446.8,187.5 L474.4,131 L502,18" fill="none" stroke="#24292f" stroke-width="2.25"/>
+            <line x1="446.8" y1="187.5" x2="446.8" y2="244" stroke="#0969da" stroke-dasharray="2 3"/>
+            <circle cx="446.8" cy="187.5" r="6" fill="#0969da"/>
+            <text x="437.8" y="178.5" text-anchor="end" font-size="11" font-weight="700" fill="#0969da">output k=14</text>
+            <line x1="474.4" y1="131" x2="474.4" y2="244" stroke="#5a45a8" stroke-dasharray="2 3"/>
+            <circle cx="474.4" cy="131" r="6" fill="#5a45a8"/>
+            <text x="465.4" y="122" text-anchor="end" font-size="11" font-weight="700" fill="#5a45a8">spend k=15</text>
+          </g>
+        </svg>
+        <figcaption>
+          Circuit size is <code>2^k</code>, so the cost curve is <strong>exponential</strong> -
+          every step right doubles the height. zSwap's <strong>spend</strong> (<code>k=15</code>,
+          once per UTXO spent) and <strong>output</strong> (<code>k=14</code>, once per UTXO
+          created) hash with <strong>SHA-256</strong> today; swapping to a ZK-friendly hash like
+          <strong>Poseidon1</strong> slides each two steps left (to <code>k=13</code> and
+          <code>k=12</code>) - about <strong>¼ the size</strong>, roughly <strong>4&times;
+          cheaper</strong> to prove - with no change to the offer-file format. Toggle the hash
+          to watch them slide.
+        </figcaption>
+      </figure>
+
+      <details id="cryptoswap-aside" class="aside">
+        <summary>Technical aside - what <code>k</code> is, a little more precisely (most readers can skip this)</summary>
+        <p>
+          <code>k</code> is the size parameter of a zero-knowledge circuit. Midnight's proofs use
+          a PLONK-style proving system (via <strong>halo2</strong>), in which a circuit is laid
+          out on a grid of <code>2^k</code> rows. A circuit needs some number of rows to express
+          its constraints, and <code>k = ceil(log&#8322;(rows))</code> is the smallest
+          power-of-two grid that fits them - so a circuit using 17,540 rows needs
+          <code>2^15</code> slots, i.e. <code>k=15</code>.
+        </p>
+        <p>
+          Two cautions so the number isn't over-read. First, <code>k</code> is <em>per circuit</em>,
+          not per app: one zSwap offer actually uses three circuits - <code>spend</code>,
+          <code>output</code>, and <code>sign</code> - at <code>k=15</code>, <code>14</code>,
+          and <code>13</code> respectively. Second, <code>k</code> jumps in <em>whole steps</em>:
+          because the grid must be a power of two, shaving rows only lowers <code>k</code> once
+          you cross below the next power-of-two boundary. The takeaway is simply that lower
+          <code>k</code> means cheaper, faster proofs.
+        </p>
+      </details>
     </section>
 
     <div class="section-divider-labeled" id="p-openq">Open questions</div>

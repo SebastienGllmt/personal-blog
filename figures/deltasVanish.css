@@ -1,0 +1,278 @@
+/* Styles for the "deltas vanish" figure (posts/offer-files.html) — the
+ * LOADING-DOCK metaphor: offers are cardboard boxes whose `deltas` are a package
+ * label; a running Σ adds them up (each box dims once counted); when it nets to
+ * zero a proof certifies the bundle, the labels peel off, the shipping-container
+ * doors slide apart, and the boxes load in. External stylesheet for the
+ * production CSP (`style-src 'self'`); dynamic visuals are [data-step] toggles +
+ * GSAP CSSOM writes. Scoped under `.dv-fig`.
+ *
+ * Rule 16 (layout stability): the whole layout is reserved from frame 0 — the
+ * two-line Σ block, a fixed-height "yard" holding the three box slots AND the
+ * container, and the readout (sized to its longest branch). Every change is
+ * opacity/transform (reveal, dim, peel, door slide, load) — none reflow — so the
+ * figure box height is invariant across the driven frames.
+ * Rule 16a: blog font tokens, never a bare system-ui stack.
+ * Rule 17: text colour is verified by the contrast gate; the kraft/container/
+ * label fills are bespoke (a deliberate real-world palette), so their text was
+ * chosen dark/light enough to clear 4.5:1 on its own fill. */
+
+#deltas-vanish-figure.dv-enhanced .dv-static {
+  display: none;
+}
+
+.dv-fig {
+  font-family: var(--font-sans);
+  color: var(--fig-ink);
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.dv-cap {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fig-faint);
+  margin-bottom: 0.7rem;
+  text-align: center;
+}
+
+/* ---- running Σ block (two reserved lines) ---- */
+.dv-sum {
+  border: 1px solid #d2d2dc;
+  border-radius: 8px;
+  background: #fafbfc;
+  padding: 0.4rem 0.7rem;
+}
+.dv-sum-line {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 1.6em;
+}
+.dv-sum-h {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fig-faint);
+}
+.dv-sum-vals {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--fig-ink);
+}
+.dv-val { color: var(--fig-red); } /* non-zero running Σ */
+.dv-fig[data-step="box3"] .dv-val,
+.dv-fig[data-step="load"] .dv-val { color: var(--fig-green); }
+.dv-sum-badge {
+  margin-left: auto;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  color: var(--fig-red);
+  background: var(--fig-red-bg);
+}
+.dv-fig[data-step="box3"] .dv-sum-badge,
+.dv-fig[data-step="load"] .dv-sum-badge {
+  color: var(--fig-green);
+  background: var(--fig-green-bg);
+}
+.dv-add {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-height: 1.5em;
+  margin-top: 0.2rem;
+}
+.dv-add-h {
+  font-size: 0.66rem;
+  color: var(--fig-muted);
+  font-weight: 700;
+}
+.dv-add-vals {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--fig-muted);
+}
+
+/* ---- the yard: fixed-height stage for boxes (top) + container (bottom) ---- */
+.dv-yard {
+  position: relative;
+  height: 212px; /* reserves both zones — rule 16 */
+  margin-top: 0.7rem;
+}
+
+.dv-boxes {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 1.4rem;
+  z-index: 2; /* in front of the dark interior, behind the container's front wall */
+}
+/* a kraft cardboard box — squarish, so the label sits on its face */
+.dv-box {
+  position: relative;
+  width: 108px;
+  height: 96px;
+  border: 1px solid #c39a5c;
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.04)),
+    #e7cfa3; /* kraft */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding-top: 0.9rem; /* clears the seam/tape at the top */
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25);
+}
+/* the flaps' seam (thinnest line, on top) — spans the full box width */
+.dv-box::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(120,90,50,0.6);
+}
+/* packing tape over the seam (small line just below it) — spans the full width */
+.dv-box::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: rgba(190,150,95,0.4);
+  border-top: 1px solid rgba(120,90,50,0.18);
+  border-bottom: 1px solid rgba(120,90,50,0.18);
+}
+.dv-box-body {
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #4a3a23;
+  line-height: 1.05;
+}
+.dv-box-body small {
+  display: block;
+  font-weight: 600;
+  font-size: 0.6rem;
+  color: #4a3a23;
+}
+/* a white package label stuck ON the box face, with a barcode strip */
+.dv-tag {
+  position: relative;
+  width: 90px;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #ffffff;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  padding: 0.14rem 0.28rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+  transform-origin: top left; /* peels from the corner */
+}
+.dv-bars {
+  flex: 0 0 13px;
+  align-self: stretch;
+  min-height: 0.9em;
+  background: repeating-linear-gradient(90deg, #2a2a2a 0 1.5px, #fff 1.5px 3px);
+}
+.dv-tag-t {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  color: #24292f;
+  white-space: nowrap;
+}
+
+/* ---- the transaction shipping container, modelled from first principles ----
+   A solid OUTSIDE you face head-on (you never see the interior), a GATE of two
+   doors that slide apart, and — because the view is slightly 3D — a THIN dark
+   band peeked through the open gate (the sliver of interior; deliberately
+   shorter than the gate). Boxes drop in BEHIND the solid front and their tops
+   stick out above the rim. Layering: dark band (z1) < boxes (z2) < front (z3) <
+   doors (z4). The container geometry lives at the bottom of the 212px yard. */
+
+/* (z1) the thin interior peek revealed when the doors open */
+.dv-darkband {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 118px;
+  width: 240px;
+  height: 7px; /* thin — a slice of the interior, NOT the full gate height */
+  background: #15333f;
+  border-radius: 3px 3px 0 0;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6);
+  z-index: 1;
+}
+
+/* (z3) the solid container front (the outside) — occludes the box bodies */
+.dv-container {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 125px; /* lowered + shorter, so the boxes start with a clear gap above it */
+  bottom: 4px;
+  width: 250px;
+  border: 2px solid #1f4d68;
+  border-radius: 5px;
+  /* corrugated steel */
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 5px, rgba(0,0,0,0.05) 5px 10px),
+    #2b6486;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  z-index: 3;
+}
+.dv-bin-t {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+  color: #ffffff;
+}
+.dv-proof {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #ffffff;
+  opacity: 0; /* GSAP fades it in at the `load` step; reset returns it here */
+}
+/* (z4) two gate doors meeting at the centre; GSAP slides them apart */
+.dv-lid {
+  position: absolute;
+  top: 118px;
+  width: 125px;
+  height: 13px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.12) 0 5px, rgba(0,0,0,0.08) 5px 10px),
+    #225674;
+  z-index: 4;
+}
+.dv-lid-l { right: 50%; border-right: 1px solid #16384c; border-radius: 4px 0 0 0; }
+.dv-lid-r { left: 50%; border-left: 1px solid #16384c; border-radius: 0 4px 0 0; }
+
+.dv-readout {
+  margin: 0.85rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--fig-muted);
+  /* Reserve the TALLEST branch (the `load` readout, ~4 lines at this width):
+     4 × 1.45 = 5.8em, rounded up so min-height governs every step. */
+  min-height: 6em;
+}
+.dv-readout b { color: var(--fig-ink); }
+.dv-readout code { font-family: var(--font-mono); }
