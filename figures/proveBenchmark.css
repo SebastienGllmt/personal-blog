@@ -1,0 +1,155 @@
+/* Styles for the prove-time benchmark tables in posts/offer-files.html
+ * (Scaling part 4). External stylesheet for the production CSP (`style-src
+ * 'self'` blocks inline <style>). Scoped under `.benchmark`.
+ *
+ * Colours come from the blog's vetted --fig-* palette (DESIGN.md §1) rather than
+ * the source snippet's hand-picked hexes, so every cell clears the article's axe
+ * colour-contrast gate (the speed buckets are dark-accent-on-tint pairs that pass
+ * by construction). Fonts are the blog tokens. The red "selected" k=13 highlight
+ * from the source is intentionally dropped. */
+
+.benchmark-wrap {
+  overflow-x: auto;
+  margin: 1.1rem 0;
+}
+
+table.benchmark {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.benchmark th,
+.benchmark td {
+  padding: 9px 12px;
+  border: 1px solid #e5e5e5;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.benchmark thead th {
+  background: #f4eeee;
+  color: var(--fig-muted);
+  font-weight: 600;
+}
+
+.benchmark th.platform,
+.benchmark td.platform {
+  text-align: left;
+  min-width: 200px;
+}
+
+.benchmark td:not(.platform) {
+  font-family: var(--font-mono);
+  color: var(--fig-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The unit (ms / s) as a quiet suffix: smaller, lighter, no space before it, so
+   the number reads as the figure and the unit just labels it. This is what makes
+   the table scannable — the eye lands on the magnitude, not the "s"/"ms" noise. */
+.benchmark .u {
+  font-size: 0.74em;
+  font-weight: 400;
+  color: var(--fig-muted);
+  margin-left: 0.5px;
+}
+
+.benchmark .meta {
+  display: block;
+  margin-top: 3px;
+  /* --fig-muted (not --fig-faint): faint (#656c74) drops to 4.25:1 on the darker
+     #e6e6e6 group rows; muted clears 4.5:1 on both white and the group tint. */
+  color: var(--fig-muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: var(--font-sans);
+}
+
+.benchmark .group td,
+.benchmark .group th {
+  background: #e6e6e6;
+  font-weight: 700;
+  color: var(--fig-ink);
+}
+
+/* Cell shading is a CONTINUOUS heat ramp keyed to log10(prove time): each cell's
+   class is its position on a green→yellow→orange→red gradient over the decades
+   10 ms … 100 s. Light pastels only — the number stays dark (var(--fig-ink),
+   inherited above) and reads comfortably on every step. Generated (see the
+   prove-time gradient: log domain [-2, 2], 4 stops). The same stops drive the
+   legend bar's CSS linear-gradient below. */
+.bench-0 { background: #d9f0d3; }
+.bench-1 { background: #dcf0d0; }
+.bench-2 { background: #dff0ce; }
+.bench-3 { background: #e1f0cb; }
+.bench-4 { background: #e4f0c8; }
+.bench-5 { background: #e7f0c6; }
+.bench-6 { background: #eaf0c3; }
+.bench-7 { background: #edf0c0; }
+.bench-8 { background: #eff0bd; }
+.bench-9 { background: #f2f0bb; }
+.bench-10 { background: #f5f0b8; }
+.bench-11 { background: #f5ecba; }
+.bench-12 { background: #f6e8bb; }
+.bench-13 { background: #f6e4bd; }
+.bench-14 { background: #f7e0be; }
+.bench-15 { background: #f7dcc0; }
+.bench-16 { background: #f7d9c2; }
+.bench-17 { background: #f7d6c4; }
+.bench-18 { background: #f6d4c5; }
+.bench-19 { background: #f6d1c7; }
+.bench-20 { background: #f6cec9; }
+
+/* Legend: the actual continuous scale as a CSS gradient bar with decade ticks. */
+.bench-legend { max-width: 380px; margin: 0.6rem auto 0; }
+.bench-legend-cap {
+  font-size: 0.7rem;
+  color: var(--fig-muted);
+  text-align: center;
+  margin-bottom: 4px;
+}
+.bench-scale {
+  height: 9px;
+  border-radius: 5px;
+  background: linear-gradient(to right, #d9f0d3 0%, #f5f0b8 50%, #f7dcc0 75%, #f6cec9 100%);
+}
+.bench-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--fig-muted);
+  margin-top: 3px;
+}
+
+/* Interactive #inputs slider (figures/proveScale.ts enhances the example table). */
+.provescale-ctl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.4rem 0 0.7rem;
+  font-size: 0.82rem;
+  color: var(--fig-muted);
+}
+.provescale-ctl label { font-weight: 700; color: var(--fig-ink); }
+.provescale-ctl input[type="range"] {
+  flex: 0 1 200px;
+  accent-color: var(--fig-purple);
+  cursor: pointer;
+}
+.provescale-n {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--fig-ink);
+  min-width: 1.4em;
+  text-align: center;
+}
+.provescale-formula {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--fig-muted);
+}

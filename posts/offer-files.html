@@ -33,6 +33,7 @@
 <link rel="stylesheet" href="../figures/deltasVanish.css" />
 <link rel="stylesheet" href="../figures/kValue.css" />
 <link rel="stylesheet" href="../figures/zswapCost.css" />
+<link rel="stylesheet" href="../figures/proveBenchmark.css" />
 <script type="module" src="../engine/client/narratorLoader.ts"></script>
 <script type="module" src="../engine/client/commentsLoader.ts"></script>
 <script type="module" src="../engine/client/byline.ts"></script>
@@ -68,6 +69,7 @@
 <script type="module" src="../figures/deltasVanish.ts"></script>
 <script type="module" src="../figures/kValue.ts"></script>
 <script type="module" src="../figures/zswapCost.ts"></script>
+<script type="module" src="../figures/proveScale.ts"></script>
 
 <!-- Pronunciation lexicon for this post's technical terms now lives in the shared
      posts/common-terms.pls, merged in by the generator. -->
@@ -490,14 +492,15 @@
   offer file's shape - its fields, its encoding - stays byte for byte identical. What we're free to swap is the
   machinery underneath, starting with the hash function the zSwap circuits lean on.
   <mark name="cryptoswap-k" figure="kcurve-figure"/>
-  To compare how heavy two circuits are, you only need one number: a circuit's k. And the one thing to feel about
-  it is this curve - a circuit's proof time grows exponentially in k. Almost flat for small k, then it explodes.
+  We measure how expensive it'll be to generate a proof for a circuit with a single value we call k. The intuition
+  is that a circuit's proof time grows exponentially with its k - look at the curve: almost flat for small k, then
+  it explodes.
   <mark name="cryptoswap-circuits" figure="zswapcost-figure" step="in1"/>
-  A zSwap offer is built from two main circuits, and the cost is really just a count of coins. Every coin you spend
-  needs one spend circuit - here, two coins go in, so two spends.
+  A zSwap offer is built from two main circuits, and the cost is really just a count of UTXOs. Every UTXO you spend
+  needs one spend circuit - here, two UTXOs go in, so two spends.
   <mark name="zswapcost-figure" step="output"/>
   They feed into one zSwap, and out comes a single output UTXO - that's one output circuit, even though that one
-  coin can bundle several tokens. So the cost here is two spends plus one output; it scales with how many coins go
+  UTXO can bundle several tokens. So the cost here is two spends plus one output; it scales with how many UTXOs go
   in and out, not the tokens packed inside them. Hashing dominates all of it, and today that hash is SHA-256.
   <mark name="cryptoswap-win" figure="kvalue-figure" step="sha256"/>
   Look at the curve. Because size is two-to-the-k, it's exponential - and with SHA-256 the two circuits sit high
@@ -507,6 +510,17 @@
   to thirteen, output to twelve. And because the curve is exponential, two steps down is about a quarter of the
   size, roughly four times cheaper to prove. The offer file itself never changed: the same files, the same wallets,
   on a materially cheaper layer two.
+  <mark name="cryptoswap-time" figure="none"/>
+  How long is that in real seconds? It depends entirely on where the proof runs - from a fast native prover down
+  to a phone browser.
+  <mark name="cryptoswap-example" figure="none"/>
+  Take that same swap. Its cost is just the circuit count times the per-proof time - and you can drag the slider to
+  pile on more inputs. Even a single-input swap runs to tens of seconds in a browser with SHA-256, and switching to
+  Poseidon1 cuts it three to four times, on every device.
+  <mark name="cryptoswap-mm" figure="none"/>
+  And that's why proving speed isn't a footnote. A market maker has to reprice the moment the market moves, and how
+  fast they can is bounded not just by block time, but by how quickly they can regenerate all the zSwap proofs behind
+  their new quotes. Cheaper proofs mean faster repricing.
 </script>
 
 <script type="text/narration" data-chapter-id="p-openq" data-chapter-title="Open questions">
@@ -637,6 +651,11 @@
   And step back to the whole lifecycle: of every offer file ever created, only about one in eight ever settles
   - the rest, millions of them, are cancelled or expired. On a UTXO chain every one of those cancels costs a
   transaction - exactly the cost our layer two exists to crush.
+  <mark name="bwarn-proving" figure="none"/>
+  And read those together - makers re-quoting constantly, stale offers picked off in half a minute - and they prove
+  the thesis from earlier: a maker's edge is repricing before they're picked off, so on a zSwap chain what really
+  bounds them isn't the cancel Chia paid for, it's how fast they can generate the proofs behind each new quote. Proving
+  time is decisive for market making.
 </script>
 
 <script type="text/narration" data-chapter-id="business-midnight" data-chapter-title="The Midnight lens" data-chapter-parent="p-business">
@@ -1908,7 +1927,7 @@
 
       <p id="cryptoswap-k">
         To compare how heavy two circuits are, you only need one number: a circuit's
-        <strong><code>k</code></strong>. The one thing to feel about it is the shape - a
+        <strong><code>k</code></strong>. The intuition is simple - a
         circuit's <strong>proof time grows exponentially in <code>k</code></strong>:
       </p>
 
@@ -1972,11 +1991,11 @@
           </g>
         </svg>
         <figcaption>
-          A swap's proving cost is just a count of coins. Two input UTXOs - one of them holding
+          A swap's proving cost is just a count of UTXOs. Two input UTXOs - one of them holding
           <em>two</em> tokens at once - each need one <strong>spend</strong> circuit
           (<code>k=15</code>); they feed a zSwap and come out as one output UTXO - one
           <strong>output</strong> circuit (<code>k=14</code>). So the cost is <strong>2 &times;
-          spend + 1 &times; output</strong>: it scales with how many coins go in and out, not the
+          spend + 1 &times; output</strong>: it scales with how many UTXOs go in and out, not the
           tokens packed inside them.
         </figcaption>
       </figure>
@@ -2028,6 +2047,203 @@
           to watch them slide.
         </figcaption>
       </figure>
+
+      <p id="cryptoswap-time">
+        So what is a step of <code>k</code> worth in real time? It depends entirely on where the
+        proof runs. These are measured prove times <em>per circuit</em>, by <code>k</code>, from a
+        native server down to a phone browser running WASM:
+      </p>
+
+      <div class="benchmark-wrap" tabindex="0" role="region" aria-label="Prove time per circuit by k, across platforms (scrollable)">
+        <table class="benchmark">
+          <thead>
+            <tr>
+              <th class="platform">Platform</th>
+              <th>k=9</th>
+              <th>k=10</th>
+              <th>k=11</th>
+              <th>k=12</th>
+              <th>k=13</th>
+              <th>k=14</th>
+              <th>k=15</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="group">
+              <th class="platform">Native <span class="meta">2 hosts · native</span></th>
+              <td class="bench-6">131<span class="u">ms</span></td>
+              <td class="bench-7">219<span class="u">ms</span></td>
+              <td class="bench-8">363<span class="u">ms</span></td>
+              <td class="bench-9">692<span class="u">ms</span></td>
+              <td class="bench-10">1.18<span class="u">s</span></td>
+              <td class="bench-12">2.16<span class="u">s</span></td>
+              <td class="bench-13">4.19<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Apple M4 Max <span class="meta">macOS · 16 cores · native</span></th>
+              <td class="bench-2">26<span class="u">ms</span></td>
+              <td class="bench-3">34<span class="u">ms</span></td>
+              <td class="bench-3">50<span class="u">ms</span></td>
+              <td class="bench-4">77<span class="u">ms</span></td>
+              <td class="bench-6">128<span class="u">ms</span></td>
+              <td class="bench-7">221<span class="u">ms</span></td>
+              <td class="bench-8">425<span class="u">ms</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Cortex-A76 <span class="meta">Linux · 4 cores · native</span></th>
+              <td class="bench-7">236<span class="u">ms</span></td>
+              <td class="bench-8">404<span class="u">ms</span></td>
+              <td class="bench-9">676<span class="u">ms</span></td>
+              <td class="bench-11">1.31<span class="u">s</span></td>
+              <td class="bench-12">2.24<span class="u">s</span></td>
+              <td class="bench-13">4.10<span class="u">s</span></td>
+              <td class="bench-15">7.95<span class="u">s</span></td>
+            </tr>
+            <tr class="group">
+              <th class="platform">Web · Desktop <span class="meta">3 browsers · WASM</span></th>
+              <td class="bench-8">483<span class="u">ms</span></td>
+              <td class="bench-10">858<span class="u">ms</span></td>
+              <td class="bench-11">1.57<span class="u">s</span></td>
+              <td class="bench-12">2.89<span class="u">s</span></td>
+              <td class="bench-14">5.32<span class="u">s</span></td>
+              <td class="bench-15">10.0<span class="u">s</span></td>
+              <td class="bench-16">18.9<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Chromium <span class="meta">macOS · WASM</span></th>
+              <td class="bench-8">483<span class="u">ms</span></td>
+              <td class="bench-10">858<span class="u">ms</span></td>
+              <td class="bench-11">1.57<span class="u">s</span></td>
+              <td class="bench-12">2.89<span class="u">s</span></td>
+              <td class="bench-14">5.32<span class="u">s</span></td>
+              <td class="bench-15">10.0<span class="u">s</span></td>
+              <td class="bench-16">18.9<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Firefox <span class="meta">macOS · WASM</span></th>
+              <td class="bench-8">490<span class="u">ms</span></td>
+              <td class="bench-10">877<span class="u">ms</span></td>
+              <td class="bench-11">1.61<span class="u">s</span></td>
+              <td class="bench-12">2.94<span class="u">s</span></td>
+              <td class="bench-14">5.39<span class="u">s</span></td>
+              <td class="bench-15">10.1<span class="u">s</span></td>
+              <td class="bench-16">19.0<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Safari <span class="meta">macOS · WASM</span></th>
+              <td class="bench-8">466<span class="u">ms</span></td>
+              <td class="bench-10">844<span class="u">ms</span></td>
+              <td class="bench-11">1.54<span class="u">s</span></td>
+              <td class="bench-12">2.83<span class="u">s</span></td>
+              <td class="bench-14">5.17<span class="u">s</span></td>
+              <td class="bench-15">9.71<span class="u">s</span></td>
+              <td class="bench-16">18.3<span class="u">s</span></td>
+            </tr>
+            <tr class="group">
+              <th class="platform">Web · Mobile <span class="meta">3 browsers · WASM</span></th>
+              <td class="bench-9">694<span class="u">ms</span></td>
+              <td class="bench-11">1.33<span class="u">s</span></td>
+              <td class="bench-12">2.51<span class="u">s</span></td>
+              <td class="bench-13">4.53<span class="u">s</span></td>
+              <td class="bench-15">11.7<span class="u">s</span></td>
+              <td class="bench-16">15.6<span class="u">s</span></td>
+              <td class="bench-17">29.6<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Chromium <span class="meta">iOS · WASM</span></th>
+              <td class="bench-9">717<span class="u">ms</span></td>
+              <td class="bench-11">1.35<span class="u">s</span></td>
+              <td class="bench-12">2.51<span class="u">s</span></td>
+              <td class="bench-13">4.53<span class="u">s</span></td>
+              <td class="bench-15">8.24<span class="u">s</span></td>
+              <td class="bench-16">15.6<span class="u">s</span></td>
+              <td class="bench-17">29.6<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Firefox <span class="meta">iOS · WASM</span></th>
+              <td class="bench-9">694<span class="u">ms</span></td>
+              <td class="bench-11">1.33<span class="u">s</span></td>
+              <td class="bench-13">3.56<span class="u">s</span></td>
+              <td class="bench-14">6.45<span class="u">s</span></td>
+              <td class="bench-15">11.7<span class="u">s</span></td>
+              <td class="bench-16">15.4<span class="u">s</span></td>
+              <td class="bench-17">29.1<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Safari <span class="meta">iOS · WASM</span></th>
+              <td class="bench-9">664<span class="u">ms</span></td>
+              <td class="bench-11">1.28<span class="u">s</span></td>
+              <td class="bench-12">2.37<span class="u">s</span></td>
+              <td class="bench-13">4.40<span class="u">s</span></td>
+              <td class="bench-15">11.7<span class="u">s</span></td>
+              <td class="bench-16">15.6<span class="u">s</span></td>
+              <td class="bench-18">43.8<span class="u">s</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="bench-legend">
+        <div class="bench-legend-cap">prove time (log scale)</div>
+        <div class="bench-scale" aria-hidden="true"></div>
+        <div class="bench-scale-labels"><span>10&thinsp;ms</span><span>100&thinsp;ms</span><span>1&thinsp;s</span><span>10&thinsp;s</span><span>100&thinsp;s</span></div>
+      </div>
+
+      <p id="cryptoswap-example">
+        Put that against a whole swap. Each input UTXO you spend is one <strong>spend</strong>
+        circuit, and the swap makes one output - so the total cost is
+        <strong>N &times; spend + 1 &times; output</strong>. Drag the slider to set how many inputs
+        the swap spends, and watch the wall-clock cost on each platform - and how much swapping
+        SHA-256 for Poseidon1 saves:
+      </p>
+
+      <div class="provescale" data-provescale>
+        <div class="provescale-ctl">
+          <label for="provescale-n">input UTXOs</label>
+          <input id="provescale-n" type="range" min="1" max="18" value="1" step="1" data-slider />
+          <span class="provescale-n" data-n>1</span>
+          <span class="provescale-formula" data-formula>cost = 1&times;spend + 1&times;output</span>
+        </div>
+        <div class="benchmark-wrap" tabindex="0" role="region" aria-label="Swap prove time by number of inputs: SHA-256 versus Poseidon1 (scrollable)">
+          <table class="benchmark">
+            <thead>
+              <tr>
+                <th class="platform">Where the swap proves</th>
+                <th>SHA-256 <span class="meta">N × k=15 + k=14</span></th>
+                <th>Poseidon1 <span class="meta">N × k=13 + k=12</span></th>
+                <th>speed-up</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-row data-k15="0.425" data-k14="0.221" data-k13="0.128" data-k12="0.077">
+                <th class="platform">Apple M4 Max <span class="meta">native</span></th>
+                <td class="bench-9" data-sha>~646<span class="u">ms</span></td>
+                <td class="bench-7" data-pos>~205<span class="u">ms</span></td>
+                <td data-sp>3.2&times;</td>
+              </tr>
+              <tr data-row data-k15="18.9" data-k14="10.0" data-k13="5.32" data-k12="2.89">
+                <th class="platform">Desktop browser <span class="meta">WASM</span></th>
+                <td class="bench-17" data-sha>~29<span class="u">s</span></td>
+                <td class="bench-15" data-pos>~8.2<span class="u">s</span></td>
+                <td data-sp>3.5&times;</td>
+              </tr>
+              <tr data-row data-k15="29.6" data-k14="15.6" data-k13="11.7" data-k12="4.53">
+                <th class="platform">Phone browser <span class="meta">WASM</span></th>
+                <td class="bench-18" data-sha>~45<span class="u">s</span></td>
+                <td class="bench-16" data-pos>~16<span class="u">s</span></td>
+                <td data-sp>2.8&times;</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p id="cryptoswap-mm">
+        And this is exactly why proving performance isn't a footnote. A <strong>market maker</strong>
+        has to reprice the instant the market moves - and how fast they can do that is bounded not
+        only by block time, but by how quickly they can regenerate <em>all</em> the zSwap proofs
+        behind their new quotes. Cheaper proofs are, directly, faster repricing - which, as the
+        <a href="#business-warning">Chia receipts</a> will show, is the whole game for a maker.
+      </p>
 
       <details id="cryptoswap-aside" class="aside">
         <summary>Technical aside - what <code>k</code> is, a little more precisely (most readers can skip this)</summary>
@@ -2503,6 +2719,15 @@
         </figcaption>
       </figure>
 
+      <p id="bwarn-proving">
+        And read those facts together - makers had to re-quote constantly, and a stale offer got
+        picked off in a median ~38 seconds - because they prove the thesis behind
+        <a href="#cryptoswap-heading">Scaling, part 4</a>: a maker's whole edge is repricing
+        <em>before</em> they're picked off, so on a zSwap chain the binding constraint isn't just
+        the on-chain cancel Chia paid for - it's <strong>how fast you can generate the zSwap proofs</strong>
+        behind every fresh quote. Chia's receipts are, in effect, field evidence that zSwap proving
+        time is decisive for efficient market making.
+      </p>
 
       <h2 id="business-midnight">Now add Midnight</h2>
       <p id="bmid-lead">
