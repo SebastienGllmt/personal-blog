@@ -3,12 +3,13 @@
 // post maps from `.generated/` (produced by `bun run build`).
 
 import { createWorkerHandler } from "presidocs/server/createWorker.ts";
-import { POST_AUTHORS } from "./.generated/postMeta.ts";
+import { POST_AUTHORS, SITE_HOST } from "./.generated/postMeta.ts";
 import { POST_VERSIONS } from "./.generated/postVersions.ts";
 import { EPISODE_AUDIO } from "./.generated/episodeAudio.ts";
 
 export default createWorkerHandler({
   postAuthors: POST_AUTHORS,
   postVersions: POST_VERSIONS,
+  siteHost: SITE_HOST,
   episodeAudio: EPISODE_AUDIO,
 });
