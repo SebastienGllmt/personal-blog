@@ -1,18 +1,17 @@
-// Interactive figure for posts/offer-files.html: why an offer is free to make
-// but costly to cancel — and why ONE coin backs MANY copies of the offer.
+// Interactive figure for posts/offer-files.html (anatomy section): ONE coin
+// backs MANY copies of the offer, and the COIN is the only source of truth.
 //
 // A zSwap-based offer is built from a specific coin — a UTXO. The maker proves it once
 // and gets a single `zswapoffer1…` file, which then fans out to many places. Every
-// one of those copies is the SAME offer backed by the SAME single coin. So:
-//   • Create & share  → off-chain, free (one file, copied freely to many places)
-//   • A taker fills it → on-chain (settlement spends the coin)
-//   • Cancel it        → ALSO on-chain (the only way to void every copy that's
-//                         already out there is to spend the coin yourself)
-// Because every copy is tethered to that one UTXO, spending it (via fill or cancel)
-// cascades to invalidate ALL copies at once — there is no off-chain "unsend". The
-// reader drives the lifecycle, sees the shared backing drawn as link lines, watches
-// the cascade kill every copy, and tracks the on-chain transaction counter — making
-// the create-free / fill-or-cancel-costly asymmetry concrete.
+// one of those copies is the SAME offer backed by the SAME single coin — loosely,
+// the same pre-signed spend of one UTXO. So:
+//   • Create & share   → off-chain, free (one file, copied freely to many places)
+//   • Spend the coin   → on-chain (a taker settling, the maker cancelling, anything)
+// Because every copy is tethered to that one UTXO, spending it cascades to
+// invalidate ALL copies at once — there is no per-venue state, and no off-chain
+// "unsend". The reader drives the lifecycle, sees the shared backing drawn as link
+// lines, and watches one spend kill every copy. (The fill-vs-cancel cost asymmetry
+// this used to dramatize is told in prose in the DEX section.)
 //
 // External module for the CSP reason documented in hashAvalanche.ts. GSAP only
 // writes CSSOM. Progressive enhancement over a static SVG; narration-synced
@@ -20,7 +19,7 @@
 import { gsap } from "gsap";
 import { registerFigureJourney, stepsFromLabels } from "../engine/client/figureAnimation.ts";
 
-type Phase = "none" | "open" | "filled" | "cancelled";
+type Phase = "none" | "open" | "spent";
 
 const COPIES = ["on Celestia", "in a Discord DM", "on a DEX frontend", "in a friend's wallet"];
 
@@ -58,10 +57,8 @@ const initUtxoFigure = (figure: HTMLElement): void => {
       </div>
     </div>
     <div class="actions">
-      <button type="button" data-act="create">Create &amp; share offer</button>
-      <button type="button" data-act="fill">A taker fills it</button>
-      <button type="button" data-act="cancel">Cancel the offer</button>
-      <button type="button" data-act="reset" class="ghost">Reset</button>
+      <button type="button" data-act="main">Create &amp; share offer</button>
+      <button type="button" data-act="spend">Spend the coin</button>
     </div>
     <div class="txbar">on-chain transactions so far: <b data-tx>0</b></div>
     <p class="readout" data-readout>One coin proves <b>one</b> offer file, which gets copied to <b>many</b> places. Press <b>Create &amp; share</b> &mdash; that part is free.</p>`;
@@ -146,10 +143,10 @@ const initUtxoFigure = (figure: HTMLElement): void => {
 
   // Spending the one coin cascades: the file dies, then every copy dies in turn,
   // staggered left-to-right, driving home that consuming the UTXO kills them all.
-  const cascadeKill = (mode: "filled" | "cancelled"): void => {
+  const cascadeKill = (): void => {
     file.classList.add("void");
     const copies = Array.from(copiesBox.querySelectorAll<HTMLElement>(".copy"));
-    const word = mode === "filled" ? "dead" : "void";
+    const word = "dead";
     const apply = (cp: HTMLElement) => {
       cp.classList.add("void");
       const s = cp.querySelector<HTMLElement>("[data-copy-status]");
@@ -177,16 +174,18 @@ const initUtxoFigure = (figure: HTMLElement): void => {
 
   const render = (): void => {
     figure.classList.toggle("is-open", phase === "open");
-    figure.classList.toggle("is-done", phase === "filled" || phase === "cancelled");
+    figure.classList.toggle("is-done", phase === "spent");
     const hasOffer = phase !== "none";
     fileEmpty.style.display = hasOffer ? "none" : "";
     file.style.display = hasOffer ? "" : "none";
     copiesEmpty.style.display = hasOffer ? "none" : "";
-    copiesBox.classList.toggle("filled", phase === "filled");
-    copiesBox.classList.toggle("void", phase === "filled" || phase === "cancelled");
-    btn("create").disabled = phase !== "none";
-    btn("fill").disabled = phase !== "open";
-    btn("cancel").disabled = phase !== "open";
+    copiesBox.classList.toggle("filled", phase === "spent");
+    copiesBox.classList.toggle("void", phase === "spent");
+    // One button does create AND restart: its label tracks the phase. Restart
+    // never rests on the empty "no offer yet" state — that state is shorter
+    // than the populated stage, so pausing there reflows the page below.
+    btn("main").textContent = phase === "none" ? "Create & share offer" : "Restart";
+    btn("spend").disabled = phase !== "open";
   };
 
   const onCreate = (): void => {
@@ -197,24 +196,14 @@ const initUtxoFigure = (figure: HTMLElement): void => {
     readout.innerHTML = "Created and shared &mdash; <b class='ok'>no transaction</b>. The wallet proved <b>one</b> file and it's now copied to <b>many</b> places. Notice every copy is tethered to the <b>same single coin</b>, so they're all live and fillable at once.";
   };
 
-  const onFill = (): void => {
+  const onSpend = (): void => {
     if (phase !== "open") return;
-    phase = "filled";
+    phase = "spent";
     setCoinSpent();
     flashTx();
     render();
-    cascadeKill("filled");
-    readout.innerHTML = "A taker merged the matching half and <b>settled on-chain</b> &mdash; that <b class='cost'>spent the one coin</b>. Because every copy was backed by it, they <b>all</b> go dead together: one spend cascades through the whole fan-out.";
-  };
-
-  const onCancel = (): void => {
-    if (phase !== "open") return;
-    phase = "cancelled";
-    setCoinSpent();
-    flashTx();
-    render();
-    cascadeKill("cancelled");
-    readout.innerHTML = "To cancel, the maker has to <b>spend the same coin on-chain</b> themselves. There's no &ldquo;unsend&rdquo; for copies already out there &mdash; consuming the <b>one</b> UTXO is the <b class='cost'>only</b> way to void <b>every</b> copy everywhere. So a cancel costs a transaction too.";
+    cascadeKill();
+    readout.innerHTML = "The coin was <b>spent on-chain</b> &mdash; by a taker settling, by the maker, by anything. Every copy was a pre-signed spend of that <b>one</b> UTXO, so they <b>all</b> go dead together: one spend cascades through the whole fan-out.";
   };
 
   const onReset = (): void => {
@@ -240,17 +229,42 @@ const initUtxoFigure = (figure: HTMLElement): void => {
   const onResize = (): void => { if (phase !== "none") drawTethers(); };
   new ResizeObserver(onResize).observe(stageEl);
 
-  // Narration / scroll triggers just (re)play the create step so a listener
-  // sees the offer fan out when the figure is referenced.
-  const intro = (): void => {
-    if (driven) return;
-    if (phase === "none") onCreate();
+  // ----- free-run auto-loop: create → spend → reset → repeat ------------
+  // The figure self-plays its whole story until the reader presses a button
+  // (manual control takes over for good) or a driver claims it (rule 7).
+  let auto = true;
+  let autoTimers: gsap.core.Tween[] = [];
+  const clearAuto = (): void => { autoTimers.forEach((t) => t.kill()); autoTimers = []; };
+  const stopAuto = (): void => { auto = false; clearAuto(); };
+
+  // reset + create in the same tick: the DOM never paints the empty state,
+  // so the figure's height holds steady across the loop.
+  const restart = (): void => {
+    if (phase !== "none") onReset();
+    onCreate();
   };
 
-  btn("create").addEventListener("click", onCreate);
-  btn("fill").addEventListener("click", onFill);
-  btn("cancel").addEventListener("click", onCancel);
-  btn("reset").addEventListener("click", onReset);
+  const autoLoop = (): void => {
+    if (driven || !auto) return;
+    restart();
+    autoTimers.push(gsap.delayedCall(2.4, () => {
+      if (driven || !auto) return;
+      onSpend();
+      autoTimers.push(gsap.delayedCall(3.2, autoLoop));
+    }));
+  };
+
+  // Narration / scroll triggers start the free-run loop (or, under reduced
+  // motion, just show the fanned-out state once).
+  const intro = (): void => {
+    if (driven) return;
+    if (reduced) { if (phase === "none") onCreate(); return; }
+    if (auto) { clearAuto(); autoLoop(); }
+    else if (phase === "none") onCreate();
+  };
+
+  btn("main").addEventListener("click", () => { stopAuto(); restart(); });
+  btn("spend").addEventListener("click", () => { stopAuto(); onSpend(); });
 
   render();
 
@@ -269,10 +283,10 @@ const initUtxoFigure = (figure: HTMLElement): void => {
 
   // ----- the journey (engine drivers: video capture today, narrator later) -----
   // The figure is an interactive state machine with detached per-action anims;
-  // the journey re-authors the core asymmetry — CREATE (free, fans out to many
-  // copies) → a taker FILLS it (spends the one coin, cascade-kills every copy,
-  // +1 tx) — on ONE paused timeline. Copies/tethers are spawned at build, so the
-  // journey is rebuilt fresh on reset().
+  // the journey re-authors the core story — CREATE (free, fans out to many
+  // copies) → the coin is SPENT (cascade-kills every copy, +1 tx) — on ONE
+  // paused timeline. Copies/tethers are spawned at build, so the journey is
+  // rebuilt fresh on reset().
   const buildJourney = (): gsap.core.Timeline => {
     // fresh DOM: one offer fanned out to its copies, tethers drawn
     onReset();
@@ -302,15 +316,15 @@ const initUtxoFigure = (figure: HTMLElement): void => {
     t.fromTo(paths, { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.07, immediateRender: false }, 0.1);
     t.to({}, { duration: 1.4 }); // dwell on the fan-out
 
-    t.addLabel("fill");
+    t.addLabel("spend");
     t.add(() => {
-      phase = "filled";
+      phase = "spent";
       setCoinSpent();
       txCount = 1;
       txEl.textContent = "1";
       render();
       file.querySelector<HTMLElement>(".file-tag")?.classList.add("strike");
-      readout.innerHTML = "A taker settled <b>on-chain</b> &mdash; that <b class='cost'>spent the one coin</b>. Every copy was backed by it, so they <b>all</b> go dead at once: one spend cascades through the whole fan-out.";
+      readout.innerHTML = "The coin was <b>spent on-chain</b> &mdash; by a taker settling, by the maker, by anything. Every copy was backed by that <b>one</b> coin, so they <b>all</b> go dead at once: one spend cascades through the whole fan-out.";
     });
     t.to(file.querySelector(".file-tag"), { opacity: 0.4, duration: 0.25 });
     copies.forEach((cp, i) => {
@@ -337,6 +351,7 @@ const initUtxoFigure = (figure: HTMLElement): void => {
     steps: probeSteps,
     reset() {
       driven = true;
+      clearAuto();
       gsap.killTweensOf([coin, file]);
       journeyTl = buildJourney();
       journeyTl.pause(0);

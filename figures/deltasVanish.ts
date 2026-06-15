@@ -11,11 +11,15 @@
 // balance the transaction, but once a proof says it's balanced, you don't care
 // about them — so they're dropped.
 //
-// Four-beat tour (labels are the narration step join-points):
+// Five-beat tour (labels are the narration step join-points; `merge` is a closing
+// visual flourish with no narration mark, shown in the self-play loop and video):
 //   box1 — first offer-box arrives; running Σ = its deltas (≠ 0).
 //   box2 — second box; Σ updates (still ≠ 0); box 1 dims (counted).
 //   box3 — third box completes the set; Σ nets to zero; box 2 dims.
 //   load — proof certifies; labels peel off; doors slide open; boxes load in.
+//   merge — the loaded boxes bunch together into one: a transaction includes its
+//           offers as a single merged ZswapOffer. (Pure horizontal transform, so
+//           the figure height stays invariant — rule 16.)
 //
 // Build-once (rule 10): all three boxes exist from frame 0 and are revealed /
 // dimmed / moved with opacity + transform only (no appendChild mid-run, no
@@ -210,6 +214,16 @@ function initDeltasVanish(figure: HTMLElement): void {
     tl.to(boxes[2]!, { y: 78, x: -55, scale: 0.5, duration: 0.8, ease: "power2.in", immediateRender: false }, "<0.1");
     tl.to({}, { duration: 1.7 });
 
+    // merge — the loaded boxes pack together shoulder-to-shoulder, standing in
+    // for "a transaction includes its offers as a single merged ZswapOffer".
+    // Boxes are 108px wide at scale 0.5 (≈54px) and flex spaces them ~130px
+    // apart, so pulling the outer two inward (±55 → ±76) closes the gaps to a
+    // touching row. Horizontal-only (x), so figure height is unchanged.
+    tl.addLabel("merge");
+    tl.fromTo(boxes[0]!, { x: 55 }, { x: 76, duration: 0.6, ease: "power2.inOut", immediateRender: false });
+    tl.fromTo(boxes[2]!, { x: -55 }, { x: -76, duration: 0.6, ease: "power2.inOut", immediateRender: false }, "<");
+    tl.to({}, { duration: 1.6 });
+
     return tl;
   }
 
@@ -224,7 +238,7 @@ function initDeltasVanish(figure: HTMLElement): void {
       gsap.set(proof, { opacity: 1, scale: 1 });
       gsap.set(lidL, { xPercent: -100 });
       gsap.set(lidR, { xPercent: 100 });
-      boxes.forEach((b, i) => gsap.set(b, { opacity: 1, y: 78, x: [55, 0, -55][i]!, scale: 0.5 }));
+      boxes.forEach((b, i) => gsap.set(b, { opacity: 1, y: 78, x: [76, 0, -76][i]!, scale: 0.5 }));
       return;
     }
     loopTimer?.kill();

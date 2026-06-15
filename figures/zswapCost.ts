@@ -1,13 +1,12 @@
 // "zSwap cost = a count of coins" figure for posts/offer-files.html (Scaling, part 4).
 //
 // A zSwap offer is built from two main circuits — spend (one per UTXO consumed)
-// and output (one per UTXO created). So the proving cost of a swap is just a
-// count of coins in and out, NOT the number of tokens inside them. This figure
-// builds that up step by step: each part appears in turn (input 1, input 2, the
-// zSwap, the output), and the `cost =` tally grows a pill alongside it — a spend
-// pill per input, an output pill for the output. The zSwap step adds no pill (it
-// isn't a per-coin circuit). One input UTXO holds two tokens, so it's visible
-// that a UTXO can bundle several tokens yet still cost exactly one spend.
+// and output (one per UTXO created). Each coin holds exactly one token, so the
+// proving cost of a swap is simply a count of the coins moving in and out. This
+// figure builds that up step by step: each part appears in turn (input 1, input
+// 2, the zSwap, the output), and the `cost =` tally grows a pill alongside it — a
+// spend pill per input, an output pill for the output. The zSwap step adds no
+// pill (it isn't a per-coin circuit).
 //
 // The progressive reveal IS the explanation, so there's no prose readout.
 //
@@ -38,7 +37,7 @@ function initZswapCost(figure: HTMLElement): void {
       <div class="zc-col zc-in">
         <div class="zc-utxo" data-in1>
           <div class="zc-utxo-h">UTXO</div>
-          <div class="zc-utxo-b">🌙 5 NIGHT<br/>🪨 3 ROCK</div>
+          <div class="zc-utxo-b">🌙 5 NIGHT</div>
           <div class="zc-circ spend">spend · k=15</div>
         </div>
         <div class="zc-utxo zc-in2" data-in2>
@@ -53,7 +52,7 @@ function initZswapCost(figure: HTMLElement): void {
       <div class="zc-col zc-out" data-out>
         <div class="zc-utxo">
           <div class="zc-utxo-h">UTXO</div>
-          <div class="zc-utxo-b">🪙 8 GOLD<br/>💎 1 GEM</div>
+          <div class="zc-utxo-b">🪨 3 ROCK</div>
           <div class="zc-circ output">output · k=14</div>
         </div>
       </div>

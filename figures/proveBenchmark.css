@@ -103,6 +103,13 @@ table.benchmark {
 .bench-19 { background: #f6d1c7; }
 .bench-20 { background: #f6cec9; }
 
+/* Small footnote line under a table (e.g. the throughput table's Celestia †). */
+.table-note {
+  font-size: 0.75rem;
+  color: var(--fig-muted);
+  margin: 0.4rem 0 0;
+}
+
 /* Legend: the actual continuous scale as a CSS gradient bar with decade ticks. */
 .bench-legend { max-width: 380px; margin: 0.6rem auto 0; }
 .bench-legend-cap {

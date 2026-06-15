@@ -1,0 +1,274 @@
+/* Styles for the three launchpad figures (posts/offer-files.html) — the
+ * token-sale story split into one idea per figure: the basic pledge meter
+ * (`.lpb-`), the ~18-zSwap settlement rollout with its griefing window
+ * (`.lpr-`), and the tickets fix (`.lpt-`). External stylesheet for the
+ * production CSP (`style-src 'self'`); dynamic visuals are [data-step] toggles
+ * + GSAP CSSOM writes.
+ *
+ * Rule 16 (layout stability): every row is laid out from frame 0; all motion
+ * is opacity/transform (the meter fill is a scaleX), so each figure box height
+ * is invariant across the driven frames.
+ * Rule 16a: blog font tokens, never a bare system-ui stack.
+ * Rule 17: colours come from the shared --fig-* palette. */
+
+#launchpad-basic-figure.lpb-enhanced .lpb-static,
+#pledge-promise-figure.lpp-enhanced .lpp-static,
+#launchpad-rollout-figure.lpr-enhanced .lpr-static,
+#launchpad-tickets-figure.lpt-enhanced .lpt-static {
+  display: none;
+}
+
+.lpb-fig, .lpp-fig, .lpr-fig, .lpt-fig {
+  font-family: var(--font-sans);
+  color: var(--fig-ink);
+  max-width: 560px;
+  margin: 0 auto;
+}
+.lpb-h, .lpr-h, .lpt-h {
+  font-size: 0.74rem;
+  font-weight: 800;
+  margin-bottom: 0.45rem;
+}
+
+/* ---- basic: the arriving offer files + the pledge meter ---- */
+.lpb-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: nowrap;
+  min-height: 1.7em; /* reserved — rule 16 */
+  margin-bottom: 0.5rem;
+}
+.lpb-chip {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: var(--fig-purple);
+  border: 1px dashed #aab;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 0.2rem 0.4rem;
+  white-space: nowrap;
+  opacity: 0; /* GSAP pops each in; reset returns them here */
+}
+.lpb-more {
+  font-size: 0.62rem;
+  color: var(--fig-faint);
+  white-space: nowrap;
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}
+
+.lpb-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.lpb-meter {
+  position: relative;
+  flex: 1;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid #d2d2dc;
+  background: #fafbfc;
+  overflow: hidden;
+}
+.lpb-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--fig-green);
+  transform-origin: left center;
+  transform: scaleX(0); /* GSAP fills it; reset returns it here */
+  border-radius: 999px;
+}
+.lpb-target {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  right: 6px;
+  border-right: 2px dashed var(--fig-amber);
+}
+.lpb-mint {
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--fig-green);
+  white-space: nowrap;
+  opacity: 0; /* GSAP pops it; reset returns it here */
+}
+.lpb-note {
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--fig-faint);
+}
+
+/* ---- promise vs zswap: why a pledge means anything at all ---- */
+.lpp-fig {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.lpp-panel {
+  border-radius: 9px;
+  border: 1px solid #d2d2dc;
+  padding: 0.5rem 0.6rem 0.55rem;
+}
+.lpp-old { border-color: #d98a8a; background: #fdf7f7; }
+.lpp-new { border-color: #5bb87a; background: #f5fbf7; }
+.lpp-t {
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+}
+.lpp-t-old { color: var(--fig-red); }
+.lpp-t-new { color: var(--fig-green); }
+.lpp-t-new em { font-style: italic; }
+.lpp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+  min-height: 2em; /* reserved — rule 16 */
+}
+/* fixed-width chips so the promised/signs/never-returns text swap never reflows */
+.lpp-chip {
+  flex: 0 0 7.6em;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 7px;
+  padding: 0.24rem 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0; /* GSAP pops them; reset returns them here */
+}
+.lpp-chip [data-bs], .lpp-chip [data-ps] { font-weight: 600; }
+.lpp-buyer[data-state="promised"] {
+  border: 1px solid #c8c8d4;
+  background: #fafbfc;
+  color: var(--fig-muted);
+}
+.lpp-buyer[data-state="signs"] {
+  border: 2px solid var(--fig-green);
+  background: var(--fig-green-bg);
+  color: var(--fig-green);
+}
+.lpp-buyer[data-state="gone"] {
+  border: 1px dashed #c8c8d4;
+  background: #fafbfc;
+  color: var(--fig-faint);
+}
+.lpp-pledge[data-state="proven"] {
+  border: 1px dashed #aab;
+  background: #ffffff;
+  color: var(--fig-purple);
+}
+.lpp-pledge[data-state="settled"] {
+  border: 1px solid var(--fig-green);
+  background: var(--fig-green-bg);
+  color: var(--fig-green);
+}
+.lpp-ev {
+  margin-top: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--fig-muted);
+  min-height: 1.2em; /* reserved — rule 16 */
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}
+/* the countdown turns urgent at zero — the panels diverge from this moment */
+.lpp-old .lpp-ev[data-state="closed"] { color: var(--fig-red); }
+.lpp-new .lpp-ev[data-state="closed"] { color: var(--fig-green); }
+.lpp-note {
+  margin-top: 0.3rem;
+  font-size: 0.68rem;
+  min-height: 1.2em; /* reserved — rule 16 */
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}
+.lpp-note-old { color: #8a3030; }
+.lpp-note-new { color: #3a7d55; }
+
+/* ---- rollout: the settlement waves ---- */
+.lpr-txs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.55rem;
+}
+.lpr-tx {
+  border: 1px solid #d2d2dc;
+  border-radius: 8px;
+  background: #fafbfc;
+  padding: 0.4rem 0.5rem 0.45rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-height: 3.4em; /* reserves the stamped state — rule 16 */
+}
+.lpr-tx b {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--fig-muted);
+}
+.lpr-fig[data-step] [data-tx1],
+.lpr-fig[data-step] [data-tx2] {
+  border-color: var(--fig-green);
+  background: var(--fig-green-bg);
+}
+.lpr-fig[data-step="grief"] .lpr-tx-3 {
+  border-color: var(--fig-red);
+  background: var(--fig-red-bg);
+}
+.lpr-stamp {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--fig-green);
+  opacity: 0; /* GSAP stamps it in; reset returns it here */
+}
+.lpr-stamp-bad { color: var(--fig-red); }
+.lpr-short {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--fig-red);
+  text-align: center;
+  min-height: 1.2em; /* reserved — rule 16 */
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}
+
+/* ---- tickets: the fix ---- */
+.lpt-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  flex-wrap: wrap; /* desktop fits one line (the height gate measures there); narrow phones may wrap */
+  min-height: 2.2em; /* reserved — rule 16 */
+}
+.lpt-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  white-space: nowrap;
+  opacity: 0; /* GSAP pops them; reset returns them here */
+}
+.lpt-chip-settle {
+  color: var(--fig-amber);
+  background: var(--fig-amber-bg);
+  border: 1px solid var(--fig-amber);
+}
+.lpt-chip-convert {
+  color: var(--fig-green);
+  background: var(--fig-green-bg);
+  border: 1px solid var(--fig-green);
+}
+.lpt-arr {
+  color: var(--fig-faint);
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}
+.lpt-note {
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--fig-faint);
+  text-align: center;
+  min-height: 1.2em; /* reserved — rule 16 */
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}

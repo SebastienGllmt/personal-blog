@@ -1,0 +1,114 @@
+/* Styles for the "pledge capital" figure (posts/offer-files.html) — the old
+ * lock-and-wait launchpad (dead capital, shortness pressure) versus the pledge
+ * model (commit to sales as they come; first close takes it, the rest die).
+ * External stylesheet for the production CSP (`style-src 'self'`); dynamic
+ * visuals are [data-state] toggles + GSAP CSSOM writes. Scoped under `.pc-fig`.
+ *
+ * Rule 16 (layout stability): both panels and every row are laid out from
+ * frame 0; the sale cards are fixed-width so their pledged/won/dead text swap
+ * never reflows; all motion is opacity/transform, so the figure box height is
+ * invariant across the driven frames.
+ * Rule 16a: blog font tokens, never a bare system-ui stack.
+ * Rule 17: colours come from the shared --fig-* palette; dead sales use the
+ * opaque --fig-faint token, never an opacity dim. */
+
+#pledge-capital-figure.pc-enhanced .pc-static {
+  display: none;
+}
+
+.pc-fig {
+  font-family: var(--font-sans);
+  color: var(--fig-ink);
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pc-panel {
+  border-radius: 9px;
+  border: 1px solid #d2d2dc;
+  background: #fafbfc;
+  padding: 0.5rem 0.6rem 0.55rem;
+}
+.pc-old { border-color: #d98a8a; background: #fdf7f7; }
+.pc-new { border-color: #5bb87a; background: #f5fbf7; }
+
+.pc-t {
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+}
+.pc-t-old { color: var(--fig-red); }
+.pc-t-new { color: var(--fig-green); }
+
+.pc-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+  min-height: 2.1em; /* reserved — rule 16 */
+}
+.pc-coin {
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0; /* GSAP slides it in; reset returns it here */
+}
+.pc-arr {
+  color: var(--fig-faint);
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}
+.pc-lock {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--fig-red);
+  background: var(--fig-red-bg);
+  border: 1px solid var(--fig-red);
+  border-radius: 7px;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+  opacity: 0; /* GSAP pops it; reset returns it here */
+}
+.pc-wait {
+  font-size: 0.7rem;
+  color: #8a3030;
+  white-space: nowrap;
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}
+.pc-note {
+  margin-top: 0.4rem;
+  font-size: 0.68rem;
+  min-height: 1.2em; /* reserved — rule 16 */
+  opacity: 0; /* GSAP reveals it; reset returns it here */
+}
+.pc-note-old { color: #8a3030; }
+.pc-note-new { color: #3a7d55; }
+
+/* the three sale cards — fixed width so pledged/won/dead swaps never reflow */
+.pc-sale {
+  flex: 0 0 9.6em;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid var(--fig-green);
+  border-radius: 7px;
+  background: var(--fig-green-bg);
+  color: var(--fig-green);
+  padding: 0.24rem 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0; /* GSAP pops them; reset returns them here */
+}
+.pc-sale .pc-sale-s { font-weight: 600; }
+.pc-sale[data-state="won"] {
+  border-width: 2px;
+  font-weight: 800;
+}
+.pc-sale[data-state="dead"] {
+  border-color: #c8c8d4;
+  border-style: dashed;
+  background: #fafbfc;
+  color: var(--fig-faint);
+}

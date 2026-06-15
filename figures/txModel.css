@@ -1,0 +1,13 @@
+/* Styles for the transaction-model figure in posts/offer-files.html
+ * (Performance section). A static, JS-free SVG showing that a transaction is a
+ * set of inputs and outputs, that a ZswapOffer is a proven subset of them, and
+ * that lone inputs/outputs can ride along. Like #kcurve-figure it has no module,
+ * so it sizes its own SVG. External stylesheet for the production CSP. */
+
+#txmodel-figure .tx-static {
+  display: block;
+  width: 100%;
+  max-width: 540px;
+  height: auto;
+  margin: 0 auto;
+}

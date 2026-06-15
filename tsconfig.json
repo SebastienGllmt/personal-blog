@@ -25,5 +25,8 @@
   },
   // engine/ is a symlink to ../presidocs; its template starter imports
   // paths that only resolve inside a consumer repo's layout (not this one).
-  "exclude": ["engine/templates/content-repo"]
+  // dist/ is the gitignored build output; its exported figure-source files
+  // import served-layout paths (../engine/client/...) that only resolve once
+  // served, not from the source tree.
+  "exclude": ["engine/templates/content-repo", "dist"]
 }
