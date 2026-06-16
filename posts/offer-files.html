@@ -168,7 +168,7 @@
   <mark name="anatomy-heading" figure="none"/>
   Quick aside on names, because the Midnight codebase is precise about this and it matters for what's coming.
   <mark name="anatomy-naming" figure="none"/>
-  zSwap, lowercase z, is the whole system - the shielded, private token machinery. A zSwap Offer is one
+  zSwap, is the whole system - the shielded, private token machinery. A zSwap Offer is one
   thing inside it: that concrete bundle of inputs, outputs, and the deltas, which encodes the difference
   between the two.
   <mark name="offer-anatomy-figure" figure="offer-anatomy-figure"/>
@@ -195,11 +195,6 @@
   And here's the twist. Once the sum is zero and a proof certifies the bundle balances, those public labels have
   nothing left to say. They peel off, and the boxes load into a single transaction. The deltas were public only
   until the trade was proven balanced - then you don't care about them any more, and they're dropped.
-  <mark name="anatomy-onecoin" figure="onecoin-figure"/>
-  A note if you're coming from another UTXO chain like Cardano: in Midnight a coin holds exactly one token. Where a
-  Cardano UTXO can carry ada plus a basket of tokens, here a coin is one asset, one amount. A ROCK coin holds only ROCK,
-  with no NIGHT alongside; even NIGHT lives in its own coins. So moving several tokens means several coins, and
-  each coin is its own input or output.
 </script>
 
 
@@ -270,7 +265,7 @@
   you which offers were *created*. But Midnight tells you which offers are *dead* - because
   the moment any coin an offer was built from gets spent, that offer can never be filled. And you
   can tell exactly which ones died, because the spend publishes a tag that each offer file
-  also carries - more on that tag at the end of this act. So you index Celestia for the new offers, and you index Midnight for the spends that
+  also carries - more on that tag shortly. So you index Celestia for the new offers, and you index Midnight for the spends that
   invalidate them.
   A framework called EffectStream lets a single program watch both chains as one unified stream,
   which is what makes this tractable.
@@ -315,9 +310,44 @@
   the very end. Hold that thought; first, let's finish the design.
 </script>
 
-<script type="text/narration" data-chapter-id="coin-copies" data-chapter-title="One coin, many offer files" data-chapter-parent="p-celestia">
+<script type="text/narration" data-chapter-id="p-terminology" data-chapter-title="Basic terminology">
+  <mark name="p-terminology" figure="none"/>
+  Before we go deeper, a few basic terms the rest of this leans on.
+</script>
+
+<script type="text/narration" data-chapter-id="onecoin" data-chapter-title="A coin holds one token" data-chapter-parent="p-terminology">
+  <mark name="onecoin-heading" figure="none"/>
+  The first one is small, but it changes how everything gets counted.
+  <mark name="anatomy-onecoin" figure="onecoin-figure"/>
+  A note if you're coming from another UTXO chain like Cardano: in Midnight, tokens aren't bundled into one UTXO -
+  we simply call the contents a Coin. There's no map of asset to quantity inside it, the way a Cardano UTXO carries
+  ada plus a basket of native tokens. So a ROCK
+  coin holds only ROCK; even NIGHT lives in its own coins. Moving several tokens means several coins, each its own
+  input or output.
+</script>
+
+<script type="text/narration" data-chapter-id="txmodel" data-chapter-title="Inputs and outputs" data-chapter-parent="p-terminology">
+  <mark name="txmodel-heading" figure="none"/>
+  The second: what a transaction actually is underneath.
+  <mark name="perf-model" figure="txmodel-figure"/>
+  A Midnight transaction is just a set of inputs and outputs. A ZswapOffer is a proven bundle of some of them. An
+  offer can be one-sided - several inputs and no outputs, or outputs and no inputs - so what you might call a lone
+  input or output is really just a one-sided offer.
+</script>
+
+<script type="text/narration" data-chapter-id="privateutxo" data-chapter-title="What do you call a private UTXO?" data-chapter-parent="p-terminology">
+  <mark name="privateutxo-heading" figure="none"/>
+  Midnight keeps the word UTXO for the public, unshielded side of the ledger - so the private side needs its own
+  vocabulary.
+  <mark name="privateutxo-body" figure="privateutxo-figure"/>
+  A private coin never appears directly. It shows up as two one-way hashes: a CoinCommitment, which appears in an
+  output - the coin hashed with your public key; and a nullifier, which appears in an input - the same coin hashed
+  with your secret key.
+</script>
+
+<script type="text/narration" data-chapter-id="coin-copies" data-chapter-title="One coin, many offer files" data-chapter-parent="p-terminology">
   <mark name="coin-copies-heading" figure="none"/>
-  Before we zoom out, one last building block - the coin underneath the file.
+  And one last building block - the coin underneath the file.
   <mark name="anatomy-copies" figure="offer-copies-figure"/>
   It starts with an intuition you already have. An offer file is just text, so nothing stops you posting
   copies of it everywhere at once - a chat, Celestia, a web page. They're all the same offer.
@@ -341,105 +371,103 @@
   same tag on both - meaning the same user is behind them. The coins stay sealed; the connection doesn't.
 </script>
 
-<script type="text/narration" data-chapter-id="p-performance" data-chapter-title="Performance">
-  <mark name="p-performance" figure="none"/>
-  Before we build anything bigger, it is worth knowing what a swap actually costs to make - because that one
-  number quietly shapes every design choice ahead.
+<script type="text/narration" data-chapter-id="p-subtleties" data-chapter-title="A few zSwap subtleties">
+  <mark name="p-subtleties" figure="none"/>
+  Before we get to what you can build, a few subtleties about how zSwap works underneath - small things, but each
+  one quietly shapes the design choices ahead.
 </script>
 
-<script type="text/narration" data-chapter-id="performance" data-chapter-title="How expensive is a proof?" data-chapter-parent="p-performance">
-  <mark name="performance-heading" figure="none"/>
-  An offer file is mostly proof, and generating that proof is where the cost lives.
-  <mark name="perf-k" figure="kcurve-figure"/>
-  We measure how expensive it will be to generate a proof for a circuit with a single value we call k. The
-  intuition is that a circuit's proof time grows exponentially with its k - look at the curve: almost flat for
-  small k, then it explodes.
-  <mark name="perf-circuits" figure="zswapcost-figure" step="in1"/>
-  A zSwap offer is built from two main circuits, and the cost is really just a count of UTXOs. Every UTXO you
-  spend needs one spend circuit - here, two UTXOs go in, so two spends.
-  <mark name="zswapcost-figure" step="output"/>
-  They feed into one zSwap, and out comes a single output UTXO - one output circuit. Each coin carries just one
-  token, so the cost is simply a count of the coins that move: here two spends plus one output. Hashing dominates
-  all of it, and today that hash is SHA-256.
-  <mark name="perf-model" figure="txmodel-figure"/>
-  Why is the cost a count of inputs and outputs? Because underneath, a Midnight transaction is just a set of
-  inputs and outputs. A ZswapOffer is a proven bundle of some of them. An offer can be one-sided - several inputs
-  and no outputs, or outputs and no inputs - so what you might call a lone input or output is really just a
-  one-sided offer.
-  <mark name="perf-combine" figure="txmodel-figure"/>
-  Two things fall out. An offer file costs exactly the inputs and outputs it encodes. And combining already-proven
-  offers - even a one-sided one - is nearly free, because the expensive proving already happened when each piece
-  was made.
-  <mark name="perf-arbitrage" figure="none"/>
-  That is what makes arbitrage cheap. A bot can combine offers other people already proved, leaving just a
-  surplus, and take it with a tiny one-sided offer of its own - a single output to itself, no inputs - so one
-  output proof is the whole bill, however many offers it matched.
-  <mark name="perf-time" figure="none"/>
-  How long is that in real seconds? It depends entirely on where the proof runs - from a fast native prover down
-  to a phone browser.
-  <mark name="perf-example" figure="none"/>
-  Take a whole swap. Its cost is just the circuit count times the per-proof time - one spend per input UTXO, one
-  output per output UTXO. Drag the sliders to pile on more of each, and watch the wall-clock cost climb: even a
-  small swap runs to tens of seconds in a browser.
+<script type="text/narration" data-chapter-id="merge" data-chapter-title="Offers merge into one" data-chapter-parent="p-subtleties">
+  <mark name="merge-heading" figure="none"/>
+  The first: we keep saying offers, plural, but the chain settles one.
+  <mark name="merge-body" figure="none"/>
+  Here's the surprising part: a Midnight transaction isn't a list of offers. Offers merge - cheaply - into one, so
+  a transaction carries at most a single offer, built by merging any and all of them together. Merging is simply
+  the union of the offers' fields, with any token that nets to zero dropping out.
+  <mark name="merge-disjoint" figure="none"/>
+  There's one rule - the pieces must be disjoint. Two offers merge only if they share no input, no output, no
+  transient, which is just to say the same coin can't be spent twice in one transaction.
+  <mark name="merge-free" figure="none"/>
+  Importantly, merging proves nothing new. Each piece was already proven, so a merge is just set-union plus
+  addition - no proof regenerated.
+  <mark name="merge-onetx" figure="txstruct-figure"/>
+  So the transaction we drew as three lassoed offers? That's really one merged offer the moment it's a
+  transaction.
 </script>
 
-<script type="text/narration" data-chapter-id="latency" data-chapter-title="Latency: from intent to settlement" data-chapter-parent="p-performance">
-  <mark name="latency-heading" figure="none"/>
-  How long does a swap take to go from "I want to trade" to settled on-chain? If blocks aren't congested, it comes
-  down to three main steps.
-  <mark name="latency-steps" figure="none"/>
-  First, generating the zSwap proof - the part we just measured, and by far the most variable: under a second on
-  a native prover, tens of seconds in a phone browser. Second, landing the offer file on Celestia, the
-  data-availability layer, which produces a block about every three seconds. And third, settling the matched
-  transaction on Midnight, which targets six-second blocks.
-  <mark name="latency-figure" figure="latency-figure"/>
-  Picture it as a bar, and drag the slider from worst case to best. Posting your own offer stacks proof time, a
-  Celestia block, and a Midnight block. At worst you just miss each block and wait a full one - about ten seconds
-  with a fast prover; on average you catch each about halfway, so roughly half that; and at best you catch both
-  immediately and it is essentially just the proof. Matching someone else's offer skips Celestia, since you're not
-  broadcasting.
-  <mark name="latency-takeaway" figure="none"/>
-  Two of those are fixed and small - under ten seconds of block latency at worst, and on average about half that,
-  since you usually catch a block partway through.
+<script type="text/narration" data-chapter-id="commitment-tree" data-chapter-title="The commitment tree" data-chapter-parent="p-subtleties">
+  <mark name="commitment-tree-heading" figure="none"/>
+  We've leaned on a phrase a few times - ownership is proven in zero-knowledge - without ever saying how. Let's
+  build it from the coin up.
+  <mark name="commitment-tree-coin" figure="coin-fingerprints-figure"/>
+  A coin is just data - a value, a token type, a unique nonce - owned by a keypair. From it the chain derives two
+  one-way fingerprints, and which key you use decides which. Hash the coin with your public key and you get its
+  commitment, posted when the coin is created - this coin exists. Hash it with your secret key and you get its
+  nullifier, posted when it's spent - this coin is gone. Different keys, so no one can link the two; and only you,
+  holding the secret key, can mint the nullifier that spends it.
+  <mark name="commitment-tree-sets" figure="none"/>
+  The ledger just keeps two ever-growing sets: every commitment ever made, and every nullifier ever revealed. A
+  coin is unspent when its commitment is there and its nullifier isn't - but since nobody can pair a commitment
+  with its nullifier, nobody can list the unspent coins at all. That uncomputable gap is the whole privacy of the
+  thing.
+  <mark name="commitment-tree-tree" figure="commitment-merkle-figure"/>
+  So how do you spend without revealing which coin is yours? You prove it belongs. Every commitment is a leaf of
+  one giant append-only Merkle tree - the commitment tree - whose root is a single hash for every coin ever made.
+  To spend, your input carries a zero-knowledge proof that your coin's commitment sits somewhere under that root,
+  plus the coin's nullifier, and nothing more. The chain learns the root and the nullifier, never which leaf.
+  That's what proving ownership in zero-knowledge really is - and a double-spend is caught for free, because the
+  nullifier is already in the set.
+  <mark name="commitment-tree-block" figure="none"/>
+  One last detail, the one chaining hinges on: the tree only grows when a block is processed. A coin you made a
+  moment ago isn't a leaf yet, so it has no root an input could prove against.
 </script>
 
-<script type="text/narration" data-chapter-id="throughput" data-chapter-title="Throughput: offers per second" data-chapter-parent="p-performance">
-  <mark name="throughput-heading" figure="none"/>
-  And how many swaps can the system carry? Two limits stack up - how much fits in a block, and how much fits in a
-  single transaction. Take the block first. Each layer has a fixed budget, and an offer is about ten kilobytes
-  on-chain, so divide one by the other and you get a ceiling.
-  <mark name="throughput-table" figure="none"/>
-  Celestia, with thirty-two mebibyte blocks every three seconds, can carry on the order of eleven hundred offer
-  files a second. Midnight, with two-megabyte blocks every six seconds, settles only about thirty.
-  <mark name="throughput-future" figure="none"/>
-  And Celestia's ceiling is only rising - its Fibre upgrade is targeting a terabit per second of blockspace,
-  orders of magnitude beyond today.
-  <mark name="throughput-roles" figure="none"/>
-  Both ceilings matter, in different ways. Celestia bounds how many offers get posted - including the many that
-  expire without ever settling, which Midnight never sees. Midnight bounds how many get filled, and it carries more
-  per fill: the matched offer, the settlement, and any offers routed outside Celestia. So neither is simply the
-  bottleneck; it depends on the workload.
-  <mark name="throughput-caveats" figure="none"/>
-  Two caveats keep these per-block numbers honest: the bandwidth is shared with everyone else on the chain, and
-  the counts ignore the overhead every block carries - so the real number is always somewhat lower.
-  <mark name="throughput-pertx" figure="none"/>
-  That's the per-block picture. There's a tighter limit per transaction, where the layers diverge sharply: a
-  Celestia post could pack hundreds of offers, but a single Midnight transaction settles only about eighteen
-  zSwaps. So whenever swaps must settle atomically, in one transaction, the Midnight cap is the bottleneck.
+<script type="text/narration" data-chapter-id="transients" data-chapter-title="Chaining needs a transient" data-chapter-parent="p-subtleties">
+  <mark name="chaining-cost-heading" figure="none"/>
+  One last subtlety, and it's the catch behind a feature we're about to use - chaining: spending a coin in the
+  same transaction that creates it.
+  <mark name="chaining-cost-merge" figure="none"/>
+  You'd think merge does it. It doesn't. Merge is a disjoint union - it refuses offers that share a coin, and it
+  has no idea that one offer's output is the coin another's input wants to spend. Try it and you get an output and
+  an input that can never validate.
+  <mark name="chaining-cost-why" figure="none"/>
+  The reason builds on the commitment tree we just saw. An input proves its coin is a leaf of that tree, against a
+  published root - but a coin you just made isn't a leaf yet, not until a block folds it in. So a normal input has
+  no root to point at.
+  <mark name="chaining-cost-transient" figure="transient-tree-figure"/>
+  The fix is a transient: an output and an input for the same coin, fused into one part, where the input proves
+  membership against a throwaway single-leaf tree holding just that one commitment. That's the third kind of part
+  in an offer we kept mentioning and never explained.
+  <mark name="chaining-cost-asymmetry" figure="none"/>
+  And the price is lopsided. The output proves nothing about a tree, so its proof carries over for free - even if
+  it was someone else's. The input has to be proven against that throwaway root: a fresh proof, same circuit, same
+  cost as any spend. So a transient is about one spend - cheaper than creating and then separately spending the
+  coin, but not free like a merge. And it has to be planned at proving time; you can't chain two already-proven,
+  independent offers after the fact.
 </script>
 
-<script type="text/narration" data-chapter-id="cost" data-chapter-title="Cost: per-offer fees" data-chapter-parent="p-performance">
-  <mark name="cost-heading" figure="none"/>
-  Remember, an offer file doesn't have to touch Celestia at all - you can pass it peer to peer, or through some
-  other channel. Do that, and as long as you already hold the NIGHT that makes your DUST, posting costs essentially
-  nothing. The fees here are the public path: posting to Celestia, then settling on Midnight, each in its chain's
-  own token.
-  <mark name="cost-table" figure="none"/>
-  On Celestia, posting the ten-kilobyte offer costs about six ten-thousandths of a TIA - roughly two
-  ten-thousandths of a dollar at today's price, so a single dollar buys you a few thousand posts. On Midnight,
-  settling the matched swap runs about zero point six five DUST, which is generated from NIGHT rather than bought.
-  <mark name="cost-caveat" figure="none"/>
-  Both fees float with network congestion, so treat them as ballpark, not fixed.
+<script type="text/narration" data-chapter-id="p-chaining" data-chapter-title="Chaining offers">
+  <mark name="p-chaining" figure="none"/>
+  Here's a capability a lot of projects are quietly waiting for - and it turns out zSwap already has it.
+</script>
+
+<script type="text/narration" data-chapter-id="chaining" data-chapter-title="Spend a coin the moment you make it" data-chapter-parent="p-chaining">
+  <mark name="chaining-heading" figure="none"/>
+  Merging combines offers that already stand on their own. But often you want the opposite - one offer's output is
+  the very coin another offer's input spends, both in the same transaction.
+  <mark name="chaining-lead" figure="none"/>
+  zSwap supports that directly. You create a coin and spend it inside one transaction, so the coin in the middle is
+  never a free-standing, settled coin of its own - it exists only within the transaction, created and consumed
+  atomically, all or nothing.
+  <mark name="chaining-uses" figure="none"/>
+  And that's what a surprising number of projects are really after. A router swapping A to B to C in one atomic
+  transaction, the middle coin created and consumed in flight. Receiving a coin and immediately re-spending it -
+  splitting it, forwarding it - with no round-trip to the chain. Or stitching several dependent steps into one
+  all-or-nothing transaction.
+  <mark name="chaining-cost" figure="none"/>
+  And it's cheap. Instead of settling the middle coin and spending it later - two proofs and two settlements - you
+  get one transaction that reuses the creating proof and settles once. Not quite free, and it has to be planned up
+  front, but those mechanics are a subtlety we kept to one side.
 </script>
 
 <script type="text/narration" data-chapter-id="p-spectrum" data-chapter-title="The spectrum">
@@ -1176,6 +1204,102 @@
   zone *should* be is a bet - but now, at least, it's a bet you make with four and a half years of
   someone else's data in hand. Thanks for following along.
 </script>
+
+<script type="text/narration" data-chapter-id="p-performance" data-chapter-title="Performance">
+  <mark name="p-performance" figure="none"/>
+  An appendix, for the curious. None of this is needed to use offer files - but if you want to know what a swap
+  actually costs to make, the number that quietly shaped every design choice in this piece, here it is.
+</script>
+
+<script type="text/narration" data-chapter-id="performance" data-chapter-title="How expensive is a proof?" data-chapter-parent="p-performance">
+  <mark name="performance-heading" figure="none"/>
+  An offer file is mostly proof, and generating that proof is where the cost lives.
+  <mark name="perf-k" figure="kcurve-figure"/>
+  We measure how expensive it will be to generate a proof for a circuit with a single value we call k. The
+  intuition is that a circuit's proof time grows exponentially with its k - look at the curve: almost flat for
+  small k, then it explodes.
+  <mark name="perf-circuits" figure="zswapcost-figure" step="in1"/>
+  A zSwap offer is built from two main circuits, and the cost is really just a count of UTXOs. Every UTXO you
+  spend needs one spend circuit - here, two UTXOs go in, so two spends.
+  <mark name="zswapcost-figure" step="output"/>
+  They feed into one zSwap, and out comes a single output UTXO - one output circuit. Each coin carries just one
+  token, so the cost is simply a count of the coins that move: here two spends plus one output. Hashing dominates
+  all of it, and today that hash is SHA-256.
+  <mark name="perf-combine" figure="none"/>
+  Two things fall out. An offer file costs exactly the inputs and outputs it encodes. And combining already-proven
+  offers - even a one-sided one - is nearly free, because the expensive proving already happened when each piece
+  was made.
+  <mark name="perf-arbitrage" figure="none"/>
+  That is what makes arbitrage cheap. A bot can combine offers other people already proved, leaving just a
+  surplus, and take it with a tiny one-sided offer of its own - a single output to itself, no inputs - so one
+  output proof is the whole bill, however many offers it matched.
+  <mark name="perf-time" figure="none"/>
+  How long is that in real seconds? It depends entirely on where the proof runs - from a fast native prover down
+  to a phone browser.
+  <mark name="perf-example" figure="none"/>
+  Take a whole swap. Its cost is just the circuit count times the per-proof time - one spend per input UTXO, one
+  output per output UTXO. Drag the sliders to pile on more of each, and watch the wall-clock cost climb: even a
+  small swap runs to tens of seconds in a browser.
+</script>
+
+<script type="text/narration" data-chapter-id="latency" data-chapter-title="Latency: from intent to settlement" data-chapter-parent="p-performance">
+  <mark name="latency-heading" figure="none"/>
+  How long does a swap take to go from "I want to trade" to settled on-chain? If blocks aren't congested, it comes
+  down to three main steps.
+  <mark name="latency-steps" figure="none"/>
+  First, generating the zSwap proof - the part we just measured, and by far the most variable: under a second on
+  a native prover, tens of seconds in a phone browser. Second, landing the offer file on Celestia, the
+  data-availability layer, which produces a block about every three seconds. And third, settling the matched
+  transaction on Midnight, which targets six-second blocks.
+  <mark name="latency-figure" figure="latency-figure"/>
+  Picture it as a bar, and drag the slider from worst case to best. Posting your own offer stacks proof time, a
+  Celestia block, and a Midnight block. At worst you just miss each block and wait a full one - about ten seconds
+  with a fast prover; on average you catch each about halfway, so roughly half that; and at best you catch both
+  immediately and it is essentially just the proof. Matching someone else's offer skips Celestia, since you're not
+  broadcasting.
+  <mark name="latency-takeaway" figure="none"/>
+  Two of those are fixed and small - under ten seconds of block latency at worst, and on average about half that,
+  since you usually catch a block partway through.
+</script>
+
+<script type="text/narration" data-chapter-id="throughput" data-chapter-title="Throughput: offers per second" data-chapter-parent="p-performance">
+  <mark name="throughput-heading" figure="none"/>
+  And how many swaps can the system carry? Two limits stack up - how much fits in a block, and how much fits in a
+  single transaction. Take the block first. Each layer has a fixed budget, and an offer is about ten kilobytes
+  on-chain, so divide one by the other and you get a ceiling.
+  <mark name="throughput-table" figure="none"/>
+  Celestia, with thirty-two mebibyte blocks every three seconds, can carry on the order of eleven hundred offer
+  files a second. Midnight, with two-megabyte blocks every six seconds, settles only about thirty.
+  <mark name="throughput-future" figure="none"/>
+  And Celestia's ceiling is only rising - its Fibre upgrade is targeting a terabit per second of blockspace,
+  orders of magnitude beyond today.
+  <mark name="throughput-roles" figure="none"/>
+  Both ceilings matter, in different ways. Celestia bounds how many offers get posted - including the many that
+  expire without ever settling, which Midnight never sees. Midnight bounds how many get filled, and it carries more
+  per fill: the matched offer, the settlement, and any offers routed outside Celestia. So neither is simply the
+  bottleneck; it depends on the workload.
+  <mark name="throughput-caveats" figure="none"/>
+  Two caveats keep these per-block numbers honest: the bandwidth is shared with everyone else on the chain, and
+  the counts ignore the overhead every block carries - so the real number is always somewhat lower.
+  <mark name="throughput-pertx" figure="none"/>
+  That's the per-block picture. There's a tighter limit per transaction, where the layers diverge sharply: a
+  Celestia post could pack hundreds of offers, but a single Midnight transaction settles only about eighteen
+  zSwaps. So whenever swaps must settle atomically, in one transaction, the Midnight cap is the bottleneck.
+</script>
+
+<script type="text/narration" data-chapter-id="cost" data-chapter-title="Cost: per-offer fees" data-chapter-parent="p-performance">
+  <mark name="cost-heading" figure="none"/>
+  Remember, an offer file doesn't have to touch Celestia at all - you can pass it peer to peer, or through some
+  other channel. Do that, and as long as you already hold the NIGHT that makes your DUST, posting costs essentially
+  nothing. The fees here are the public path: posting to Celestia, then settling on Midnight, each in its chain's
+  own token.
+  <mark name="cost-table" figure="none"/>
+  On Celestia, posting the ten-kilobyte offer costs about six ten-thousandths of a TIA - roughly two
+  ten-thousandths of a dollar at today's price, so a single dollar buys you a few thousand posts. On Midnight,
+  settling the matched swap runs about zero point six five DUST, which is generated from NIGHT rather than bought.
+  <mark name="cost-caveat" figure="none"/>
+  Both fees float with network congestion, so treat them as ballpark, not fixed.
+</script>
 </head>
 <body>
   <article data-narration-src="/generated/offer-files/manifest.json"
@@ -1358,7 +1482,7 @@
       <h2 id="anatomy-heading">zSwap vs. a <code>ZswapOffer</code></h2>
       <p id="anatomy-naming">
         A quick naming aside, because the Midnight codebase is precise about it and the
-        distinction matters here. <strong>zSwap</strong> (lowercase <em>z</em>) is the
+        distinction matters here. <strong>zSwap</strong> is the
         whole <em>system</em> - the shielded, private token machinery, UTXO-like but
         backed by commitment and nullifier sets you can never directly enumerate. A
         <strong><code>ZswapOffer</code></strong> is one concrete structure <em>inside</em>
@@ -1472,69 +1596,10 @@
         boxes load into one transaction. The intuition is worth holding onto: deltas have to
         be public so you know how to balance the transaction, but once you have a proof that
         it <em>is</em> balanced, you don't care about the deltas any more - and they're
-        dropped from the bundle.
+        dropped from the bundle. (How the chain can add up values it cannot see - the
+        commitment trick that also makes <a href="#merge-heading">merging proven offers</a>
+        cheap - is a technical aside there, for the curious.)
       </p>
-
-      <p id="anatomy-onecoin">
-        A note for those coming from other UTXO chains like Cardano: in Midnight, a <strong>coin holds exactly one
-        token</strong>. Where a single Cardano UTXO can carry ada <em>plus</em> a whole basket of native tokens, a
-        Midnight coin is one asset and one amount, full stop. A coin of <code>ROCK</code> holds only ROCK, with no
-        <code>NIGHT</code> riding alongside it; even NIGHT lives in its own coins. So a swap that moves several
-        tokens needs a separate coin for each, and every coin spent or created is its own input or output.
-      </p>
-
-      <figure id="onecoin-figure">
-        <svg viewBox="0 0 600 210" role="img" aria-label="Cardano versus Midnight coins. A Cardano UTXO bundles ada plus several native tokens in one box. A Midnight coin holds exactly one token, so the same holdings are three separate coins - one ROCK, one GOLD, one NIGHT.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12" fill="#24292f">
-            <text x="20" y="26" font-weight="700" fill="#4b3b8f">Cardano</text>
-            <text x="20" y="42" font-size="10" fill="#656c74">one UTXO, many assets</text>
-            <rect x="20" y="54" width="244" height="124" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="142" y="72" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
-            <text x="142" y="96" text-anchor="middle" font-weight="600">💰 10 ADA</text>
-            <text x="142" y="118" text-anchor="middle" font-weight="600">🪨 5 ROCK</text>
-            <text x="142" y="140" text-anchor="middle" font-weight="600">🪙 3 GOLD</text>
-            <text x="142" y="164" text-anchor="middle" font-size="10" fill="#656c74">ada + a basket of tokens</text>
-            <line x1="300" y1="50" x2="300" y2="178" stroke="#dfe2e7" stroke-dasharray="3 3"/>
-            <rect x="289" y="106" width="22" height="18" fill="#ffffff"/>
-            <text x="300" y="119" text-anchor="middle" font-size="11" fill="#9aa0a8">vs</text>
-            <text x="336" y="26" font-weight="700" fill="#4b3b8f">Midnight</text>
-            <text x="336" y="42" font-size="10" fill="#656c74">one token per coin</text>
-            <rect x="336" y="54" width="244" height="36" rx="8" fill="#fff" stroke="#cfd3dc"/>
-            <text x="458" y="77" text-anchor="middle" font-weight="600">🪨 5 ROCK</text>
-            <rect x="336" y="98" width="244" height="36" rx="8" fill="#fff" stroke="#cfd3dc"/>
-            <text x="458" y="121" text-anchor="middle" font-weight="600">🪙 3 GOLD</text>
-            <rect x="336" y="142" width="244" height="36" rx="8" fill="#fff" stroke="#cfd3dc"/>
-            <text x="458" y="165" text-anchor="middle" font-weight="600">🌙 10 NIGHT</text>
-          </g>
-        </svg>
-        <figcaption>
-          Same holdings, two models. A <strong>Cardano</strong> UTXO bundles ada and a basket of native tokens in
-          one box. A <strong>Midnight</strong> coin holds exactly <em>one</em> token - even NIGHT - so the same
-          wallet is three separate coins. A swap that moves several tokens therefore spends several coins.
-        </figcaption>
-      </figure>
-
-      <details id="anatomy-aside" class="aside">
-        <summary>Technical aside - how a value can stay hidden yet still be checkable (most readers can skip this)</summary>
-        <p>
-          The commitments that hide each coin's value are a form of
-          <strong>semi-homomorphic encryption</strong>: you can't read the hidden value,
-          but you <em>can</em> add two commitments together and get a valid commitment to
-          the sum. That is the whole reason the chain can confirm an offer balances -
-          add up the committed inputs, subtract the outputs and the public
-          <code>deltas</code>, and check that the result cancels to zero - without
-          ever seeing a single amount.
-        </p>
-        <p>
-          <strong>Pedersen commitments</strong> are one common implementation of this
-          (typically over an elliptic curve, as Midnight uses): a value becomes a curve
-          point, blinded by a random factor so it reveals nothing, yet two such points
-          still add. It's worth flagging because that additive structure is exactly what
-          the <a href="#solution-heading">L2's recursive proof</a> later leans on - it
-          lets the prover fold and aggregate these commitments across every swap, rather
-          than re-deriving balances from scratch.
-        </p>
-      </details>
     </section>
 
 
@@ -1725,7 +1790,7 @@
           you which are <em>dead</em>: the instant any coin an offer was built from is
           spent, that offer can never be filled. The match is mechanical: a spend
           publishes a <a href="#anatomy-nullifier">tag</a> that the offer file also
-          carries - we unpack it at the end of this act. So you index Celestia for new offers
+          carries - we unpack it shortly. So you index Celestia for new offers
           and Midnight for the spends that invalidate them. The reference build uses
           <a href="https://github.com/effectstream/effectstream"><strong>EffectStream</strong></a>,
           a framework that lets one program consume both chains as a single ordered stream
@@ -1895,272 +1960,54 @@
       </p>
     </section>
 
+    <div class="section-divider-labeled" id="p-terminology">Basic terminology</div>
+
     <section>
-      <h2 id="coin-copies-heading">One coin, many offer files</h2>
-      <p id="anatomy-copies">
-        It starts with an intuition you already have: an offer file is <em>just
-        text</em>, so nothing stops you posting copies of it in many places at once -
-        a chat, Celestia, a web page. They are all the same offer.
+      <h2 id="onecoin-heading">A coin holds exactly one token</h2>
+      <p id="anatomy-onecoin">
+        A note for those coming from other UTXO chains like Cardano: in Midnight, tokens are <strong>not</strong>
+        bundled together into a single UTXO. We simply call the contents a <code>Coin</code>. There is no map of
+        asset&nbsp;&rarr;&nbsp;quantity inside it, the way a single Cardano UTXO carries ada <em>plus</em> a whole
+        basket of native tokens. So a <code>Coin</code> of <code>ROCK</code> holds only ROCK, with no
+        <code>NIGHT</code> riding alongside it; even NIGHT lives in its own coins. A swap that moves several tokens
+        therefore spends a separate coin for each, and every coin spent or created is its own input or output.
       </p>
 
-      <figure id="offer-copies-figure">
-        <svg class="oc-static" viewBox="0 0 520 150" role="img" aria-label="One offer file posted as copies to three places at once: a chat, Celestia, and a web page. They are all the same offer.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
-            <rect x="14" y="50" width="150" height="44" rx="8" fill="#fff" stroke="#9a82d8"/>
-            <text x="89" y="69" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1…</text>
-            <text x="89" y="86" text-anchor="middle" font-size="10" fill="#555c63">the offer file</text>
-            <line x1="164" y1="62" x2="216" y2="30" stroke="#9aa0a8"/>
-            <line x1="164" y1="72" x2="216" y2="72" stroke="#9aa0a8"/>
-            <line x1="164" y1="82" x2="216" y2="114" stroke="#9aa0a8"/>
-            <g font-size="10">
-              <rect x="220" y="12" width="286" height="34" rx="7" fill="#fafbfc" stroke="#d2d2dc"/>
-              <text x="232" y="33">💬 a chat &middot; <tspan font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1…</tspan> (copy)</text>
-              <rect x="220" y="55" width="286" height="34" rx="7" fill="#fafbfc" stroke="#d2d2dc"/>
-              <text x="232" y="76">🟪 Celestia &middot; <tspan font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1…</tspan> (copy)</text>
-              <rect x="220" y="98" width="286" height="34" rx="7" fill="#fafbfc" stroke="#d2d2dc"/>
-              <text x="232" y="119">🌐 a web page &middot; <tspan font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1…</tspan> (copy)</text>
-            </g>
+      <figure id="onecoin-figure">
+        <svg viewBox="0 0 600 210" role="img" aria-label="Cardano versus Midnight coins. A Cardano UTXO bundles ada plus several native tokens in one box. A Midnight coin holds exactly one token, so the same holdings are three separate coins - one ROCK, one GOLD, one NIGHT.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12" fill="#24292f">
+            <text x="20" y="26" font-weight="700" fill="#4b3b8f">Cardano</text>
+            <text x="20" y="42" font-size="10" fill="#656c74">one UTXO, many assets</text>
+            <rect x="20" y="54" width="244" height="124" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="142" y="72" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="142" y="96" text-anchor="middle" font-weight="600">💰 10 ADA</text>
+            <text x="142" y="118" text-anchor="middle" font-weight="600">🪨 5 ROCK</text>
+            <text x="142" y="140" text-anchor="middle" font-weight="600">🪙 3 GOLD</text>
+            <text x="142" y="164" text-anchor="middle" font-size="10" fill="#656c74">ada + a basket of tokens</text>
+            <line x1="300" y1="50" x2="300" y2="178" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <rect x="289" y="106" width="22" height="18" fill="#ffffff"/>
+            <text x="300" y="119" text-anchor="middle" font-size="11" fill="#9aa0a8">vs</text>
+            <text x="336" y="26" font-weight="700" fill="#4b3b8f">Midnight</text>
+            <text x="336" y="42" font-size="10" fill="#656c74">a Coin is just one token</text>
+            <rect x="336" y="54" width="244" height="36" rx="8" fill="#fff" stroke="#cfd3dc"/>
+            <text x="458" y="77" text-anchor="middle" font-weight="600">🪨 5 ROCK</text>
+            <rect x="336" y="98" width="244" height="36" rx="8" fill="#fff" stroke="#cfd3dc"/>
+            <text x="458" y="121" text-anchor="middle" font-weight="600">🪙 3 GOLD</text>
+            <rect x="336" y="142" width="244" height="36" rx="8" fill="#fff" stroke="#cfd3dc"/>
+            <text x="458" y="165" text-anchor="middle" font-weight="600">🌙 10 NIGHT</text>
           </g>
         </svg>
         <figcaption>
-          An offer file is just text, so copies of it can live everywhere at once - in
-          a chat, on Celestia, on a web page. They are all <em>the same offer</em>.
+          Same holdings, two models. A <strong>Cardano</strong> UTXO bundles ada and a basket of native tokens in
+          one box. A <strong>Midnight</strong> coin holds exactly <em>one</em> token - even NIGHT - so the same
+          wallet is three separate coins. A swap that moves several tokens therefore spends several coins.
         </figcaption>
       </figure>
-
-      <p id="anatomy-utxo">
-        So which thing actually gets <em>spent</em> in a trade? Not the file - the
-        <strong>coin underneath it</strong>. Loosely, every copy is the same
-        <em>pre-signed spend</em> of one UTXO, and the chain is the only source of
-        truth: the moment that coin is spent on Midnight - by whoever uses any copy,
-        for whatever reason - every copy everywhere transitively stops being spendable.
-        Drive the figure and watch the cascade.
-      </p>
-
-      <figure id="utxo-figure" data-figure-src="utxoSwap">
-        <!-- Enhanced into an interactive lifecycle by client/figures/utxoSwap.ts. -->
-        <svg class="utxo-static" viewBox="0 0 520 160" role="img" aria-label="An offer is built from a coin (a UTXO). Creating and sharing copies is off-chain and free; the only on-chain event is spending the coin, which ends every copy at once.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12">
-            <rect x="10" y="18" width="130" height="52" rx="8" fill="#f3f0fb" stroke="#b9a9e6"/>
-            <text x="75" y="40" text-anchor="middle">maker's coin</text>
-            <text x="75" y="58" text-anchor="middle" font-weight="700">5 🌙 NIGHT · UTXO</text>
-            <text x="150" y="48" font-size="11" fill="#999">backs &rarr;</text>
-            <rect x="208" y="16" width="150" height="24" rx="6" fill="#fff" stroke="#aab" stroke-dasharray="3 3"/>
-            <text x="216" y="32" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="11" fill="#4b3b8f">zswapoffer1… copy</text>
-            <rect x="208" y="46" width="150" height="24" rx="6" fill="#fff" stroke="#aab" stroke-dasharray="3 3"/>
-            <text x="216" y="62" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="11" fill="#4b3b8f">zswapoffer1… copy</text>
-            <rect x="10" y="112" width="190" height="30" rx="15" fill="#e6f5ec" stroke="#5bb87a"/>
-            <text x="105" y="131" text-anchor="middle" fill="#2f7d4d">create &amp; share - free</text>
-            <rect x="216" y="112" width="242" height="30" rx="15" fill="#fdf1e0" stroke="#e0a13a"/>
-            <text x="337" y="131" text-anchor="middle" fill="#9a5b1e">spend the coin - on-chain</text>
-          </g>
-        </svg>
-        <figcaption>
-          An offer is built from one coin - a <strong>UTXO</strong> - and every copy
-          stays live exactly as long as that coin sits unspent. Creating and sharing is
-          off-chain and free; the only on-chain event is <strong>spending the
-          coin</strong>, and one spend cascades through the whole fan-out, ending every
-          copy at once. Drive the lifecycle with the buttons.
-        </figcaption>
-      </figure>
-
-      <p id="anatomy-variants">
-        Now take the same picture one step further. Instead of copies of one offer, mint
-        two <em>different</em> offers from the same coin - the same kind of
-        <code>zswapoffer…</code> files as above, just with different terms: say, the same
-        NFT asking 80 NIGHT in one and 70 in the other. The next figure shows the pair -
-        and the little tags riding with them.
-      </p>
-
-      <figure id="nullifier-share-figure">
-        <svg class="ns2-static" viewBox="0 0 520 150" role="img" aria-label="One coin backs two different offer files - one asking 80 NIGHT, one asking 70 NIGHT. The coin's nullifier, a3f1, rides along in both, so at most one can ever settle: spending the coin kills the other.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
-            <rect x="10" y="28" width="120" height="80" rx="9" fill="#f3f0fb" stroke="#b9a9e6"/>
-            <text x="70" y="48" text-anchor="middle" font-weight="700" fill="#4b3b8f">your coin</text>
-            <text x="70" y="64" text-anchor="middle" font-size="10" fill="#555c63">the NFT · UTXO</text>
-            <rect x="24" y="74" width="92" height="18" rx="9" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="70" y="87" text-anchor="middle"><tspan font-size="8" fill="#555c63">nullifier </tspan><tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#4b3b8f">🔒 a3f1</tspan></text>
-            <line x1="130" y1="52" x2="186" y2="40" stroke="#9aa0a8"/>
-            <line x1="130" y1="84" x2="186" y2="96" stroke="#9aa0a8"/>
-            <g font-size="10">
-              <rect x="190" y="22" width="200" height="36" rx="7" fill="#fff" stroke="#aab"/>
-              <text x="200" y="37" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1qpzry…</text>
-              <text x="200" y="51" fill="#555c63">asking 80 NIGHT</text>
-              <rect x="190" y="78" width="200" height="36" rx="7" fill="#fff" stroke="#aab"/>
-              <text x="200" y="93" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1m4ek3…</text>
-              <text x="200" y="107" fill="#555c63">asking 70 NIGHT - a different offer</text>
-            </g>
-            <g>
-              <rect x="398" y="31" width="92" height="18" rx="9" fill="#efeafb" stroke="#9a82d8"/><text x="444" y="44" text-anchor="middle"><tspan font-size="8" fill="#555c63">nullifier </tspan><tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#4b3b8f">🔒 a3f1</tspan></text>
-              <rect x="398" y="87" width="92" height="18" rx="9" fill="#efeafb" stroke="#9a82d8"/><text x="444" y="100" text-anchor="middle"><tspan font-size="8" fill="#555c63">nullifier </tspan><tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#4b3b8f">🔒 a3f1</tspan></text>
-            </g>
-            <text x="260" y="140" text-anchor="middle" font-size="10" fill="#555c63">the coin's nullifier rides along in every offer built from it - at most one can ever settle</text>
-          </g>
-        </svg>
-        <figcaption>
-          You can go further: <em>different</em> offers from the same coin - here, two
-          prices for the same NFT. Each carries <em>the coin's</em>
-          <strong>nullifier</strong> - the opaque tag we promised earlier. Same coin,
-          same nullifier: they're visibly alternatives, at most one can ever settle, and
-          the first spend of the coin invalidates the other.
-        </figcaption>
-      </figure>
-
-      <p id="anatomy-nullifier">
-        That tag is the <strong>nullifier</strong>: an opaque value, deterministically
-        derived from the backing coin, that each input exposes. It reveals nothing about
-        the coin's contents, but the same coin always produces the same tag, and the tag
-        is published on-chain the moment the coin is spent (it's how the chain blocks
-        double-spends - <a href="#oq1-what">much more on that later</a>). That gives you
-        two things at once: anyone can check an offer is still <strong>live</strong> - if
-        its tag has appeared on-chain, the file is dead - and multiple offers from one
-        coin are <strong>safely mutually exclusive</strong>, the engine behind
-        <a href="#auction-heading">tricks coming up</a>.
-      </p>
-
-      <figure id="nullifier-link-figure">
-        <svg class="nl-static" viewBox="0 0 520 170" role="img" aria-label="The privacy cost of the shared tag: a listing on an NFT marketplace and a bid on an auction site both carry tag a3f1, so an observer can tell the same user is behind both - the coins stay sealed, but the link is public.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
-            <rect x="20" y="16" width="200" height="76" rx="9" fill="#fafbfc" stroke="#d2d2dc"/>
-            <text x="120" y="36" text-anchor="middle" font-weight="700" fill="#24292f">NFT marketplace</text>
-            <rect x="40" y="48" width="160" height="30" rx="7" fill="#fff" stroke="#aab"/>
-            <text x="50" y="67" font-size="10" fill="#555c63">listing · <tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-weight="700" fill="#4b3b8f">tag a3f1</tspan></text>
-            <rect x="300" y="16" width="200" height="76" rx="9" fill="#fafbfc" stroke="#d2d2dc"/>
-            <text x="400" y="36" text-anchor="middle" font-weight="700" fill="#24292f">auction site</text>
-            <rect x="320" y="48" width="160" height="30" rx="7" fill="#fff" stroke="#aab"/>
-            <text x="330" y="67" font-size="10" fill="#555c63">bid · <tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-weight="700" fill="#4b3b8f">tag a3f1</tspan></text>
-            <path d="M120 96 Q260 132 400 96" fill="none" stroke="#b23b3b" stroke-width="1.5" stroke-dasharray="4 3"/>
-            <text x="260" y="146" text-anchor="middle" fill="#b23b3b" font-size="10" font-weight="700">👁 same tag → same user</text>
-          </g>
-        </svg>
-        <figcaption>
-          The honest cost: <strong>linkability</strong>. Two offers on two venues sharing
-          a tag are visibly the same coin - hence, very likely, the same user. The coins
-          and parties stay sealed; the connection doesn't.
-        </figcaption>
-      </figure>
-
-      <p id="anatomy-linkage">
-        That linkability is a real <strong>privacy cost</strong>, and the only one this
-        section adds: post offers to two different venues from one coin and observers can
-        tell the same user is behind both. Spreading activity across separate coins
-        restores the separation - at the price of managing more coins.
-      </p>
-
     </section>
 
-    <div class="section-divider-labeled" id="p-performance">Performance</div>
-
     <section>
-      <h2 id="performance-heading">How expensive is a proof?</h2>
-      <p id="perf-lead">
-        An offer file is mostly proof - we saw it runs to about sixteen thousand characters because the
-        zero-knowledge proofs dominate. So how expensive is it to actually <em>generate</em> one? That cost
-        shapes nearly every design choice ahead, so it is worth pinning down precisely.
-      </p>
-
-      <p id="perf-k">
-        To compare how heavy two circuits are, you only need one number: a circuit's
-        <strong><code>k</code></strong>. The intuition is simple - a
-        circuit's <strong>proof time grows exponentially in <code>k</code></strong>:
-      </p>
-
-      <figure id="kcurve-figure">
-        <svg class="kc-svg" viewBox="0 0 520 290" role="img" aria-label="Proof time grows exponentially with k: a curve that is almost flat for small k and then shoots up steeply as k approaches 16.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif">
-            <line x1="60" y1="18" x2="502" y2="18" stroke="#dfe2e7" stroke-dasharray="3 3"/>
-            <line x1="60" y1="131" x2="502" y2="131" stroke="#dfe2e7" stroke-dasharray="3 3"/>
-            <line x1="60" y1="187.5" x2="502" y2="187.5" stroke="#dfe2e7" stroke-dasharray="3 3"/>
-            <line x1="60" y1="18" x2="60" y2="244" stroke="#9aa0a8"/>
-            <line x1="60" y1="244" x2="502" y2="244" stroke="#9aa0a8"/>
-            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#555c63" text-anchor="middle">
-              <text x="60" y="263">0</text><text x="115.25" y="263">2</text><text x="170.5" y="263">4</text><text x="225.75" y="263">6</text><text x="281" y="263">8</text><text x="336.25" y="263">10</text><text x="391.5" y="263">12</text><text x="446.75" y="263">14</text><text x="502" y="263">16</text>
-            </g>
-            <text x="58" y="12" font-size="10" fill="#555c63">proof time</text>
-            <text x="281" y="284" text-anchor="middle" font-size="10" fill="#555c63">k</text>
-            <path d="M60,244 L87.6,244 L115.3,244 L142.9,243.97 L170.5,243.94 L198.1,243.89 L225.8,243.78 L253.4,243.56 L281,243.12 L308.6,242.23 L336.3,240.47 L363.9,236.94 L391.5,229.9 L419.1,215.75 L446.8,187.5 L474.4,131 L502,18" fill="none" stroke="#24292f" stroke-width="2.25"/>
-          </g>
-        </svg>
-        <figcaption>
-          Proof time is exponential in <code>k</code>: almost flat for small <code>k</code>, then
-          it explodes. So shaving even a step or two off a circuit's <code>k</code> is a large
-          saving - which is exactly the lever the next graph uses.
-        </figcaption>
-      </figure>
-
-      <details id="perf-aside" class="aside">
-        <summary>Technical aside - what <code>k</code> is, a little more precisely (most readers can skip this)</summary>
-        <p>
-          <code>k</code> is the size parameter of a zero-knowledge circuit. Midnight's proofs use
-          a PLONK-style proving system (via <strong>halo2</strong>), in which a circuit is laid
-          out on a grid of <code>2^k</code> rows. A circuit needs some number of rows to express
-          its constraints, and <code>k = ceil(log&#8322;(rows))</code> is the smallest
-          power-of-two grid that fits them - so a circuit using 17,540 rows needs
-          <code>2^15</code> slots, i.e. <code>k=15</code>.
-        </p>
-        <p>
-          Two cautions so the number isn't over-read. First, <code>k</code> is <em>per circuit</em>,
-          not per app: one zSwap offer actually uses three circuits - <code>spend</code>,
-          <code>output</code>, and <code>sign</code> - at <code>k=15</code>, <code>14</code>,
-          and <code>13</code> respectively. Second, <code>k</code> jumps in <em>whole steps</em>:
-          because the grid must be a power of two, shaving rows only lowers <code>k</code> once
-          you cross below the next power-of-two boundary. The takeaway is simply that lower
-          <code>k</code> means cheaper, faster proofs.
-        </p>
-      </details>
-
-      <p id="perf-circuits">
-        A zSwap offer is built from two main circuits, and - since each coin carries exactly one token - the cost
-        is simply a count of the coins it moves:
-      </p>
-      <ul id="perf-circuits-list">
-        <li>The <strong><code>spend</code></strong> circuit (<code>k=15</code>) runs
-          <em>once per UTXO you consume</em>.</li>
-        <li>The <strong><code>output</code></strong> circuit (<code>k=14</code>) runs
-          <em>once per UTXO you create</em>.</li>
-      </ul>
-      <p id="perf-circuits-hash">
-        Hashing dominates the cost of both, and today that hash is <strong>SHA-256</strong>.
-      </p>
-
-      <figure id="zswapcost-figure" data-figure-src="zswapCost">
-        <!-- Enhanced into a stepped flow (2 inputs -> zSwap -> 1 output, with the
-             cost tally) by figures/zswapCost.ts. -->
-        <svg class="zc-static" viewBox="0 0 520 200" role="img" aria-label="Two input UTXOs - one holding 5 NIGHT, the other 4 GOLD, each a single token - each need one spend circuit; they feed into a zSwap and produce one output UTXO of 3 ROCK needing one output circuit. The proving cost is two spends plus one output.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
-            <rect x="8" y="24" width="122" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="69" y="39" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
-            <text x="69" y="55" text-anchor="middle" font-weight="600">🌙 5 NIGHT</text>
-            <text x="69" y="80" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">spend · k=15</text>
-            <rect x="8" y="104" width="122" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="69" y="119" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
-            <text x="69" y="135" text-anchor="middle" font-weight="600">🪙 4 GOLD</text>
-            <text x="69" y="160" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">spend · k=15</text>
-            <line x1="134" y1="44" x2="172" y2="80" stroke="#9aa0a8"/>
-            <line x1="134" y1="124" x2="172" y2="92" stroke="#9aa0a8"/>
-            <rect x="174" y="64" width="92" height="42" rx="9" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="220" y="90" text-anchor="middle" font-weight="800" fill="#5a45a8" font-size="13">zSwap</text>
-            <text x="293" y="90" text-anchor="middle" font-size="16" fill="#9aa0a8">&rarr;</text>
-            <rect x="318" y="65" width="132" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="384" y="80" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
-            <text x="384" y="96" text-anchor="middle" font-weight="600">🪨 3 ROCK</text>
-            <text x="384" y="122" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0969da">output · k=14</text>
-            <text x="260" y="190" text-anchor="middle" font-size="11" font-weight="700">
-              <tspan fill="#24292f" font-family="'Red Hat Mono', ui-monospace, monospace">cost =&nbsp;&nbsp;</tspan><tspan fill="#5a45a8">spend k=15</tspan><tspan fill="#656c74">&nbsp;&nbsp;+&nbsp;&nbsp;</tspan><tspan fill="#5a45a8">spend k=15</tspan><tspan fill="#656c74">&nbsp;&nbsp;+&nbsp;&nbsp;</tspan><tspan fill="#0969da">output k=14</tspan>
-            </text>
-          </g>
-        </svg>
-        <figcaption>
-          A swap's proving cost is just a count of UTXOs. Each coin holds one token, so two input coins
-          (5 NIGHT, 4 GOLD) each need one <strong>spend</strong> circuit (<code>k=15</code>); they feed a zSwap and
-          come out as one output coin (3 ROCK) - one <strong>output</strong> circuit (<code>k=14</code>). So the
-          cost is <strong>2 &times; spend + 1 &times; output</strong>: it scales with how many coins move, in and
-          out.
-        </figcaption>
-      </figure>
-
+      <h2 id="txmodel-heading">A transaction is just inputs and outputs</h2>
       <p id="perf-model">
-        It is worth seeing <em>why</em> the cost is a count of inputs and outputs in the first place.
         Underneath, every Midnight transaction is just a set of <strong>inputs</strong> and
         <strong>outputs</strong>. A <strong>ZswapOffer</strong> is a proven bundle of some of them - some inputs,
         some outputs. An offer needn't be two-sided: it can carry several inputs and <em>no</em> outputs, or
@@ -2207,497 +2054,559 @@
           out). The proving cost is simply the inputs and outputs it contains.
         </figcaption>
       </figure>
-
-      <p id="perf-combine">
-        Two things follow for performance. First, an offer file's cost is exactly the inputs and outputs it
-        encodes - nothing else. Second, and less obvious: <strong>combining</strong> already-proven offers is
-        nearly free. Merge two proven offers - even a one-sided one - and the parts already proven need no new
-        proof; the expensive work happened once, when each piece was created.
-      </p>
-
-      <p id="perf-arbitrage">
-        That asymmetry is what makes <strong>arbitrage</strong> cheap. A bot can scoop up offers other people have
-        already proven and combine ones that nearly cancel, leaving just a surplus in some token. It pockets that
-        surplus with a tiny <strong>one-sided offer</strong> of its own - a single output paying itself, no inputs
-        - so its only proving cost is that one output, no matter how many offers it stitched together.
-      </p>
-
-      <p id="perf-time">
-        So what is a step of <code>k</code> worth in real time? It depends entirely on where the
-        proof runs. These are measured prove times <em>per circuit</em>, by <code>k</code>, from a
-        native server down to a phone browser running WASM:
-      </p>
-
-      <div class="benchmark-wrap" id="bench-prove-circuit" tabindex="0" role="region" aria-label="Prove time per circuit by k, across platforms (scrollable)">
-        <table class="benchmark">
-          <thead>
-            <tr>
-              <th class="platform">Platform</th>
-              <th>k=9</th>
-              <th>k=10</th>
-              <th>k=11</th>
-              <th>k=12</th>
-              <th>k=13</th>
-              <th>k=14</th>
-              <th>k=15</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="group">
-              <th class="platform">Native <span class="meta">2 hosts · native</span></th>
-              <td class="bench-6">131<span class="u">ms</span></td>
-              <td class="bench-7">219<span class="u">ms</span></td>
-              <td class="bench-8">363<span class="u">ms</span></td>
-              <td class="bench-9">692<span class="u">ms</span></td>
-              <td class="bench-10">1.18<span class="u">s</span></td>
-              <td class="bench-12">2.16<span class="u">s</span></td>
-              <td class="bench-13">4.19<span class="u">s</span></td>
-            </tr>
-            <tr>
-              <th class="platform">Apple M4 Max <span class="meta">macOS · 16 cores · native</span></th>
-              <td class="bench-2">26<span class="u">ms</span></td>
-              <td class="bench-3">34<span class="u">ms</span></td>
-              <td class="bench-3">50<span class="u">ms</span></td>
-              <td class="bench-4">77<span class="u">ms</span></td>
-              <td class="bench-6">128<span class="u">ms</span></td>
-              <td class="bench-7">221<span class="u">ms</span></td>
-              <td class="bench-8">425<span class="u">ms</span></td>
-            </tr>
-            <tr>
-              <th class="platform">Cortex-A76 <span class="meta">Linux · 4 cores · native</span></th>
-              <td class="bench-7">236<span class="u">ms</span></td>
-              <td class="bench-8">404<span class="u">ms</span></td>
-              <td class="bench-9">676<span class="u">ms</span></td>
-              <td class="bench-11">1.31<span class="u">s</span></td>
-              <td class="bench-12">2.24<span class="u">s</span></td>
-              <td class="bench-13">4.10<span class="u">s</span></td>
-              <td class="bench-15">7.95<span class="u">s</span></td>
-            </tr>
-            <tr class="group">
-              <th class="platform">Web · Desktop <span class="meta">3 browsers · WASM</span></th>
-              <td class="bench-8">483<span class="u">ms</span></td>
-              <td class="bench-10">858<span class="u">ms</span></td>
-              <td class="bench-11">1.57<span class="u">s</span></td>
-              <td class="bench-12">2.89<span class="u">s</span></td>
-              <td class="bench-14">5.32<span class="u">s</span></td>
-              <td class="bench-15">10.0<span class="u">s</span></td>
-              <td class="bench-16">18.9<span class="u">s</span></td>
-            </tr>
-            <tr>
-              <th class="platform">Chromium <span class="meta">macOS · WASM</span></th>
-              <td class="bench-8">483<span class="u">ms</span></td>
-              <td class="bench-10">858<span class="u">ms</span></td>
-              <td class="bench-11">1.57<span class="u">s</span></td>
-              <td class="bench-12">2.89<span class="u">s</span></td>
-              <td class="bench-14">5.32<span class="u">s</span></td>
-              <td class="bench-15">10.0<span class="u">s</span></td>
-              <td class="bench-16">18.9<span class="u">s</span></td>
-            </tr>
-            <tr>
-              <th class="platform">Firefox <span class="meta">macOS · WASM</span></th>
-              <td class="bench-8">490<span class="u">ms</span></td>
-              <td class="bench-10">877<span class="u">ms</span></td>
-              <td class="bench-11">1.61<span class="u">s</span></td>
-              <td class="bench-12">2.94<span class="u">s</span></td>
-              <td class="bench-14">5.39<span class="u">s</span></td>
-              <td class="bench-15">10.1<span class="u">s</span></td>
-              <td class="bench-16">19.0<span class="u">s</span></td>
-            </tr>
-            <tr>
-              <th class="platform">Safari <span class="meta">macOS · WASM</span></th>
-              <td class="bench-8">466<span class="u">ms</span></td>
-              <td class="bench-10">844<span class="u">ms</span></td>
-              <td class="bench-11">1.54<span class="u">s</span></td>
-              <td class="bench-12">2.83<span class="u">s</span></td>
-              <td class="bench-14">5.17<span class="u">s</span></td>
-              <td class="bench-15">9.71<span class="u">s</span></td>
-              <td class="bench-16">18.3<span class="u">s</span></td>
-            </tr>
-            <tr class="group">
-              <th class="platform">Web · Mobile <span class="meta">3 browsers · WASM</span></th>
-              <td class="bench-9">694<span class="u">ms</span></td>
-              <td class="bench-11">1.33<span class="u">s</span></td>
-              <td class="bench-12">2.51<span class="u">s</span></td>
-              <td class="bench-13">4.53<span class="u">s</span></td>
-              <td class="bench-15">11.7<span class="u">s</span></td>
-              <td class="bench-16">15.6<span class="u">s</span></td>
-              <td class="bench-17">29.6<span class="u">s</span></td>
-            </tr>
-            <tr>
-              <th class="platform">Chromium <span class="meta">iOS · WASM</span></th>
-              <td class="bench-9">717<span class="u">ms</span></td>
-              <td class="bench-11">1.35<span class="u">s</span></td>
-              <td class="bench-12">2.51<span class="u">s</span></td>
-              <td class="bench-13">4.53<span class="u">s</span></td>
-              <td class="bench-15">8.24<span class="u">s</span></td>
-              <td class="bench-16">15.6<span class="u">s</span></td>
-              <td class="bench-17">29.6<span class="u">s</span></td>
-            </tr>
-            <tr>
-              <th class="platform">Firefox <span class="meta">iOS · WASM</span></th>
-              <td class="bench-9">694<span class="u">ms</span></td>
-              <td class="bench-11">1.33<span class="u">s</span></td>
-              <td class="bench-13">3.56<span class="u">s</span></td>
-              <td class="bench-14">6.45<span class="u">s</span></td>
-              <td class="bench-15">11.7<span class="u">s</span></td>
-              <td class="bench-16">15.4<span class="u">s</span></td>
-              <td class="bench-17">29.1<span class="u">s</span></td>
-            </tr>
-            <tr>
-              <th class="platform">Safari <span class="meta">iOS · WASM</span></th>
-              <td class="bench-9">664<span class="u">ms</span></td>
-              <td class="bench-11">1.28<span class="u">s</span></td>
-              <td class="bench-12">2.37<span class="u">s</span></td>
-              <td class="bench-13">4.40<span class="u">s</span></td>
-              <td class="bench-15">11.7<span class="u">s</span></td>
-              <td class="bench-16">15.6<span class="u">s</span></td>
-              <td class="bench-18">43.8<span class="u">s</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="bench-legend">
-        <div class="bench-legend-cap">prove time (log scale)</div>
-        <div class="bench-scale" aria-hidden="true"></div>
-        <div class="bench-scale-labels"><span>10&thinsp;ms</span><span>100&thinsp;ms</span><span>1&thinsp;s</span><span>10&thinsp;s</span><span>100&thinsp;s</span></div>
-      </div>
-
-      <p id="perf-example">
-        Put that against a whole swap. Each input UTXO you spend is one <strong>spend</strong> circuit, and each
-        output UTXO you create is one <strong>output</strong> circuit - so the total cost is just <strong>N &times;
-        spend + M &times; output</strong>. Drag the sliders to set how many UTXOs go in and out, and watch the
-        wall-clock cost climb on each platform:
-      </p>
-
-      <div class="provescale" data-provescale-io>
-        <div class="provescale-ctl">
-          <label for="provescale-io-n">input UTXOs</label>
-          <input id="provescale-io-n" type="range" min="1" max="18" value="1" step="1" data-slider-in />
-          <span class="provescale-n" data-n-in>1</span>
-          <label for="provescale-io-m">output UTXOs</label>
-          <input id="provescale-io-m" type="range" min="1" max="18" value="1" step="1" data-slider-out />
-          <span class="provescale-n" data-n-out>1</span>
-          <span class="provescale-formula" data-formula>cost = 1&times;spend + 1&times;output</span>
-        </div>
-        <div class="benchmark-wrap" id="bench-prove-swap" tabindex="0" role="region" aria-label="Swap prove time by number of input and output UTXOs (scrollable)">
-          <table class="benchmark">
-            <thead>
-              <tr>
-                <th class="platform">Where the swap proves</th>
-                <th>prove time <span class="meta">N × k=15 + M × k=14</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr data-row data-k15="0.425" data-k14="0.221">
-                <th class="platform">Apple M4 Max <span class="meta">native</span></th>
-                <td class="bench-9" data-cost>~646<span class="u">ms</span></td>
-              </tr>
-              <tr data-row data-k15="18.9" data-k14="10.0">
-                <th class="platform">Desktop browser <span class="meta">WASM</span></th>
-                <td class="bench-17" data-cost>~29<span class="u">s</span></td>
-              </tr>
-              <tr data-row data-k15="29.6" data-k14="15.6">
-                <th class="platform">Phone browser <span class="meta">WASM</span></th>
-                <td class="bench-18" data-cost>~45<span class="u">s</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
     </section>
 
     <section>
-      <h2 id="latency-heading">Latency: from intent to settlement</h2>
-      <p id="latency-lead">
-        How long does a swap actually take to go from "I want to trade" to settled on-chain? Assuming blocks
-        aren't congested, the time required depends on three main steps:
+      <h2 id="privateutxo-heading">What do you call a private UTXO?</h2>
+      <p id="privateutxo-body">
+        Midnight reserves the word <em>UTXO</em> for the <strong>public</strong>, unshielded side of the ledger,
+        so the shielded side needs its own vocabulary. A private <code>Coin</code> never appears directly; it shows
+        up as two one-way hashes - one when it is created, one when it is spent:
       </p>
-      <ol id="latency-steps">
-        <li><strong>Proof generation</strong> - building the zSwap proof itself. This is the part we just
-          measured, and it's by far the most variable: under a second on a native prover, tens of seconds in a
-          phone browser.</li>
-        <li><strong>Landing on Celestia</strong> - the offer file is posted to the data-availability layer so it
-          can be found and matched. Celestia produces a block roughly every <strong>3 seconds</strong> (since its
-          V9 upgrade), so you wait a few seconds at most.</li>
-        <li><strong>Settling on Midnight</strong> - the matched transaction lands in a Midnight block, which is
-          where it becomes final. Midnight targets <strong>6-second</strong> blocks, so this adds up to another
-          six seconds.</li>
-      </ol>
-      <figure id="latency-figure">
-        <div class="provescale-ctl">
-          <span class="provescale-n">best</span>
-          <input id="lat-slider" type="range" min="0" max="2" step="1" value="2" data-latency-slider aria-label="block-timing case: best, average, or worst" />
-          <span class="provescale-n">worst</span>
-          <span class="provescale-formula" data-latency-label>worst case</span>
-        </div>
-        <svg viewBox="0 0 520 196" role="img" aria-label="Two latency bars on a 0 to 10 second axis, with a slider from best to worst case. A swap's wall-clock is proof generation plus a Celestia block wait (up to 3 seconds) plus a Midnight block wait (up to 6 seconds). At worst, posting and settling is about 10 seconds; on average about half; best case it is essentially just the proof. Matching someone else's offer skips Celestia (about 7 seconds at worst). Proof time is shown for a fast native prover; on a phone it is far larger.">
+      <ul id="privateutxo-list">
+        <li>A <strong><code>CoinCommitment</code></strong> is what appears in an <strong>output</strong> - the
+          <code>Coin</code> hashed together with your <strong>public</strong> key.</li>
+        <li>A <strong><code>Nullifier</code></strong> is what appears in an <strong>input</strong> - the same
+          <code>Coin</code> hashed together with your <strong>secret</strong> key.</li>
+      </ul>
+
+      <figure id="privateutxo-figure">
+        <svg viewBox="0 0 560 244" role="img" aria-label="Public versus private representation of a coin, in a grid of output and input columns against public and private rows. In the public UTXO model an output is a visible UTXO showing 5 NIGHT owned by Alice, and an input spends it by reference, all in the clear. On the shielded side an output is instead a CoinCommitment - the Coin hashed with the public key - and an input is a Nullifier - the Coin hashed with the secret key - both opaque one-way hashes that reveal nothing.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
-            <text x="8" y="65" font-size="10">post &amp; settle</text>
-            <rect x="110" y="46" width="38" height="30" fill="#d9d2f0" stroke="#b9c2cf" stroke-width="0.5"/>
-            <rect id="lat-cel" x="148" y="46" width="114" height="30" fill="#cfe8ee" stroke="#b9c2cf" stroke-width="0.5"/>
-            <text id="lat-cel-lbl" x="205" y="65" text-anchor="middle" font-size="10">Celestia</text>
-            <rect id="lat-mid1" x="262" y="46" width="228" height="30" fill="#d3e4f7" stroke="#b9c2cf" stroke-width="0.5"/>
-            <text id="lat-mid1-lbl" x="376" y="65" text-anchor="middle" font-size="10">Midnight</text>
-            <text id="lat-total1" x="494" y="65" font-size="10" font-weight="700">~10s</text>
+            <text x="246" y="24" text-anchor="middle" font-size="10" font-weight="700" fill="#656c74">in an OUTPUT</text>
+            <text x="246" y="38" text-anchor="middle" font-size="9" fill="#9aa0a8">a coin is created</text>
+            <text x="450" y="24" text-anchor="middle" font-size="10" font-weight="700" fill="#656c74">in an INPUT</text>
+            <text x="450" y="38" text-anchor="middle" font-size="9" fill="#9aa0a8">a coin is spent</text>
 
-            <text x="8" y="116" font-size="10">match &amp; settle</text>
-            <text x="8" y="128" font-size="8.5" fill="#656c74">(no Celestia)</text>
-            <rect x="110" y="100" width="38" height="30" fill="#d9d2f0" stroke="#b9c2cf" stroke-width="0.5"/>
-            <rect id="lat-mid2" x="148" y="100" width="228" height="30" fill="#d3e4f7" stroke="#b9c2cf" stroke-width="0.5"/>
-            <text id="lat-mid2-lbl" x="262" y="119" text-anchor="middle" font-size="10">Midnight</text>
-            <text id="lat-total2" x="380" y="119" font-size="10" font-weight="700">~7s</text>
+            <text x="14" y="90" font-size="11" font-weight="700" fill="#2f7d4d">public</text>
+            <text x="14" y="105" font-size="9" fill="#656c74">a UTXO</text>
+            <text x="14" y="178" font-size="11" font-weight="700" fill="#5a45a8">private</text>
+            <text x="14" y="193" font-size="9" fill="#656c74">shielded</text>
 
-            <line x1="110" y1="143" x2="490" y2="143" stroke="#9aa0a8"/>
-            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#555c63" text-anchor="middle">
-              <text x="110" y="156">0</text><text x="186" y="156">2</text><text x="262" y="156">4</text><text x="338" y="156">6</text><text x="414" y="156">8</text><text x="490" y="156">10s</text>
-            </g>
-            <rect x="148" y="171" width="11" height="11" rx="2" fill="#d9d2f0" stroke="#b9c2cf" stroke-width="0.5"/><text x="164" y="180" font-size="9.5">proof</text>
-            <rect x="220" y="171" width="11" height="11" rx="2" fill="#cfe8ee" stroke="#b9c2cf" stroke-width="0.5"/><text x="236" y="180" font-size="9.5">Celestia</text>
-            <rect x="300" y="171" width="11" height="11" rx="2" fill="#d3e4f7" stroke="#b9c2cf" stroke-width="0.5"/><text x="316" y="180" font-size="9.5">Midnight</text>
+            <rect x="146" y="52" width="196" height="68" rx="9" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="160" y="70" font-size="9" font-weight="700" fill="#2f7d4d">UTXO &middot; everyone can read it</text>
+            <text x="160" y="90" font-weight="600">🌙 5 NIGHT</text>
+            <text x="160" y="108" fill="#3a7d55">owner: Alice</text>
+
+            <rect x="352" y="52" width="196" height="68" rx="9" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="366" y="70" font-size="9" font-weight="700" fill="#2f7d4d">UTXO reference &middot; points at the coin</text>
+            <text x="366" y="90" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="600">&rarr; UTXO #7a3f&hellip;</text>
+            <text x="366" y="108" fill="#3a7d55">in the clear</text>
+
+            <rect x="146" y="140" width="196" height="78" rx="9" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="160" y="160" font-weight="700" fill="#5a45a8">🔒 CoinCommitment</text>
+            <text x="160" y="182" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#5a45a8">= H(Coin, public key)</text>
+            <text x="160" y="202" font-size="9" fill="#656c74">opaque - reveals nothing</text>
+
+            <rect x="352" y="140" width="196" height="78" rx="9" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="366" y="160" font-weight="700" fill="#5a45a8">🔒 Nullifier</text>
+            <text x="366" y="182" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#5a45a8">= H(Coin, secret key)</text>
+            <text x="366" y="202" font-size="9" fill="#656c74">opaque - reveals nothing</text>
           </g>
         </svg>
         <figcaption>
-          Where the wall-clock goes. A swap waits on proof generation, then a Celestia block, then a Midnight
-          block; <strong>matching</strong> someone else's offer skips Celestia (you don't broadcast - you take
-          their offer and submit). Drag the slider: at <strong>worst</strong> you just miss each block and wait a
-          full one; on <strong>average</strong> you catch each about halfway; at <strong>best</strong> you catch
-          both the moment they're produced and it's essentially just the proof. (Proof time is for a fast
-          <em>native</em> prover, ~1s; in a phone browser it runs to tens of seconds and dwarfs the chain waits.)
+          Public vs private. A public <strong>UTXO</strong> shows the coin outright - asset, amount, owner. The
+          shielded side replaces it with two one-way hashes: a <strong><code>CoinCommitment</code></strong> in each
+          output (the <code>Coin</code> hashed with your public key) and a <strong><code>Nullifier</code></strong>
+          in each input (the same <code>Coin</code> hashed with your secret key) - both opaque, and unlinkable to
+          each other.
         </figcaption>
       </figure>
-      <p id="latency-takeaway">
-        Two of the three are fixed, small, and out of your hands - at worst <strong>under ten seconds</strong> of
-        block latency combined, and on average about half that.
+    </section>
+
+    <section>
+      <h2 id="coin-copies-heading">One coin, many offer files</h2>
+      <p id="anatomy-copies">
+        It starts with an intuition you already have: an offer file is <em>just
+        text</em>, so nothing stops you posting copies of it in many places at once -
+        a chat, Celestia, a web page. They are all the same offer.
+      </p>
+
+      <figure id="offer-copies-figure">
+        <svg class="oc-static" viewBox="0 0 520 150" role="img" aria-label="One offer file posted as copies to three places at once: a chat, Celestia, and a web page. They are all the same offer.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
+            <rect x="14" y="50" width="150" height="44" rx="8" fill="#fff" stroke="#9a82d8"/>
+            <text x="89" y="69" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1…</text>
+            <text x="89" y="86" text-anchor="middle" font-size="10" fill="#555c63">the offer file</text>
+            <line x1="164" y1="62" x2="216" y2="30" stroke="#9aa0a8"/>
+            <line x1="164" y1="72" x2="216" y2="72" stroke="#9aa0a8"/>
+            <line x1="164" y1="82" x2="216" y2="114" stroke="#9aa0a8"/>
+            <g font-size="10">
+              <rect x="220" y="12" width="286" height="34" rx="7" fill="#fafbfc" stroke="#d2d2dc"/>
+              <text x="232" y="33">💬 a chat &middot; <tspan font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1…</tspan> (copy)</text>
+              <rect x="220" y="55" width="286" height="34" rx="7" fill="#fafbfc" stroke="#d2d2dc"/>
+              <text x="232" y="76">🟪 Celestia &middot; <tspan font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1…</tspan> (copy)</text>
+              <rect x="220" y="98" width="286" height="34" rx="7" fill="#fafbfc" stroke="#d2d2dc"/>
+              <text x="232" y="119">🌐 a web page &middot; <tspan font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1…</tspan> (copy)</text>
+            </g>
+          </g>
+        </svg>
+        <figcaption>
+          An offer file is just text, so copies of it can live everywhere at once - in
+          a chat, on Celestia, on a web page. They are all <em>the same offer</em>.
+        </figcaption>
+      </figure>
+
+      <p id="anatomy-utxo">
+        So which thing actually gets <em>spent</em> in a trade? Not the file - the
+        <strong>coin underneath it</strong>. Loosely, every copy is the same
+        <em>pre-signed spend</em> of one UTXO, and the chain is the only source of
+        truth: the moment that coin is spent on Midnight - by whoever uses any copy,
+        for whatever reason - every copy everywhere transitively stops being spendable.
+        Drive the figure and watch the cascade.
+      </p>
+
+      <figure id="utxo-figure" data-figure-src="utxoSwap">
+        <!-- Enhanced into an interactive lifecycle by client/figures/utxoSwap.ts. -->
+        <svg class="utxo-static" viewBox="0 0 520 160" role="img" aria-label="An offer is built from a coin, recorded on-chain as a CoinCommitment. Creating and sharing copies is off-chain and free; the only on-chain event is spending the coin, which ends every copy at once.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12">
+            <rect x="10" y="16" width="130" height="58" rx="8" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="75" y="36" text-anchor="middle">maker's coin</text>
+            <text x="75" y="54" text-anchor="middle" font-weight="700">5 🌙 NIGHT</text>
+            <text x="75" y="68" text-anchor="middle" font-size="9" fill="#6b6480">a CoinCommitment</text>
+            <text x="150" y="48" font-size="11" fill="#999">backs &rarr;</text>
+            <rect x="208" y="16" width="150" height="24" rx="6" fill="#fff" stroke="#aab" stroke-dasharray="3 3"/>
+            <text x="216" y="32" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="11" fill="#4b3b8f">zswapoffer1… copy</text>
+            <rect x="208" y="46" width="150" height="24" rx="6" fill="#fff" stroke="#aab" stroke-dasharray="3 3"/>
+            <text x="216" y="62" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="11" fill="#4b3b8f">zswapoffer1… copy</text>
+            <rect x="10" y="112" width="190" height="30" rx="15" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="105" y="131" text-anchor="middle" fill="#2f7d4d">create &amp; share - free</text>
+            <rect x="216" y="112" width="242" height="30" rx="15" fill="#fdf1e0" stroke="#e0a13a"/>
+            <text x="337" y="131" text-anchor="middle" fill="#9a5b1e">spend the coin - on-chain</text>
+          </g>
+        </svg>
+        <figcaption>
+          An offer is built from one coin - recorded on-chain as a <strong>CoinCommitment</strong> - and every copy
+          stays live exactly as long as that coin sits unspent. Creating and sharing is
+          off-chain and free; the only on-chain event is <strong>spending the
+          coin</strong>, and one spend cascades through the whole fan-out, ending every
+          copy at once. Drive the lifecycle with the buttons.
+        </figcaption>
+      </figure>
+
+      <p id="anatomy-variants">
+        Now take the same picture one step further. Instead of copies of one offer, mint
+        two <em>different</em> offers from the same coin - the same kind of
+        <code>zswapoffer…</code> files as above, just with different terms: say, the same
+        NFT asking 80 NIGHT in one and 70 in the other. The next figure shows the pair -
+        and the little tags riding with them.
+      </p>
+
+      <figure id="nullifier-share-figure">
+        <svg class="ns2-static" viewBox="0 0 520 150" role="img" aria-label="One coin - recorded as a CoinCommitment, H of Coin and public key - backs two different offer files, one asking 80 NIGHT and one asking 70 NIGHT. The same coin's nullifier, H of Coin and secret key equal to a3f1, rides along in both, so at most one can ever settle: spending the coin kills the other.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
+            <rect x="8" y="22" width="166" height="96" rx="9" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="91" y="40" text-anchor="middle" font-weight="700" fill="#4b3b8f">your coin &middot; the NFT</text>
+            <text x="20" y="60" font-size="9" font-weight="600" fill="#5a45a8">CoinCommitment</text>
+            <text x="20" y="72" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.5" fill="#7a7385">H(Coin, pk)</text>
+            <rect x="16" y="82" width="150" height="28" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="24" y="95" font-size="9" font-weight="600" fill="#5a45a8">nullifier 🔒 a3f1</text>
+            <text x="24" y="106" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.5" fill="#7a7385">H(Coin, sk)</text>
+            <line x1="176" y1="50" x2="186" y2="40" stroke="#9aa0a8"/>
+            <line x1="176" y1="92" x2="186" y2="96" stroke="#9aa0a8"/>
+            <g font-size="10">
+              <rect x="190" y="22" width="200" height="36" rx="7" fill="#fff" stroke="#aab"/>
+              <text x="200" y="37" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1qpzry…</text>
+              <text x="200" y="51" fill="#555c63">asking 80 NIGHT</text>
+              <rect x="190" y="78" width="200" height="36" rx="7" fill="#fff" stroke="#aab"/>
+              <text x="200" y="93" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1m4ek3…</text>
+              <text x="200" y="107" fill="#555c63">asking 70 NIGHT - a different offer</text>
+            </g>
+            <g>
+              <rect x="398" y="31" width="92" height="18" rx="9" fill="#efeafb" stroke="#9a82d8"/><text x="444" y="44" text-anchor="middle"><tspan font-size="8" fill="#555c63">nullifier </tspan><tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#4b3b8f">🔒 a3f1</tspan></text>
+              <rect x="398" y="87" width="92" height="18" rx="9" fill="#efeafb" stroke="#9a82d8"/><text x="444" y="100" text-anchor="middle"><tspan font-size="8" fill="#555c63">nullifier </tspan><tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#4b3b8f">🔒 a3f1</tspan></text>
+            </g>
+            <text x="260" y="140" text-anchor="middle" font-size="10" fill="#555c63">the coin's nullifier rides along in every offer built from it - at most one can ever settle</text>
+          </g>
+        </svg>
+        <figcaption>
+          You can go further: <em>different</em> offers from the same coin - here, two
+          prices for the same NFT. The coin is recorded as a <strong><code>CoinCommitment</code></strong>,
+          <code>H(Coin,&nbsp;pk)</code>; every offer that spends it carries the matching
+          <strong>nullifier</strong>, <code>H(Coin,&nbsp;sk)</code>&nbsp;=&nbsp;<code>a3f1</code> - the same
+          <code>Coin</code>, so the same tag. They're visibly alternatives: at most one can ever settle, and the
+          first spend of the coin invalidates the other.
+        </figcaption>
+      </figure>
+
+      <p id="anatomy-nullifier">
+        That tag is the <strong>nullifier</strong>: an opaque value, deterministically
+        derived from the backing coin, that each input exposes. It reveals nothing about
+        the coin's contents, but the same coin always produces the same tag, and the tag
+        is published on-chain the moment the coin is spent (it's how the chain blocks
+        double-spends - <a href="#oq1-what">much more on that later</a>). That gives you
+        two things at once: anyone can check an offer is still <strong>live</strong> - if
+        its tag has appeared on-chain, the file is dead - and multiple offers from one
+        coin are <strong>safely mutually exclusive</strong>, the engine behind
+        <a href="#auction-heading">tricks coming up</a>.
+      </p>
+
+      <figure id="nullifier-link-figure">
+        <svg class="nl-static" viewBox="0 0 520 170" role="img" aria-label="The privacy cost of the shared tag: a listing on an NFT marketplace and a bid on an auction site both carry tag a3f1, so an observer can tell the same user is behind both - the coins stay sealed, but the link is public.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
+            <rect x="20" y="16" width="200" height="76" rx="9" fill="#fafbfc" stroke="#d2d2dc"/>
+            <text x="120" y="36" text-anchor="middle" font-weight="700" fill="#24292f">NFT marketplace</text>
+            <rect x="40" y="48" width="160" height="30" rx="7" fill="#fff" stroke="#aab"/>
+            <text x="50" y="67" font-size="10" fill="#555c63">listing · <tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-weight="700" fill="#4b3b8f">tag a3f1</tspan></text>
+            <rect x="300" y="16" width="200" height="76" rx="9" fill="#fafbfc" stroke="#d2d2dc"/>
+            <text x="400" y="36" text-anchor="middle" font-weight="700" fill="#24292f">auction site</text>
+            <rect x="320" y="48" width="160" height="30" rx="7" fill="#fff" stroke="#aab"/>
+            <text x="330" y="67" font-size="10" fill="#555c63">bid · <tspan font-family="'Red Hat Mono', ui-monospace, monospace" font-weight="700" fill="#4b3b8f">tag a3f1</tspan></text>
+            <path d="M120 96 Q260 132 400 96" fill="none" stroke="#b23b3b" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text x="260" y="146" text-anchor="middle" fill="#b23b3b" font-size="10" font-weight="700">👁 same tag → same user</text>
+          </g>
+        </svg>
+        <figcaption>
+          The honest cost: <strong>linkability</strong>. Two offers on two venues sharing
+          a tag are visibly the same coin - hence, very likely, the same user. The coins
+          and parties stay sealed; the connection doesn't.
+        </figcaption>
+      </figure>
+
+      <p id="anatomy-linkage">
+        That linkability is a real <strong>privacy cost</strong>, and the only one this
+        section adds: post offers to two different venues from one coin and observers can
+        tell the same user is behind both. Spreading activity across separate coins
+        restores the separation - at the price of managing more coins.
+      </p>
+
+    </section>
+
+    <div class="section-divider-labeled" id="p-subtleties">A few zSwap subtleties</div>
+
+    <section>
+      <h2 id="merge-heading">Offers merge into one</h2>
+      <p id="merge-body">
+        Contrary to what you might expect, a transaction in Midnight is <em>not</em> a list of
+        <code>ZswapOffer</code>s. Instead, offers can be (cheaply) <strong>merged</strong> together, and a
+        transaction accepts at most a <em>single</em> <code>ZswapOffer</code> - built by merging any and all
+        offers into one. Merging is defined simply as the union of the fields, where any token that nets to zero
+        simply drops out of the map.
+      </p>
+      <p id="merge-disjoint">
+        There is one rule: the pieces must be <strong>disjoint</strong>. Two offers merge only if they share no
+        input, no output, and no transient - which is exactly what you want, since the same coin must not be spent
+        twice in one transaction. The merge checks this and refuses otherwise.
+      </p>
+      <p id="merge-free">
+        Importantly, merging <strong>proves nothing new</strong>. Each input and output was already proven when
+        its own offer was built. A merge is just set-union plus addition: no circuit runs, no proof is regenerated.
+      </p>
+
+      <details id="merge-aside" class="aside">
+        <summary>Technical aside - how hidden values can still be added up and checked, and why that makes merging cheap (most readers can skip this)</summary>
+        <p>
+          The commitments that hide each coin's value are a form of
+          <strong>semi-homomorphic encryption</strong>: you can't read the hidden value,
+          but you <em>can</em> add two commitments together and get a valid commitment to
+          the sum. That is the whole reason the chain can confirm an offer balances -
+          add up the committed inputs, subtract the outputs and the public
+          <code>deltas</code>, and check that the result cancels to zero - without
+          ever seeing a single amount. It is also why <strong>merging</strong> needs no new
+          proof: the combined offer's commitments are just the sums of the parts', and they
+          still open to zero if each part did.
+        </p>
+        <p>
+          <strong>Pedersen commitments</strong> are one common implementation of this
+          (typically over an elliptic curve, as Midnight uses): a value becomes a curve
+          point, blinded by a random factor so it reveals nothing, yet two such points
+          still add. It's worth flagging because that additive structure is exactly what
+          the <a href="#solution-heading">L2's recursive proof</a> later leans on - it
+          lets the prover fold and aggregate these commitments across every swap, rather
+          than re-deriving balances from scratch.
+        </p>
+      </details>
+
+      <p id="merge-onetx">
+        So look back at the <a href="#txmodel-heading">transaction we drew earlier</a>: what was sketched as three
+        lassoed offers is really one merged offer the instant it becomes a transaction.
+      </p>
+
+      <figure id="txstruct-figure">
+        <svg viewBox="0 0 560 296" role="img" aria-label="A Midnight Transaction struct holds a single guaranteed_offer of type Option of ZswapOffer, not an array of offers (its other fields elided). There is no Vec of ZswapOffer to push onto, so several offers A, B and C must first be merged into one ZswapOffer before they can fill that single slot.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12" fill="#24292f">
+            <!-- the shape people reach for -->
+            <text x="14" y="20" font-size="10" fill="#656c74">what you'd reach for</text>
+            <rect x="12" y="26" width="372" height="32" rx="7" fill="#fdf2f2" stroke="#e2b6b6"/>
+            <text x="26" y="46" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="11" fill="#9b6b6b">Transaction { offers: Vec&lt;ZswapOffer&gt; }</text>
+            <line x1="118" y1="42" x2="272" y2="42" stroke="#c0392b" stroke-width="1.5" stroke-opacity="0.45"/>
+            <rect x="398" y="30" width="150" height="24" rx="12" fill="#fbe8e8" stroke="#d98a8a"/>
+            <text x="473" y="46" text-anchor="middle" font-size="10" font-weight="700" fill="#b23b3b">&#10007; there is no array</text>
+
+            <!-- what the ledger actually has -->
+            <text x="14" y="84" font-size="10" fill="#656c74">what the ledger actually has</text>
+            <rect x="12" y="90" width="536" height="106" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
+            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="11" fill="#24292f">
+              <text x="28" y="110">struct Transaction {</text>
+              <text x="28" y="129">&nbsp;&nbsp;...</text>
+              <rect x="22" y="135" width="430" height="18" rx="4" fill="#efeafb" stroke="#9a82d8"/>
+              <text x="28" y="148" fill="#3a2b7a" font-weight="600">&nbsp;&nbsp;guaranteed_offer:&nbsp;&nbsp;&nbsp;Option&lt;ZswapOffer&gt;,</text>
+              <text x="28" y="167">&nbsp;&nbsp;...</text>
+              <text x="28" y="186">}</text>
+            </g>
+            <rect x="462" y="136" width="78" height="18" rx="9" fill="#e9e3fb" stroke="#9a82d8"/>
+            <text x="501" y="149" text-anchor="middle" font-size="9" font-weight="700" fill="#5a45a8">one slot</text>
+
+            <!-- so you must merge first -->
+            <text x="14" y="236" font-size="10" fill="#656c74">so you must merge first</text>
+            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#24292f">
+              <rect x="12" y="244" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="32" y="260" text-anchor="middle">A</text>
+              <text x="58" y="260" fill="#9aa0a8">&#8853;</text>
+              <rect x="72" y="244" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="92" y="260" text-anchor="middle">B</text>
+              <text x="118" y="260" fill="#9aa0a8">&#8853;</text>
+              <rect x="132" y="244" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="152" y="260" text-anchor="middle">C</text>
+              <text x="184" y="260" fill="#9aa0a8">&rarr;</text>
+              <rect x="204" y="242" width="150" height="28" rx="8" fill="#efeafb" stroke="#9a82d8"/><text x="279" y="260" text-anchor="middle" font-weight="700" fill="#5a45a8">one ZswapOffer</text>
+              <text x="362" y="260" fill="#9aa0a8">&rarr;</text>
+              <text x="382" y="260" fill="#5a45a8">fills guaranteed_offer</text>
+            </g>
+          </g>
+        </svg>
+        <figcaption>
+          A <code>Transaction</code> doesn't hold a <em>list</em> of offers. Its shielded side is a single
+          <code>guaranteed_offer: Option&lt;ZswapOffer&gt;</code> slot (its other fields elided here) - there is no
+          <code>Vec&lt;ZswapOffer&gt;</code> to push onto. So to settle several swaps together you must
+          <strong>merge</strong> them into one <code>ZswapOffer</code> first; only then does it fill that single
+          slot.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2 id="commitment-tree-heading">The commitment tree</h2>
+      <p id="commitment-tree-coin">
+        We've leaned on a phrase a few times - <a href="#anatomy-deltas">ownership is proven in
+        zero-knowledge</a> - without ever saying how. Here's the machinery, built from the coin up. A coin is just
+        data: a value, a token type, and a unique <strong>nonce</strong>, controlled by a keypair. From it the
+        chain derives two one-way fingerprints, and <em>which key you use decides which one you get</em>. Hash the
+        coin with your <strong>public</strong> key and you get its <strong>commitment</strong>, posted the moment
+        the coin is created - "this coin exists." Hash it with your <strong>secret</strong> key and you get its
+        <a href="#anatomy-nullifier"><strong>nullifier</strong></a>, posted the moment it's spent - "this coin is
+        gone." Different keys, so no one can tell the two belong to the same coin; and because only you hold the
+        secret key, only you can mint the nullifier that spends it.
+      </p>
+
+      <figure id="coin-fingerprints-figure">
+        <svg viewBox="0 0 540 216" role="img" aria-label="One coin produces two one-way SHA-256 fingerprints. Hashed with the owner's public key it yields the commitment, posted when the coin is created. Hashed with the owner's secret key it yields the nullifier, posted when the coin is spent. The two use different keys, so they cannot be linked, and only the secret-key holder can produce the nullifier.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <rect x="14" y="62" width="132" height="104" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="80" y="84" text-anchor="middle" font-weight="700" fill="#4b3b8f">a coin</text>
+            <text x="30" y="108">🌙 5 NIGHT</text>
+            <text x="30" y="128" font-size="10" fill="#656c74">type &middot; value</text>
+            <text x="30" y="150" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#656c74">nonce a1f9 (unique)</text>
+
+            <text x="170" y="80" font-size="9" fill="#2f7d4d">+ public key</text>
+            <text x="150" y="104" fill="#9aa0a8">&rarr;</text>
+            <rect x="170" y="88" width="58" height="24" rx="6" fill="#eef2f7" stroke="#cbd3dd"/>
+            <text x="199" y="104" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#3a4750">SHA-256</text>
+            <text x="234" y="104" fill="#9aa0a8">&rarr;</text>
+            <rect x="252" y="88" width="116" height="24" rx="8" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="310" y="104" text-anchor="middle" font-weight="700" fill="#2f7d4d">commitment</text>
+            <text x="374" y="104" fill="#9aa0a8">&rarr;</text>
+            <text x="392" y="100" font-size="10" font-weight="600" fill="#2f7d4d">at creation</text>
+            <text x="392" y="113" font-size="9" fill="#656c74">marks: exists</text>
+
+            <text x="170" y="138" font-size="9" fill="#b23b3b">+ secret key</text>
+            <text x="150" y="156" fill="#9aa0a8">&rarr;</text>
+            <rect x="170" y="140" width="58" height="24" rx="6" fill="#eef2f7" stroke="#cbd3dd"/>
+            <text x="199" y="156" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#3a4750">SHA-256</text>
+            <text x="234" y="156" fill="#9aa0a8">&rarr;</text>
+            <rect x="252" y="140" width="116" height="24" rx="8" fill="#f6eefb" stroke="#9a82d8"/>
+            <text x="310" y="156" text-anchor="middle" font-weight="700" fill="#5a45a8">nullifier</text>
+            <text x="374" y="156" fill="#9aa0a8">&rarr;</text>
+            <text x="392" y="152" font-size="10" font-weight="600" fill="#5a45a8">at spend</text>
+            <text x="392" y="165" font-size="9" fill="#656c74">marks: spent</text>
+
+            <text x="14" y="196" font-size="10" fill="#656c74">Different keys, so the two can't be linked &mdash; and only the secret key makes the nullifier.</text>
+          </g>
+        </svg>
+        <figcaption>
+          One coin, two one-way fingerprints. Hashed with your <strong>public</strong> key it becomes a
+          <strong>commitment</strong>, posted when the coin is <em>created</em>; hashed with your
+          <strong>secret</strong> key it becomes a <strong>nullifier</strong>, posted when it's <em>spent</em>.
+          Different keys mean no one can link the two - and only the secret-key holder can produce the nullifier,
+          so only the owner can spend.
+        </figcaption>
+      </figure>
+
+      <p id="commitment-tree-sets">
+        The ledger simply keeps two ever-growing sets: every <strong>commitment</strong> ever made, and every
+        <strong>nullifier</strong> ever revealed. A coin is <em>unspent</em> when its commitment is present and its
+        nullifier is not - but since nobody can pair a commitment with its nullifier, <strong>nobody can list the
+        unspent coins at all</strong>. That uncomputable difference is the whole privacy of the scheme: the chain
+        knows exactly how many coins exist and how many were spent, yet can't point to a single live one.
+      </p>
+
+      <p id="commitment-tree-tree">
+        So how do you spend a coin without revealing <em>which</em> one is yours? You prove it belongs. Every
+        commitment is a <strong>leaf</strong> of one enormous, append-only <strong>Merkle tree</strong> - the
+        <strong>commitment tree</strong> - whose <strong>root</strong> is a single hash standing in for every coin
+        ever made. To spend, your input carries a <strong>zero-knowledge proof of membership</strong>: a proof that
+        your coin's commitment sits <em>somewhere</em> under that published root, plus the coin's nullifier, and
+        nothing more. The chain learns the root and the nullifier; it never learns which leaf. <em>That</em> is
+        what "ownership proven in zero-knowledge" comes down to - and a double-spend is caught for free, since the
+        nullifier is already in the set.
+      </p>
+
+      <figure id="commitment-merkle-figure">
+        <svg viewBox="0 0 540 286" role="img" aria-label="A Merkle tree whose leaves are coin commitments c0 through c3, combined pairwise into hashes h01 and h23 and then into a single root. To spend coin c1, the owner gives a zero-knowledge proof that c1 sits under the published root using the sibling hashes along the path, revealing the root and the coin's nullifier but never which leaf.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <rect x="18" y="24" width="14" height="14" rx="3" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="38" y="35" font-size="9" fill="#5a45a8">your coin's path to the root</text>
+
+            <line x1="270" y1="74" x2="130" y2="130" stroke="#9a82d8" stroke-width="2"/>
+            <line x1="270" y1="74" x2="410" y2="130" stroke="#cbd3dd"/>
+            <line x1="130" y1="156" x2="64" y2="208" stroke="#cbd3dd"/>
+            <line x1="130" y1="156" x2="196" y2="208" stroke="#9a82d8" stroke-width="2"/>
+            <line x1="410" y1="156" x2="344" y2="208" stroke="#cbd3dd"/>
+            <line x1="410" y1="156" x2="476" y2="208" stroke="#cbd3dd"/>
+
+            <rect x="238" y="48" width="64" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="270" y="65" text-anchor="middle" font-weight="700" fill="#5a45a8">root</text>
+            <rect x="312" y="51" width="74" height="20" rx="10" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="349" y="65" text-anchor="middle" font-size="9" font-weight="700" fill="#2f7d4d">published</text>
+
+            <rect x="98" y="130" width="64" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="130" y="147" text-anchor="middle" font-weight="600" fill="#5a45a8">h01</text>
+            <rect x="378" y="130" width="64" height="26" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="410" y="147" text-anchor="middle" fill="#656c74">h23</text>
+            <text x="410" y="172" text-anchor="middle" font-size="9" fill="#9aa0a8">sibling in proof</text>
+
+            <rect x="18" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="64" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c0</text>
+            <text x="64" y="252" text-anchor="middle" font-size="9" fill="#9aa0a8">sibling in proof</text>
+            <rect x="150" y="208" width="92" height="28" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="196" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#5a45a8">c1</text>
+            <text x="196" y="252" text-anchor="middle" font-size="9" font-weight="700" fill="#5a45a8">your coin</text>
+            <rect x="298" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="344" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c2</text>
+            <rect x="430" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="476" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c3</text>
+
+            <text x="270" y="276" text-anchor="middle" font-size="10" fill="#656c74">Spend proves c1 is some leaf under the root &mdash; revealing the root and the nullifier, never which leaf.</text>
+          </g>
+        </svg>
+        <figcaption>
+          The <strong>commitment tree</strong>: every coin's commitment is a <strong>leaf</strong>
+          (<code>c0</code>&hellip;<code>c3</code>), hashed pairwise up to a single <strong>root</strong>. To spend
+          <code>c1</code> you prove in zero-knowledge that it sits <em>somewhere</em> under the published root -
+          supplying the <strong>sibling hashes</strong> along the path (<code>c0</code>, <code>h23</code>) - and
+          reveal the root and the coin's nullifier, <strong>never which leaf</strong>.
+        </figcaption>
+      </figure>
+
+      <p id="commitment-tree-block">
+        One last detail, and it's the one <a href="#chaining-cost-heading">chaining</a> hinges on: the tree only
+        <strong>grows when a block is processed</strong>. A coin you made a moment ago isn't a leaf yet - no block
+        has folded it in, and the very leaf it will land on depends on whatever other transactions share its block
+        - so it has no root an input could prove membership against.
       </p>
     </section>
 
     <section>
-      <h2 id="throughput-heading">Throughput: offers per second</h2>
-      <p id="throughput-lead">
-        And how <em>many</em> swaps can the system carry at once? Two limits stack up: how much fits in a
-        <strong>block</strong>, and how much fits in a single <strong>transaction</strong>. Both turn on the
-        offer's on-chain size, which is just its pieces - each input, each output, plus a small fixed wrapper:
+      <h2 id="chaining-cost-heading">Chaining needs a transient</h2>
+      <p id="chaining-cost-merge">
+        Chaining - spending a coin in the same transaction that creates it (we'll see what it unlocks
+        <a href="#chaining-heading">next</a>) - looks like another job for merge. It isn't. Merge is a disjoint
+        set-union: it <em>refuses</em> two offers that share a coin, and it has no notion that one offer's
+        <code>output</code> is the very coin another's <code>input</code> means to spend. Try to merge a producer
+        and its consumer and you don't get a fused coin - you get an output and an input that can never validate.
       </p>
-      <div class="benchmark-wrap" id="bench-offer-size" tabindex="0" role="region" aria-label="Byte size of each part of an offer file (scrollable)">
-        <table class="benchmark">
-          <thead>
-            <tr>
-              <th class="platform">Piece</th>
-              <th>On-chain size</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th class="platform">ZswapInput <span class="meta">per input UTXO</span></th>
-              <td>~4,934 bytes</td>
-            </tr>
-            <tr>
-              <th class="platform">ZswapOutput <span class="meta">per output UTXO</span></th>
-              <td>~5,136 bytes</td>
-            </tr>
-            <tr>
-              <th class="platform">Offer wrapper <span class="meta">fixed overhead</span></th>
-              <td>~73 bytes</td>
-            </tr>
-            <tr class="group">
-              <th class="platform">Offer file <span class="meta">1 input + 1 output</span></th>
-              <td>10,143 bytes</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <h3 id="throughput-block">Block throughput</h3>
-      <p id="throughput-resize">
-        Start with the block. Each layer has a fixed budget - a block size and a block time - so dividing one by
-        the other gives a ceiling. Drag the inputs and outputs to resize the offer and watch how many fit, per
-        block and per second:
+      <p id="chaining-cost-why">
+        The reason builds straight on <a href="#commitment-tree-heading">the commitment tree</a>. An
+        <code>input</code> proves its coin is a leaf of that tree, against a published root - but a coin you just
+        created isn't a leaf yet, and won't be until a block folds it in. So an ordinary input spending a
+        brand-new output has no real root to point at.
       </p>
-      <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
-        <div class="provescale-ctl">
-          <label for="tput-n">input UTXOs</label>
-          <input id="tput-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
-          <span class="provescale-n" data-n-in>1</span>
-          <label for="tput-m">output UTXOs</label>
-          <input id="tput-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
-          <span class="provescale-n" data-n-out>1</span>
-          <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
-        </div>
-        <div class="benchmark-wrap" id="throughput-table" tabindex="0" role="region" aria-label="Maximum offer files per block and per second by layer (scrollable)">
-          <table class="benchmark">
-            <thead>
-              <tr>
-                <th class="platform">Layer</th>
-                <th>Block</th>
-                <th>Bandwidth</th>
-                <th>Offer files / block</th>
-                <th>Offer files / s</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr data-row data-block-bytes="33554432" data-block-secs="3">
-                <th class="platform">Celestia <sup><a href="#throughput-future">&dagger;</a></sup> <span class="meta">data availability</span></th>
-                <td><a href="https://mocha.celenium.io/constants">32 MiB / 3 s</a></td>
-                <td>~11.18 MB/s</td>
-                <td data-perblock>~3,308</td>
-                <td data-persec>~1,103</td>
-              </tr>
-              <tr data-row data-block-bytes="2000000" data-block-secs="6">
-                <th class="platform">Midnight <span class="meta">settlement</span></th>
-                <td>2 MB / 6 s</td>
-                <td>~333 KB/s</td>
-                <td data-perblock>~197</td>
-                <td data-persec>~33</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <p class="table-note" id="throughput-future">
-        <a href="https://blog.celestia.org/introducing-fibre-1tb-s-of-blockspace/">&dagger; Celestia's Fibre
-        upgrade</a> targets <strong>1 Tb/s</strong> of blockspace - orders of magnitude beyond today's blocks.
+      <p id="chaining-cost-transient">
+        The fix is a <strong>transient</strong>: an output and an input for the <em>same</em> coin, fused into a
+        single part of the offer, where the input proves membership not against the global tree but against an
+        <strong>ephemeral single-leaf tree</strong> holding exactly that one output's commitment - a root you can
+        compute on the spot, before any block exists. (This is the third kind of part in a <code>ZswapOffer</code>,
+        alongside inputs and outputs, that we kept naming and never explained.)
       </p>
-      <p id="throughput-roles">
-        The two layers play different roles, and both ceilings matter in their own way:
-      </p>
-      <ul id="throughput-roles-list">
-        <li><strong>Celestia</strong> bounds how many offers can be <em>posted</em> - including the many that
-          expire without ever settling, which Midnight never sees.</li>
-        <li><strong>Midnight</strong> bounds how many can be <em>filled</em>, and it carries more per fill: the
-          matched offer plus the settlement, and any offers routed <em>outside</em> Celestia.</li>
-      </ul>
-      <p id="throughput-roles-tail">
-        So neither layer is simply "the bottleneck" - a market thick with fleeting, unfilled quotes leans on
-        Celestia, while one where most quotes settle leans on Midnight.
-      </p>
-      <p id="throughput-caveats">
-        Two caveats that mean these per-block numbers may be smaller in practice:
-      </p>
-      <ul id="throughput-caveats-list">
-        <li>That bandwidth is <strong>shared</strong> - every other user of the chain draws from the same block,
-          so a DEX only ever gets a slice of it.</li>
-        <li>These counts ignore <strong>per-block overhead</strong> - headers, encoding, and the other fields a
-          block carries - so the real number is always somewhat lower.</li>
-      </ul>
-      <h3 id="throughput-tx">Transaction throughput</h3>
-      <p id="throughput-pertx">
-        Those were per-block, bandwidth ceilings. A tighter limit lives one level down, per <em>transaction</em>,
-        and here the two layers diverge sharply. Drag the offer's inputs and outputs to resize it:
-      </p>
-      <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
-        <div class="provescale-ctl">
-          <label for="pertx-n">input UTXOs</label>
-          <input id="pertx-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
-          <span class="provescale-n" data-n-in>1</span>
-          <label for="pertx-m">output UTXOs</label>
-          <input id="pertx-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
-          <span class="provescale-n" data-n-out>1</span>
-          <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
-        </div>
-        <div class="benchmark-wrap" id="throughput-pertx-table" tabindex="0" role="region" aria-label="zSwaps per transaction by layer (scrollable)">
-          <table class="benchmark">
-            <thead>
-              <tr>
-                <th class="platform">Layer</th>
-                <th>Per-tx budget</th>
-                <th>zSwaps / tx</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr data-row data-block-bytes="8388608">
-                <th class="platform">Celestia <span class="meta">post</span></th>
-                <td>8 MiB <sup><a href="#throughput-blobcap">&dagger;</a></sup></td>
-                <td data-perblock>~827</td>
-              </tr>
-              <tr data-row data-block-bytes="200000">
-                <th class="platform">Midnight <sup><a href="#throughput-pertx-cap">&Dagger;</a></sup> <span class="meta">settle</span></th>
-                <td>~200 KB</td>
-                <td data-perblock>~19</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <p class="table-note" id="throughput-blobcap">
-        &dagger; On Celestia the 8 MiB cap is the whole <em>transaction</em> - the blob (the offer data) plus its
-        PFB metadata and signatures - so the blob itself sits a touch under 8 MiB. Even so, that is well over a
-        thousand UTXOs, far beyond any normal offer.
-      </p>
-      <p class="table-note" id="throughput-pertx-cap">
-        &Dagger; Midnight's strict transaction limit is 1 MiB, but the fee model's
-        <code>block_limits.block_usage</code> (~200 KB of transaction bytes per block) binds first - this assumes
-        you saturate it, so your transaction is the only one in its block. That budget fits about 19
-        one-input/one-output swaps raw; per-transaction overhead trims it to roughly 18 in practice. See
-        <code>block_limits.block_usage</code> and <code>transaction_byte_limit</code> for detail.
-      </p>
-      <p id="throughput-pertx-note">
-        Celestia could pack hundreds of offers into a single post; Midnight settles only about <strong>18
-        zSwaps</strong> per transaction. So whenever swaps must settle <strong>atomically</strong> - all-or-nothing
-        in one transaction - the <strong>Midnight cap is the bottleneck</strong>.
+
+      <figure id="transient-tree-figure">
+        <svg viewBox="0 0 560 270" role="img" aria-label="Two ways to prove a coin can be spent. A normal spend proves the coin is a leaf of the global commitment tree, but a coin you just created isn't in that tree yet. A transient instead builds a throwaway one-leaf tree whose only leaf is the new coin's commitment cx and proves the spending input against that tree's root. The transient fuses an output that creates cx, whose proof is reused for free, with an input that spends cx, which needs a fresh proof.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <text x="135" y="16" text-anchor="middle" font-size="9" fill="#656c74">spend an existing coin</text>
+            <text x="415" y="16" text-anchor="middle" font-size="9" fill="#656c74">spend a coin you just made</text>
+            <line x1="276" y1="22" x2="276" y2="162" stroke="#e2e2ea" stroke-dasharray="3 3"/>
+
+            <path d="M135 30 L78 116 L192 116 Z" fill="#f4f5f8" stroke="#cfd3dc"/>
+            <text x="135" y="26" text-anchor="middle" font-size="9" fill="#656c74">root</text>
+            <text x="135" y="84" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#7b828b">c0 c1 c2 &hellip; cN</text>
+            <text x="135" y="134" text-anchor="middle" font-size="9" fill="#656c74">the global commitment tree</text>
+            <text x="135" y="150" text-anchor="middle" font-size="9" fill="#b23b3b">&#10007; a coin you just made isn't in it yet</text>
+
+            <rect x="388" y="32" width="54" height="24" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="415" y="48" text-anchor="middle" font-weight="700" fill="#5a45a8">root'</text>
+            <line x1="415" y1="56" x2="415" y2="91" stroke="#9a82d8" stroke-width="2"/>
+            <rect x="373" y="91" width="84" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="415" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-weight="700" fill="#5a45a8">cx</text>
+            <text x="415" y="138" text-anchor="middle" font-size="9" fill="#656c74">a one-leaf tree, built on the spot</text>
+            <text x="415" y="152" text-anchor="middle" font-size="9" fill="#2f7d4d">&check; prove cx against root'</text>
+
+            <rect x="20" y="178" width="520" height="80" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="34" y="197" font-size="10" font-weight="600" fill="#4b3b8f">a transient &mdash; output + input for cx, fused into one part</text>
+            <rect x="40" y="206" width="226" height="42" rx="7" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="153" y="224" text-anchor="middle" font-weight="600" fill="#2f7d4d">output &middot; creates cx</text>
+            <text x="153" y="240" text-anchor="middle" font-size="9" fill="#2f7d4d">&check; proof reused &mdash; free</text>
+            <rect x="296" y="206" width="226" height="42" rx="7" fill="#f6eefb" stroke="#9a82d8"/>
+            <text x="409" y="224" text-anchor="middle" font-weight="600" fill="#5a45a8">input &middot; spends cx</text>
+            <text x="409" y="240" text-anchor="middle" font-size="9" fill="#5a45a8">new proof vs root'</text>
+          </g>
+        </svg>
+        <figcaption>
+          A normal spend proves your coin is a leaf of the <strong>global commitment tree</strong> - but a coin you
+          just created isn't in it yet. So a <strong>transient</strong> builds a throwaway <strong>one-leaf
+          tree</strong> whose only leaf is the new coin <code>cx</code>, and proves the spending input against
+          <em>its</em> root. The output that created <code>cx</code> carries its proof over <strong>free</strong>;
+          only the input needs a <strong>fresh proof</strong> - so a transient costs about one spend: cheaper than
+          creating then separately spending the coin, but not free like a plain <a href="#merge-heading">merge</a>.
+        </figcaption>
+      </figure>
+
+      <p id="chaining-cost-asymmetry">
+        And the price is lopsided. An <code>output</code> proves nothing about any tree, so its proof carries over
+        <strong>for free</strong> - you reuse it verbatim, even if it was someone else's. The <code>input</code>,
+        though, must be proven against that ephemeral root: a <strong>fresh input proof</strong>, on the same
+        circuit and at the same cost as spending any coin. So a transient costs about one spend - cheaper than
+        creating the coin and then separately spending it (you save an output proof and a whole settlement), but
+        not free the way a plain <a href="#merge-heading">merge</a> is. And it has to be arranged <em>at proving
+        time</em>: you prove the input against the single-leaf tree from the start, so you cannot take two
+        already-proven, independent offers and chain them after the fact.
       </p>
     </section>
 
+    <div class="section-divider-labeled" id="p-chaining">Chaining offers</div>
+
     <section>
-      <h2 id="cost-heading">Cost: per-offer fees</h2>
-      <p id="cost-lead">
-        Remember, an offer file doesn't <em>have</em> to touch Celestia at all - you can hand it to a counterparty
-        directly, or route it through some other channel. Go that way and, as long as you already hold the NIGHT
-        that generates your DUST, posting costs essentially <strong>nothing</strong>. The fees below are the cost
-        of the <em>public</em> path - posting to Celestia, then settling on Midnight - each a small fee in its
-        chain's own token. Posting scales with size, so the bigger the offer the more it costs; drag the inputs and
-        outputs to see:
+      <h2 id="chaining-heading">Spend a coin the moment you make it</h2>
+      <p id="chaining-lead">
+        Merging combines offers that already stand on their own. But many designs need the opposite: one offer's
+        <em>output</em> is the very coin another offer's <em>input</em> spends, and you want both to happen in the
+        <strong>same transaction</strong>. zSwap supports this directly. You can create a coin and spend it inside
+        a single transaction, so the coin in the middle is never a free-standing, settled coin of its own - it
+        exists only within the transaction, created and consumed <strong>atomically</strong>, all or nothing.
       </p>
-      <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
-        <div class="provescale-ctl">
-          <label for="cost-n">input UTXOs</label>
-          <input id="cost-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
-          <span class="provescale-n" data-n-in>1</span>
-          <label for="cost-m">output UTXOs</label>
-          <input id="cost-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
-          <span class="provescale-n" data-n-out>1</span>
-          <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
-        </div>
-        <div class="benchmark-wrap" id="cost-table" tabindex="0" role="region" aria-label="Per-offer fee by layer, native token, USD, and offers per dollar (scrollable)">
-          <table class="benchmark">
-            <thead>
-              <tr>
-                <th class="platform">Layer</th>
-                <th>Per offer (native)</th>
-                <th>Per offer (USD)</th>
-                <th>Offers / USD</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr data-row data-tia-gas-price="0.004" data-tia-usd="0.3487">
-                <th class="platform">Celestia <span class="meta">post · data availability</span></th>
-                <td data-tia>~0.000663 TIA</td>
-                <td data-usd>~$0.000231</td>
-                <td data-perusd>~4,324</td>
-              </tr>
-              <tr data-row>
-                <th class="platform">Midnight <span class="meta">settle</span></th>
-                <td>~0.65 DUST</td>
-                <td>/<sup><a href="#cost-dust-note">&Dagger;</a></sup></td>
-                <td>/</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <p id="cost-note" class="table-note">
-        Celestia charges by <em>gas</em>: a one-blob post needs a fixed amount of gas plus a per-share amount
-        (<a href="https://github.com/celestiaorg/celestia-app/blob/32d247971386c1944d44bec1faeb000b1ff1dd51/x/blob/types/payforblob.go">the PFB gas formula</a>),
-        paid at a gas price each node sets as a minimum filter - a <strong>0.004 utia/gas</strong> default (the
-        older default was 0.002; the protocol's own floor is far lower, 0.000001). Only the base bytes are posted,
-        never the larger bech32m string. At 0.004 utia/gas and
-        <strong>TIA &asymp; $0.35</strong>, a posted offer lands near <strong>$0.0002</strong> - a few thousand to
-        the dollar.
+      <p id="chaining-uses">
+        That one capability is what a surprising number of projects are really asking for:
       </p>
-      <p id="cost-dust-note" class="table-note">
-        &Dagger; Midnight's DUST isn't bought directly - it's generated by holding NIGHT - so we treat its dollar
-        cost as <strong>$0</strong> here (a fuller NIGHT-to-DUST figure to come).
-      </p>
-      <p id="cost-caveat">
-        Both fees float with network congestion, so read these as ballpark, not fixed.
+      <ul id="chaining-uses-list">
+        <li><strong>Multi-hop routing.</strong> A router swaps A&nbsp;&rarr;&nbsp;B&nbsp;&rarr;&nbsp;C in one atomic
+          transaction; the middle coin is created and consumed in flight, never settling on its own.</li>
+        <li><strong>Receive-and-forward.</strong> Take a coin - even one someone else just sent you - and
+          immediately re-spend it: split it, forward it, pay out of it, with no round-trip to the chain in between.</li>
+        <li><strong>Multi-step private flows.</strong> Assemble several dependent steps as one all-or-nothing
+          transaction, instead of a sequence that could stall or be front-run between settlements.</li>
+      </ul>
+      <p id="chaining-cost">
+        And it is cheap. Settling that middle coin and spending it later would cost its creating proof, a
+        settlement, then a fresh spend and a second settlement; chaining collapses all of that into one transaction
+        that reuses the creating proof and settles once. It isn't quite free - there's a real proof underneath, and
+        it has to be planned up front rather than bolted on - but those mechanics, and the exact cost, are a
+        subtlety we kept separate: see <a href="#chaining-cost-heading">Chaining needs a transient</a>.
       </p>
     </section>
 
@@ -2994,7 +2903,7 @@
       </p>
 
       <figure id="cardano-lifecycle-figure">
-        <svg class="chart" viewBox="0 0 760 270" role="img" aria-label="Outcomes of 1.86 million Cardano NFT listings: 51.1% sold, 14.5% cancelled and relisted within 7 days (a re-price), 18.1% cancelled for good, 16.3% still open at the window end - about 0.6 cancels per sale.">
+        <svg class="chart" viewBox="0 0 800 270" role="img" aria-label="Outcomes of 1.86 million Cardano NFT listings: 51.1% sold, 14.5% cancelled and relisted within 7 days (a re-price), 18.1% cancelled for good, 16.3% still open at the window end - about 0.6 cancels per sale.">
         <text x="24" y="22" font-size="15" font-weight="700" fill="#1a202c">What happens to an NFT listing (1.86M Cardano listings)</text>
         <text x="24" y="40" font-size="11" fill="#4a5568">≈0.6 cancels per sale — and 55% of everything that sold, sold within 24 hours</text>
         <text x="265" y="87" font-size="12" fill="#1a202c" text-anchor="end">Sold</text>
@@ -4821,6 +4730,611 @@
         else's data in hand.
       </p>
     </section>
+
+    <div class="section-divider-labeled" id="p-performance">Appendix A: performance</div>
+
+    <section>
+      <h2 id="performance-heading">How expensive is a proof?</h2>
+      <p id="perf-lead">
+        An offer file is mostly proof - we saw it runs to about sixteen thousand characters because the
+        zero-knowledge proofs dominate. So how expensive is it to actually <em>generate</em> one? That cost
+        shaped many of the design choices in this piece, so it is worth pinning down precisely - here, in an
+        appendix, for readers who want the numbers.
+      </p>
+
+      <p id="perf-k">
+        To compare how heavy two circuits are, you only need one number: a circuit's
+        <strong><code>k</code></strong>. The intuition is simple - a
+        circuit's <strong>proof time grows exponentially in <code>k</code></strong>:
+      </p>
+
+      <figure id="kcurve-figure">
+        <svg class="kc-svg" viewBox="0 0 520 290" role="img" aria-label="Proof time grows exponentially with k: a curve that is almost flat for small k and then shoots up steeply as k approaches 16.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif">
+            <line x1="60" y1="18" x2="502" y2="18" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <line x1="60" y1="131" x2="502" y2="131" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <line x1="60" y1="187.5" x2="502" y2="187.5" stroke="#dfe2e7" stroke-dasharray="3 3"/>
+            <line x1="60" y1="18" x2="60" y2="244" stroke="#9aa0a8"/>
+            <line x1="60" y1="244" x2="502" y2="244" stroke="#9aa0a8"/>
+            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#555c63" text-anchor="middle">
+              <text x="60" y="263">0</text><text x="115.25" y="263">2</text><text x="170.5" y="263">4</text><text x="225.75" y="263">6</text><text x="281" y="263">8</text><text x="336.25" y="263">10</text><text x="391.5" y="263">12</text><text x="446.75" y="263">14</text><text x="502" y="263">16</text>
+            </g>
+            <text x="58" y="12" font-size="10" fill="#555c63">proof time</text>
+            <text x="281" y="284" text-anchor="middle" font-size="10" fill="#555c63">k</text>
+            <path d="M60,244 L87.6,244 L115.3,244 L142.9,243.97 L170.5,243.94 L198.1,243.89 L225.8,243.78 L253.4,243.56 L281,243.12 L308.6,242.23 L336.3,240.47 L363.9,236.94 L391.5,229.9 L419.1,215.75 L446.8,187.5 L474.4,131 L502,18" fill="none" stroke="#24292f" stroke-width="2.25"/>
+          </g>
+        </svg>
+        <figcaption>
+          Proof time is exponential in <code>k</code>: almost flat for small <code>k</code>, then
+          it explodes. So shaving even a step or two off a circuit's <code>k</code> is a large
+          saving - which is exactly the lever the next graph uses.
+        </figcaption>
+      </figure>
+
+      <details id="perf-aside" class="aside">
+        <summary>Technical aside - what <code>k</code> is, a little more precisely (most readers can skip this)</summary>
+        <p>
+          <code>k</code> is the size parameter of a zero-knowledge circuit. Midnight's proofs use
+          a PLONK-style proving system (via <strong>halo2</strong>), in which a circuit is laid
+          out on a grid of <code>2^k</code> rows. A circuit needs some number of rows to express
+          its constraints, and <code>k = ceil(log&#8322;(rows))</code> is the smallest
+          power-of-two grid that fits them - so a circuit using 17,540 rows needs
+          <code>2^15</code> slots, i.e. <code>k=15</code>.
+        </p>
+        <p>
+          Two cautions so the number isn't over-read. First, <code>k</code> is <em>per circuit</em>,
+          not per app: one zSwap offer actually uses three circuits - <code>spend</code>,
+          <code>output</code>, and <code>sign</code> - at <code>k=15</code>, <code>14</code>,
+          and <code>13</code> respectively. Second, <code>k</code> jumps in <em>whole steps</em>:
+          because the grid must be a power of two, shaving rows only lowers <code>k</code> once
+          you cross below the next power-of-two boundary. The takeaway is simply that lower
+          <code>k</code> means cheaper, faster proofs.
+        </p>
+      </details>
+
+      <p id="perf-circuits">
+        A zSwap offer is built from two main circuits, and - since each coin carries exactly one token - the cost
+        is simply a count of the coins it moves:
+      </p>
+      <ul id="perf-circuits-list">
+        <li>The <strong><code>spend</code></strong> circuit (<code>k=15</code>) runs
+          <em>once per UTXO you consume</em>.</li>
+        <li>The <strong><code>output</code></strong> circuit (<code>k=14</code>) runs
+          <em>once per UTXO you create</em>.</li>
+      </ul>
+      <p id="perf-circuits-hash">
+        Hashing dominates the cost of both, and today that hash is <strong>SHA-256</strong>.
+      </p>
+
+      <figure id="zswapcost-figure" data-figure-src="zswapCost">
+        <!-- Enhanced into a stepped flow (2 inputs -> zSwap -> 1 output, with the
+             cost tally) by figures/zswapCost.ts. -->
+        <svg class="zc-static" viewBox="0 0 520 200" role="img" aria-label="Two input UTXOs - one holding 5 NIGHT, the other 4 GOLD, each a single token - each need one spend circuit; they feed into a zSwap and produce one output UTXO of 3 ROCK needing one output circuit. The proving cost is two spends plus one output.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <rect x="8" y="24" width="122" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="69" y="39" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="69" y="55" text-anchor="middle" font-weight="600">🌙 5 NIGHT</text>
+            <text x="69" y="80" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">spend · k=15</text>
+            <rect x="8" y="104" width="122" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="69" y="119" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="69" y="135" text-anchor="middle" font-weight="600">🪙 4 GOLD</text>
+            <text x="69" y="160" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">spend · k=15</text>
+            <line x1="134" y1="44" x2="172" y2="80" stroke="#9aa0a8"/>
+            <line x1="134" y1="124" x2="172" y2="92" stroke="#9aa0a8"/>
+            <rect x="174" y="64" width="92" height="42" rx="9" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="220" y="90" text-anchor="middle" font-weight="800" fill="#5a45a8" font-size="13">zSwap</text>
+            <text x="293" y="90" text-anchor="middle" font-size="16" fill="#9aa0a8">&rarr;</text>
+            <rect x="318" y="65" width="132" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="384" y="80" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="384" y="96" text-anchor="middle" font-weight="600">🪨 3 ROCK</text>
+            <text x="384" y="122" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0969da">output · k=14</text>
+            <text x="260" y="190" text-anchor="middle" font-size="11" font-weight="700">
+              <tspan fill="#24292f" font-family="'Red Hat Mono', ui-monospace, monospace">cost =&nbsp;&nbsp;</tspan><tspan fill="#5a45a8">spend k=15</tspan><tspan fill="#656c74">&nbsp;&nbsp;+&nbsp;&nbsp;</tspan><tspan fill="#5a45a8">spend k=15</tspan><tspan fill="#656c74">&nbsp;&nbsp;+&nbsp;&nbsp;</tspan><tspan fill="#0969da">output k=14</tspan>
+            </text>
+          </g>
+        </svg>
+        <figcaption>
+          A swap's proving cost is just a count of UTXOs. Each coin holds one token, so two input coins
+          (5 NIGHT, 4 GOLD) each need one <strong>spend</strong> circuit (<code>k=15</code>); they feed a zSwap and
+          come out as one output coin (3 ROCK) - one <strong>output</strong> circuit (<code>k=14</code>). So the
+          cost is <strong>2 &times; spend + 1 &times; output</strong>: it scales with how many coins move, in and
+          out.
+        </figcaption>
+      </figure>
+
+      <p id="perf-combine">
+        Recall that a transaction is just inputs and outputs, and an offer a proven subset of them (<a href="#txmodel-heading">a few zSwap subtleties</a>). Two things follow for performance. First, an offer file's cost is exactly the inputs and outputs it
+        encodes - nothing else. Second, and less obvious: <strong>combining</strong> already-proven offers is
+        nearly free. Merge two proven offers - even a one-sided one - and the parts already proven need no new
+        proof; the expensive work happened once, when each piece was created.
+      </p>
+
+      <p id="perf-arbitrage">
+        That asymmetry is what makes <strong>arbitrage</strong> cheap. A bot can scoop up offers other people have
+        already proven and combine ones that nearly cancel, leaving just a surplus in some token. It pockets that
+        surplus with a tiny <strong>one-sided offer</strong> of its own - a single output paying itself, no inputs
+        - so its only proving cost is that one output, no matter how many offers it stitched together.
+      </p>
+
+      <p id="perf-time">
+        So what is a step of <code>k</code> worth in real time? It depends entirely on where the
+        proof runs. These are measured prove times <em>per circuit</em>, by <code>k</code>, from a
+        native server down to a phone browser running WASM:
+      </p>
+
+      <div class="benchmark-wrap" id="bench-prove-circuit" tabindex="0" role="region" aria-label="Prove time per circuit by k, across platforms (scrollable)">
+        <table class="benchmark">
+          <thead>
+            <tr>
+              <th class="platform">Platform</th>
+              <th>k=9</th>
+              <th>k=10</th>
+              <th>k=11</th>
+              <th>k=12</th>
+              <th>k=13</th>
+              <th>k=14</th>
+              <th>k=15</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="group">
+              <th class="platform">Native <span class="meta">2 hosts · native</span></th>
+              <td class="bench-6">131<span class="u">ms</span></td>
+              <td class="bench-7">219<span class="u">ms</span></td>
+              <td class="bench-8">363<span class="u">ms</span></td>
+              <td class="bench-9">692<span class="u">ms</span></td>
+              <td class="bench-10">1.18<span class="u">s</span></td>
+              <td class="bench-12">2.16<span class="u">s</span></td>
+              <td class="bench-13">4.19<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Apple M4 Max <span class="meta">macOS · 16 cores · native</span></th>
+              <td class="bench-2">26<span class="u">ms</span></td>
+              <td class="bench-3">34<span class="u">ms</span></td>
+              <td class="bench-3">50<span class="u">ms</span></td>
+              <td class="bench-4">77<span class="u">ms</span></td>
+              <td class="bench-6">128<span class="u">ms</span></td>
+              <td class="bench-7">221<span class="u">ms</span></td>
+              <td class="bench-8">425<span class="u">ms</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Cortex-A76 <span class="meta">Linux · 4 cores · native</span></th>
+              <td class="bench-7">236<span class="u">ms</span></td>
+              <td class="bench-8">404<span class="u">ms</span></td>
+              <td class="bench-9">676<span class="u">ms</span></td>
+              <td class="bench-11">1.31<span class="u">s</span></td>
+              <td class="bench-12">2.24<span class="u">s</span></td>
+              <td class="bench-13">4.10<span class="u">s</span></td>
+              <td class="bench-15">7.95<span class="u">s</span></td>
+            </tr>
+            <tr class="group">
+              <th class="platform">Web · Desktop <span class="meta">3 browsers · WASM</span></th>
+              <td class="bench-8">483<span class="u">ms</span></td>
+              <td class="bench-10">858<span class="u">ms</span></td>
+              <td class="bench-11">1.57<span class="u">s</span></td>
+              <td class="bench-12">2.89<span class="u">s</span></td>
+              <td class="bench-14">5.32<span class="u">s</span></td>
+              <td class="bench-15">10.0<span class="u">s</span></td>
+              <td class="bench-16">18.9<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Chromium <span class="meta">macOS · WASM</span></th>
+              <td class="bench-8">483<span class="u">ms</span></td>
+              <td class="bench-10">858<span class="u">ms</span></td>
+              <td class="bench-11">1.57<span class="u">s</span></td>
+              <td class="bench-12">2.89<span class="u">s</span></td>
+              <td class="bench-14">5.32<span class="u">s</span></td>
+              <td class="bench-15">10.0<span class="u">s</span></td>
+              <td class="bench-16">18.9<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Firefox <span class="meta">macOS · WASM</span></th>
+              <td class="bench-8">490<span class="u">ms</span></td>
+              <td class="bench-10">877<span class="u">ms</span></td>
+              <td class="bench-11">1.61<span class="u">s</span></td>
+              <td class="bench-12">2.94<span class="u">s</span></td>
+              <td class="bench-14">5.39<span class="u">s</span></td>
+              <td class="bench-15">10.1<span class="u">s</span></td>
+              <td class="bench-16">19.0<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Safari <span class="meta">macOS · WASM</span></th>
+              <td class="bench-8">466<span class="u">ms</span></td>
+              <td class="bench-10">844<span class="u">ms</span></td>
+              <td class="bench-11">1.54<span class="u">s</span></td>
+              <td class="bench-12">2.83<span class="u">s</span></td>
+              <td class="bench-14">5.17<span class="u">s</span></td>
+              <td class="bench-15">9.71<span class="u">s</span></td>
+              <td class="bench-16">18.3<span class="u">s</span></td>
+            </tr>
+            <tr class="group">
+              <th class="platform">Web · Mobile <span class="meta">3 browsers · WASM</span></th>
+              <td class="bench-9">694<span class="u">ms</span></td>
+              <td class="bench-11">1.33<span class="u">s</span></td>
+              <td class="bench-12">2.51<span class="u">s</span></td>
+              <td class="bench-13">4.53<span class="u">s</span></td>
+              <td class="bench-15">11.7<span class="u">s</span></td>
+              <td class="bench-16">15.6<span class="u">s</span></td>
+              <td class="bench-17">29.6<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Chromium <span class="meta">iOS · WASM</span></th>
+              <td class="bench-9">717<span class="u">ms</span></td>
+              <td class="bench-11">1.35<span class="u">s</span></td>
+              <td class="bench-12">2.51<span class="u">s</span></td>
+              <td class="bench-13">4.53<span class="u">s</span></td>
+              <td class="bench-15">8.24<span class="u">s</span></td>
+              <td class="bench-16">15.6<span class="u">s</span></td>
+              <td class="bench-17">29.6<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Firefox <span class="meta">iOS · WASM</span></th>
+              <td class="bench-9">694<span class="u">ms</span></td>
+              <td class="bench-11">1.33<span class="u">s</span></td>
+              <td class="bench-13">3.56<span class="u">s</span></td>
+              <td class="bench-14">6.45<span class="u">s</span></td>
+              <td class="bench-15">11.7<span class="u">s</span></td>
+              <td class="bench-16">15.4<span class="u">s</span></td>
+              <td class="bench-17">29.1<span class="u">s</span></td>
+            </tr>
+            <tr>
+              <th class="platform">Safari <span class="meta">iOS · WASM</span></th>
+              <td class="bench-9">664<span class="u">ms</span></td>
+              <td class="bench-11">1.28<span class="u">s</span></td>
+              <td class="bench-12">2.37<span class="u">s</span></td>
+              <td class="bench-13">4.40<span class="u">s</span></td>
+              <td class="bench-15">11.7<span class="u">s</span></td>
+              <td class="bench-16">15.6<span class="u">s</span></td>
+              <td class="bench-18">43.8<span class="u">s</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="bench-legend">
+        <div class="bench-legend-cap">prove time (log scale)</div>
+        <div class="bench-scale" aria-hidden="true"></div>
+        <div class="bench-scale-labels"><span>10&thinsp;ms</span><span>100&thinsp;ms</span><span>1&thinsp;s</span><span>10&thinsp;s</span><span>100&thinsp;s</span></div>
+      </div>
+
+      <p id="perf-example">
+        Put that against a whole swap. Each input UTXO you spend is one <strong>spend</strong> circuit, and each
+        output UTXO you create is one <strong>output</strong> circuit - so the total cost is just <strong>N &times;
+        spend + M &times; output</strong>. Drag the sliders to set how many UTXOs go in and out, and watch the
+        wall-clock cost climb on each platform:
+      </p>
+
+      <div class="provescale" data-provescale-io>
+        <div class="provescale-ctl">
+          <label for="provescale-io-n">input UTXOs</label>
+          <input id="provescale-io-n" type="range" min="1" max="18" value="1" step="1" data-slider-in />
+          <span class="provescale-n" data-n-in>1</span>
+          <label for="provescale-io-m">output UTXOs</label>
+          <input id="provescale-io-m" type="range" min="1" max="18" value="1" step="1" data-slider-out />
+          <span class="provescale-n" data-n-out>1</span>
+          <span class="provescale-formula" data-formula>cost = 1&times;spend + 1&times;output</span>
+        </div>
+        <div class="benchmark-wrap" id="bench-prove-swap" tabindex="0" role="region" aria-label="Swap prove time by number of input and output UTXOs (scrollable)">
+          <table class="benchmark">
+            <thead>
+              <tr>
+                <th class="platform">Where the swap proves</th>
+                <th>prove time <span class="meta">N × k=15 + M × k=14</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-row data-k15="0.425" data-k14="0.221">
+                <th class="platform">Apple M4 Max <span class="meta">native</span></th>
+                <td class="bench-9" data-cost>~646<span class="u">ms</span></td>
+              </tr>
+              <tr data-row data-k15="18.9" data-k14="10.0">
+                <th class="platform">Desktop browser <span class="meta">WASM</span></th>
+                <td class="bench-17" data-cost>~29<span class="u">s</span></td>
+              </tr>
+              <tr data-row data-k15="29.6" data-k14="15.6">
+                <th class="platform">Phone browser <span class="meta">WASM</span></th>
+                <td class="bench-18" data-cost>~45<span class="u">s</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 id="latency-heading">Latency: from intent to settlement</h2>
+      <p id="latency-lead">
+        How long does a swap actually take to go from "I want to trade" to settled on-chain? Assuming blocks
+        aren't congested, the time required depends on three main steps:
+      </p>
+      <ol id="latency-steps">
+        <li><strong>Proof generation</strong> - building the zSwap proof itself. This is the part we just
+          measured, and it's by far the most variable: under a second on a native prover, tens of seconds in a
+          phone browser.</li>
+        <li><strong>Landing on Celestia</strong> - the offer file is posted to the data-availability layer so it
+          can be found and matched. Celestia produces a block roughly every <strong>3 seconds</strong> (since its
+          V9 upgrade), so you wait a few seconds at most.</li>
+        <li><strong>Settling on Midnight</strong> - the matched transaction lands in a Midnight block, which is
+          where it becomes final. Midnight targets <strong>6-second</strong> blocks, so this adds up to another
+          six seconds.</li>
+      </ol>
+      <figure id="latency-figure">
+        <div class="provescale-ctl">
+          <span class="provescale-n">best</span>
+          <input id="lat-slider" type="range" min="0" max="2" step="1" value="2" data-latency-slider aria-label="block-timing case: best, average, or worst" />
+          <span class="provescale-n">worst</span>
+          <span class="provescale-formula" data-latency-label>worst case</span>
+        </div>
+        <svg viewBox="0 0 520 196" role="img" aria-label="Two latency bars on a 0 to 10 second axis, with a slider from best to worst case. A swap's wall-clock is proof generation plus a Celestia block wait (up to 3 seconds) plus a Midnight block wait (up to 6 seconds). At worst, posting and settling is about 10 seconds; on average about half; best case it is essentially just the proof. Matching someone else's offer skips Celestia (about 7 seconds at worst). Proof time is shown for a fast native prover; on a phone it is far larger.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <text x="8" y="65" font-size="10">post &amp; settle</text>
+            <rect x="110" y="46" width="38" height="30" fill="#d9d2f0" stroke="#b9c2cf" stroke-width="0.5"/>
+            <rect id="lat-cel" x="148" y="46" width="114" height="30" fill="#cfe8ee" stroke="#b9c2cf" stroke-width="0.5"/>
+            <text id="lat-cel-lbl" x="205" y="65" text-anchor="middle" font-size="10">Celestia</text>
+            <rect id="lat-mid1" x="262" y="46" width="228" height="30" fill="#d3e4f7" stroke="#b9c2cf" stroke-width="0.5"/>
+            <text id="lat-mid1-lbl" x="376" y="65" text-anchor="middle" font-size="10">Midnight</text>
+            <text id="lat-total1" x="494" y="65" font-size="10" font-weight="700">~10s</text>
+
+            <text x="8" y="116" font-size="10">match &amp; settle</text>
+            <text x="8" y="128" font-size="8.5" fill="#656c74">(no Celestia)</text>
+            <rect x="110" y="100" width="38" height="30" fill="#d9d2f0" stroke="#b9c2cf" stroke-width="0.5"/>
+            <rect id="lat-mid2" x="148" y="100" width="228" height="30" fill="#d3e4f7" stroke="#b9c2cf" stroke-width="0.5"/>
+            <text id="lat-mid2-lbl" x="262" y="119" text-anchor="middle" font-size="10">Midnight</text>
+            <text id="lat-total2" x="380" y="119" font-size="10" font-weight="700">~7s</text>
+
+            <line x1="110" y1="143" x2="490" y2="143" stroke="#9aa0a8"/>
+            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#555c63" text-anchor="middle">
+              <text x="110" y="156">0</text><text x="186" y="156">2</text><text x="262" y="156">4</text><text x="338" y="156">6</text><text x="414" y="156">8</text><text x="490" y="156">10s</text>
+            </g>
+            <rect x="148" y="171" width="11" height="11" rx="2" fill="#d9d2f0" stroke="#b9c2cf" stroke-width="0.5"/><text x="164" y="180" font-size="9.5">proof</text>
+            <rect x="220" y="171" width="11" height="11" rx="2" fill="#cfe8ee" stroke="#b9c2cf" stroke-width="0.5"/><text x="236" y="180" font-size="9.5">Celestia</text>
+            <rect x="300" y="171" width="11" height="11" rx="2" fill="#d3e4f7" stroke="#b9c2cf" stroke-width="0.5"/><text x="316" y="180" font-size="9.5">Midnight</text>
+          </g>
+        </svg>
+        <figcaption>
+          Where the wall-clock goes. A swap waits on proof generation, then a Celestia block, then a Midnight
+          block; <strong>matching</strong> someone else's offer skips Celestia (you don't broadcast - you take
+          their offer and submit). Drag the slider: at <strong>worst</strong> you just miss each block and wait a
+          full one; on <strong>average</strong> you catch each about halfway; at <strong>best</strong> you catch
+          both the moment they're produced and it's essentially just the proof. (Proof time is for a fast
+          <em>native</em> prover, ~1s; in a phone browser it runs to tens of seconds and dwarfs the chain waits.)
+        </figcaption>
+      </figure>
+      <p id="latency-takeaway">
+        Two of the three are fixed, small, and out of your hands - at worst <strong>under ten seconds</strong> of
+        block latency combined, and on average about half that.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="throughput-heading">Throughput: offers per second</h2>
+      <p id="throughput-lead">
+        And how <em>many</em> swaps can the system carry at once? Two limits stack up: how much fits in a
+        <strong>block</strong>, and how much fits in a single <strong>transaction</strong>. Both turn on the
+        offer's on-chain size, which is just its pieces - each input, each output, plus a small fixed wrapper:
+      </p>
+      <div class="benchmark-wrap" id="bench-offer-size" tabindex="0" role="region" aria-label="Byte size of each part of an offer file (scrollable)">
+        <table class="benchmark">
+          <thead>
+            <tr>
+              <th class="platform">Piece</th>
+              <th>On-chain size</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th class="platform">ZswapInput <span class="meta">per input UTXO</span></th>
+              <td>~4,934 bytes</td>
+            </tr>
+            <tr>
+              <th class="platform">ZswapOutput <span class="meta">per output UTXO</span></th>
+              <td>~5,136 bytes</td>
+            </tr>
+            <tr>
+              <th class="platform">Offer wrapper <span class="meta">fixed overhead</span></th>
+              <td>~73 bytes</td>
+            </tr>
+            <tr class="group">
+              <th class="platform">Offer file <span class="meta">1 input + 1 output</span></th>
+              <td>10,143 bytes</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3 id="throughput-block">Block throughput</h3>
+      <p id="throughput-resize">
+        Start with the block. Each layer has a fixed budget - a block size and a block time - so dividing one by
+        the other gives a ceiling. Drag the inputs and outputs to resize the offer and watch how many fit, per
+        block and per second:
+      </p>
+      <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
+        <div class="provescale-ctl">
+          <label for="tput-n">input UTXOs</label>
+          <input id="tput-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
+          <span class="provescale-n" data-n-in>1</span>
+          <label for="tput-m">output UTXOs</label>
+          <input id="tput-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
+          <span class="provescale-n" data-n-out>1</span>
+          <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
+        </div>
+        <div class="benchmark-wrap" id="throughput-table" tabindex="0" role="region" aria-label="Maximum offer files per block and per second by layer (scrollable)">
+          <table class="benchmark">
+            <thead>
+              <tr>
+                <th class="platform">Layer</th>
+                <th>Block</th>
+                <th>Bandwidth</th>
+                <th>Offer files / block</th>
+                <th>Offer files / s</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-row data-block-bytes="33554432" data-block-secs="3">
+                <th class="platform">Celestia <sup><a href="#throughput-future">&dagger;</a></sup> <span class="meta">data availability</span></th>
+                <td><a href="https://mocha.celenium.io/constants">32 MiB / 3 s</a></td>
+                <td>~11.18 MB/s</td>
+                <td data-perblock>~3,308</td>
+                <td data-persec>~1,103</td>
+              </tr>
+              <tr data-row data-block-bytes="2000000" data-block-secs="6">
+                <th class="platform">Midnight <span class="meta">settlement</span></th>
+                <td>2 MB / 6 s</td>
+                <td>~333 KB/s</td>
+                <td data-perblock>~197</td>
+                <td data-persec>~33</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="table-note" id="throughput-future">
+        <a href="https://blog.celestia.org/introducing-fibre-1tb-s-of-blockspace/">&dagger; Celestia's Fibre
+        upgrade</a> targets <strong>1 Tb/s</strong> of blockspace - orders of magnitude beyond today's blocks.
+      </p>
+      <p id="throughput-roles">
+        The two layers play different roles, and both ceilings matter in their own way:
+      </p>
+      <ul id="throughput-roles-list">
+        <li><strong>Celestia</strong> bounds how many offers can be <em>posted</em> - including the many that
+          expire without ever settling, which Midnight never sees.</li>
+        <li><strong>Midnight</strong> bounds how many can be <em>filled</em>, and it carries more per fill: the
+          matched offer plus the settlement, and any offers routed <em>outside</em> Celestia.</li>
+      </ul>
+      <p id="throughput-roles-tail">
+        So neither layer is simply "the bottleneck" - a market thick with fleeting, unfilled quotes leans on
+        Celestia, while one where most quotes settle leans on Midnight.
+      </p>
+      <p id="throughput-caveats">
+        Two caveats that mean these per-block numbers may be smaller in practice:
+      </p>
+      <ul id="throughput-caveats-list">
+        <li>That bandwidth is <strong>shared</strong> - every other user of the chain draws from the same block,
+          so a DEX only ever gets a slice of it.</li>
+        <li>These counts ignore <strong>per-block overhead</strong> - headers, encoding, and the other fields a
+          block carries - so the real number is always somewhat lower.</li>
+      </ul>
+      <h3 id="throughput-tx">Transaction throughput</h3>
+      <p id="throughput-pertx">
+        Those were per-block, bandwidth ceilings. A tighter limit lives one level down, per <em>transaction</em>,
+        and here the two layers diverge sharply. Drag the offer's inputs and outputs to resize it:
+      </p>
+      <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
+        <div class="provescale-ctl">
+          <label for="pertx-n">input UTXOs</label>
+          <input id="pertx-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
+          <span class="provescale-n" data-n-in>1</span>
+          <label for="pertx-m">output UTXOs</label>
+          <input id="pertx-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
+          <span class="provescale-n" data-n-out>1</span>
+          <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
+        </div>
+        <div class="benchmark-wrap" id="throughput-pertx-table" tabindex="0" role="region" aria-label="zSwaps per transaction by layer (scrollable)">
+          <table class="benchmark">
+            <thead>
+              <tr>
+                <th class="platform">Layer</th>
+                <th>Per-tx budget</th>
+                <th>zSwaps / tx</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-row data-block-bytes="8388608">
+                <th class="platform">Celestia <span class="meta">post</span></th>
+                <td>8 MiB <sup><a href="#throughput-blobcap">&dagger;</a></sup></td>
+                <td data-perblock>~827</td>
+              </tr>
+              <tr data-row data-block-bytes="200000">
+                <th class="platform">Midnight <sup><a href="#throughput-pertx-cap">&Dagger;</a></sup> <span class="meta">settle</span></th>
+                <td>~200 KB</td>
+                <td data-perblock>~19</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="table-note" id="throughput-blobcap">
+        &dagger; On Celestia the 8 MiB cap is the whole <em>transaction</em> - the blob (the offer data) plus its
+        PFB metadata and signatures - so the blob itself sits a touch under 8 MiB. Even so, that is well over a
+        thousand UTXOs, far beyond any normal offer.
+      </p>
+      <p class="table-note" id="throughput-pertx-cap">
+        &Dagger; Midnight's strict transaction limit is 1 MiB, but the fee model's
+        <code>block_limits.block_usage</code> (~200 KB of transaction bytes per block) binds first - this assumes
+        you saturate it, so your transaction is the only one in its block. That budget fits about 19
+        one-input/one-output swaps raw; per-transaction overhead trims it to roughly 18 in practice. See
+        <code>block_limits.block_usage</code> and <code>transaction_byte_limit</code> for detail.
+      </p>
+      <p id="throughput-pertx-note">
+        Celestia could pack hundreds of offers into a single post; Midnight settles only about <strong>18
+        zSwaps</strong> per transaction. So whenever swaps must settle <strong>atomically</strong> - all-or-nothing
+        in one transaction - the <strong>Midnight cap is the bottleneck</strong>.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="cost-heading">Cost: per-offer fees</h2>
+      <p id="cost-lead">
+        Remember, an offer file doesn't <em>have</em> to touch Celestia at all - you can hand it to a counterparty
+        directly, or route it through some other channel. Go that way and, as long as you already hold the NIGHT
+        that generates your DUST, posting costs essentially <strong>nothing</strong>. The fees below are the cost
+        of the <em>public</em> path - posting to Celestia, then settling on Midnight - each a small fee in its
+        chain's own token. Posting scales with size, so the bigger the offer the more it costs; drag the inputs and
+        outputs to see:
+      </p>
+      <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
+        <div class="provescale-ctl">
+          <label for="cost-n">input UTXOs</label>
+          <input id="cost-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
+          <span class="provescale-n" data-n-in>1</span>
+          <label for="cost-m">output UTXOs</label>
+          <input id="cost-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
+          <span class="provescale-n" data-n-out>1</span>
+          <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
+        </div>
+        <div class="benchmark-wrap" id="cost-table" tabindex="0" role="region" aria-label="Per-offer fee by layer, native token, USD, and offers per dollar (scrollable)">
+          <table class="benchmark">
+            <thead>
+              <tr>
+                <th class="platform">Layer</th>
+                <th>Per offer (native)</th>
+                <th>Per offer (USD)</th>
+                <th>Offers / USD</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-row data-tia-gas-price="0.004" data-tia-usd="0.3487">
+                <th class="platform">Celestia <span class="meta">post · data availability</span></th>
+                <td data-tia>~0.000663 TIA</td>
+                <td data-usd>~$0.000231</td>
+                <td data-perusd>~4,324</td>
+              </tr>
+              <tr data-row>
+                <th class="platform">Midnight <span class="meta">settle</span></th>
+                <td>~0.65 DUST</td>
+                <td>/<sup><a href="#cost-dust-note">&Dagger;</a></sup></td>
+                <td>/</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p id="cost-note" class="table-note">
+        Celestia charges by <em>gas</em>: a one-blob post needs a fixed amount of gas plus a per-share amount
+        (<a href="https://github.com/celestiaorg/celestia-app/blob/32d247971386c1944d44bec1faeb000b1ff1dd51/x/blob/types/payforblob.go">the PFB gas formula</a>),
+        paid at a gas price each node sets as a minimum filter - a <strong>0.004 utia/gas</strong> default (the
+        older default was 0.002; the protocol's own floor is far lower, 0.000001). Only the base bytes are posted,
+        never the larger bech32m string. At 0.004 utia/gas and
+        <strong>TIA &asymp; $0.35</strong>, a posted offer lands near <strong>$0.0002</strong> - a few thousand to
+        the dollar.
+      </p>
+      <p id="cost-dust-note" class="table-note">
+        &Dagger; Midnight's DUST isn't bought directly - it's generated by holding NIGHT - so we treat its dollar
+        cost as <strong>$0</strong> here (a fuller NIGHT-to-DUST figure to come).
+      </p>
+      <p id="cost-caveat">
+        Both fees float with network congestion, so read these as ballpark, not fixed.
+      </p>
+    </section>
+
   </article>
 
   <div class="narrate-dock" role="region" aria-label="Narration player">

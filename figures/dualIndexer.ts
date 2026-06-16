@@ -2,7 +2,7 @@
 //
 // The EffectStream framework watches BOTH source chains as a single ordered
 // stream and reconciles them into one live order book: Celestia tells you what
-// was CREATED (new offers), Midnight tells you what's now DEAD (spent UTXOs —
+// was CREATED (new offers), Midnight tells you what's now DEAD (spent offers —
 // fills & expiries). One program, two inputs, one book.
 //
 // Chips travel from the two streams into the EffectStream box, then the book
@@ -45,7 +45,7 @@ const EVENTS: Event[] = [
 const CAPTIONS: Record<string, string> = {
   intro: "One program watches both chains as a single ordered stream.",
   celestia: "Celestia: a new offer. EffectStream adds it to the book.",
-  midnight: "Midnight: that UTXO was spent. The offer is now dead &mdash; strike it.",
+  midnight: "Midnight: that offers was spent. The offer is now dead &mdash; strike it.",
   done: "Celestia says what was created, Midnight says what's now dead. One reconciled book.",
 };
 
@@ -62,7 +62,7 @@ function initIndexer(figure: HTMLElement): void {
           <div class="idx-track" data-track-celestia></div>
         </div>
         <div class="idx-stream midnight" data-stream-midnight>
-          <div class="idx-stream-label"><span class="idx-dot"></span>Midnight &mdash; spent UTXOs</div>
+          <div class="idx-stream-label"><span class="idx-dot"></span>Midnight &mdash; spent offers</div>
           <div class="idx-track" data-track-midnight></div>
         </div>
       </div>

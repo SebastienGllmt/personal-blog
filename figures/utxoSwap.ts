@@ -37,7 +37,7 @@ const initUtxoFigure = (figure: HTMLElement): void => {
       <svg class="tethers" data-tethers preserveAspectRatio="none" aria-hidden="true"></svg>
       <div class="coin-col">
         <div class="coin" data-coin>
-          <div class="coin-cap">maker's coin <span class="utxo-tag">a UTXO</span></div>
+          <div class="coin-cap">maker's coin <span class="utxo-tag">a CoinCommitment</span></div>
           <div class="coin-amt">5 🌙 NIGHT</div>
           <div class="coin-state" data-coin-state>unspent</div>
         </div>
@@ -203,7 +203,7 @@ const initUtxoFigure = (figure: HTMLElement): void => {
     flashTx();
     render();
     cascadeKill();
-    readout.innerHTML = "The coin was <b>spent on-chain</b> &mdash; by a taker settling, by the maker, by anything. Every copy was a pre-signed spend of that <b>one</b> UTXO, so they <b>all</b> go dead together: one spend cascades through the whole fan-out.";
+    readout.innerHTML = "The coin was <b>spent on-chain</b> &mdash; by a taker settling, by the maker, by anything. Every copy was a pre-signed spend of that <b>one</b> coin, so they <b>all</b> go dead together: one spend cascades through the whole fan-out.";
   };
 
   const onReset = (): void => {
