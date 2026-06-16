@@ -339,10 +339,18 @@
   <mark name="privateutxo-heading" figure="none"/>
   Midnight keeps the word UTXO for the public, unshielded side of the ledger - so the private side needs its own
   vocabulary.
-  <mark name="privateutxo-body" figure="privateutxo-figure"/>
+  <mark name="privateutxo-body" figure="coin-fingerprints-figure"/>
   A private coin never appears directly. It shows up as two one-way hashes: a CoinCommitment, which appears in an
   output - the coin hashed with your public key; and a nullifier, which appears in an input - the same coin hashed
   with your secret key.
+  <mark name="privateutxo-figure" figure="privateutxo-figure"/>
+  Put that against the public model: where a plain UTXO shows the coin outright, the shielded side shows only those
+  two opaque hashes - a commitment when it's created, a nullifier when it's spent.
+  <mark name="privateutxo-props" figure="none"/>
+  Two properties follow, and together they're the whole point. Privacy: the commitment and nullifier come from
+  different keys, so no one can match them - you can't even tell which coins are unspent. And integrity: each coin
+  has exactly one nullifier, and the ledger rejects any nullifier it's seen before, so a coin is spent at most once
+  - without anyone ever learning which coin it was.
 </script>
 
 <script type="text/narration" data-chapter-id="coin-copies" data-chapter-title="One coin, many offer files" data-chapter-parent="p-terminology">
@@ -353,7 +361,7 @@
   copies of it everywhere at once - a chat, Celestia, a web page. They're all the same offer.
   <mark name="anatomy-utxo" figure="utxo-figure"/>
   So which thing actually gets spent in a trade? Not the file - the coin underneath it. Loosely, every
-  copy is the same pre-signed spend of one UTXO, and the chain is the only source of truth. The moment that
+  copy is the same pre-signed spend of one coin, and the chain is the only source of truth. The moment that
   coin is spent on Midnight - by whoever uses any copy, for whatever reason - every copy, everywhere,
   transitively stops being spendable. Watch the cascade.
   <mark name="anatomy-variants" figure="nullifier-share-figure"/>
@@ -397,29 +405,16 @@
 
 <script type="text/narration" data-chapter-id="commitment-tree" data-chapter-title="The commitment tree" data-chapter-parent="p-subtleties">
   <mark name="commitment-tree-heading" figure="none"/>
-  We've leaned on a phrase a few times - ownership is proven in zero-knowledge - without ever saying how. Let's
-  build it from the coin up.
-  <mark name="commitment-tree-coin" figure="coin-fingerprints-figure"/>
-  A coin is just data - a value, a token type, a unique nonce - owned by a keypair. From it the chain derives two
-  one-way fingerprints, and which key you use decides which. Hash the coin with your public key and you get its
-  commitment, posted when the coin is created - this coin exists. Hash it with your secret key and you get its
-  nullifier, posted when it's spent - this coin is gone. Different keys, so no one can link the two; and only you,
-  holding the secret key, can mint the nullifier that spends it.
-  <mark name="commitment-tree-sets" figure="none"/>
-  The ledger just keeps two ever-growing sets: every commitment ever made, and every nullifier ever revealed. A
-  coin is unspent when its commitment is there and its nullifier isn't - but since nobody can pair a commitment
-  with its nullifier, nobody can list the unspent coins at all. That uncomputable gap is the whole privacy of the
-  thing.
+  Now the commitment tree itself - the structure that makes "ownership proven in zero-knowledge" real.
   <mark name="commitment-tree-tree" figure="commitment-merkle-figure"/>
-  So how do you spend without revealing which coin is yours? You prove it belongs. Every commitment is a leaf of
-  one giant append-only Merkle tree - the commitment tree - whose root is a single hash for every coin ever made.
-  To spend, your input carries a zero-knowledge proof that your coin's commitment sits somewhere under that root,
-  plus the coin's nullifier, and nothing more. The chain learns the root and the nullifier, never which leaf.
-  That's what proving ownership in zero-knowledge really is - and a double-spend is caught for free, because the
-  nullifier is already in the set.
-  <mark name="commitment-tree-block" figure="none"/>
-  One last detail, the one chaining hinges on: the tree only grows when a block is processed. A coin you made a
-  moment ago isn't a leaf yet, so it has no root an input could prove against.
+  How do you spend without revealing which coin is yours? Every commitment is a leaf of one
+  giant append-only Merkle tree, the commitment tree. It grows a block at a time - when a block is processed, the
+  commitment of every new output gets appended as a fresh leaf, and the tree is re-hashed up to a single published
+  root. To spend, your input does two things at once. It proves, in zero-knowledge, that your coin's commitment is
+  one of the leaves under a published root. And it publishes the coin's nullifier - an opaque marker only the owner
+  can produce, so it proves the coin is yours, and the public spent-tag that stops any second spend. So the chain
+  learns only the root and the nullifier, never which leaf. That's what proving ownership in zero-knowledge really
+  is.
 </script>
 
 <script type="text/narration" data-chapter-id="transients" data-chapter-title="Chaining needs a transient" data-chapter-parent="p-subtleties">
@@ -757,7 +752,7 @@
   and updating orders costs nothing on-chain at all.
   <mark name="orderbook-body" figure="none"/>
   But there's a catch, and you already know the fact behind it from the anatomy: a zSwap offer is built
-  from a specific coin - a UTXO - and it stays valid only as long as that coin stays unspent.
+  from a specific coin, and it stays valid only as long as that coin stays unspent.
   <mark name="cancel-cost" figure="none"/>
   So follow the lifecycle. Creating and sharing the offer is free - it's just a file, so copies can be
   anywhere. When a taker fills it, settling spends that coin on-chain - one transaction. Fine. But
@@ -989,15 +984,15 @@
 <script type="text/narration" data-chapter-id="open-q1" data-chapter-title="the nullifier set never shrinks" data-chapter-parent="p-openq">
   <mark name="oq1-what" figure="nullifier-figure"/>
   Most zero-knowledge systems, Midnight included, stop double-spends with something called a nullifier. On a normal
-  UTXO chain you'd just mark a spent output as spent. zSwap wants the same guarantee - each UTXO spent at most
-  once - but without revealing which UTXO it was. So instead of marking the UTXO directly, spending it
-  publishes a nullifier: a private, deterministic tag derived from that UTXO that reveals nothing about it. The
-  ledger keeps the set of nullifiers - effectively, the set of spent UTXOs - and rejects any it has
-  already seen. Same UTXO, same nullifier, so it can't be spent twice.
+  UTXO chain you'd just mark a spent output as spent. zSwap wants the same guarantee - each coin spent at most
+  once - but without revealing which coin it was. So instead of marking the coin directly, spending it
+  publishes a nullifier: a private, deterministic tag derived from that coin that reveals nothing about it. The
+  ledger keeps the set of nullifiers - effectively, one opaque marker per spent coin - and rejects any it has
+  already seen. Same coin, same nullifier, so it can't be spent twice.
   <mark name="nullifier-figure" figure="nullifier-figure"/>
-  Play with the figure. Spend a UTXO and its nullifier joins the set; try to spend it again and you're rejected,
-  because the same UTXO always produces the same nullifier. But here's the catch: nullifiers are <em>never</em>
-  removed. A spent UTXO stays spent forever, so the nullifier set only ever grows.
+  Play with the figure. Spend a coin and its nullifier joins the set; try to spend it again and you're rejected,
+  because the same coin always produces the same nullifier. But here's the catch: nullifiers are <em>never</em>
+  removed. A spent coin stays spent forever, so the nullifier set only ever grows.
   <mark name="oq1-problem" figure="nullifier-figure"/>
   On the base layer that's fine. But the whole point of our L2 is high throughput - and every single swap adds
   a nullifier that never goes away. Drag the throughput up: at real volumes that set balloons into the billions, and
@@ -1219,10 +1214,10 @@
   intuition is that a circuit's proof time grows exponentially with its k - look at the curve: almost flat for
   small k, then it explodes.
   <mark name="perf-circuits" figure="zswapcost-figure" step="in1"/>
-  A zSwap offer is built from two main circuits, and the cost is really just a count of UTXOs. Every UTXO you
-  spend needs one spend circuit - here, two UTXOs go in, so two spends.
+  A zSwap offer is built from two main circuits, and the cost is really just a count of coins. Every coin you
+  spend needs one spend circuit - here, two coins go in, so two spends.
   <mark name="zswapcost-figure" step="output"/>
-  They feed into one zSwap, and out comes a single output UTXO - one output circuit. Each coin carries just one
+  They feed into one zSwap, and out comes a single output coin - one output circuit. Each coin carries just one
   token, so the cost is simply a count of the coins that move: here two spends plus one output. Hashing dominates
   all of it, and today that hash is SHA-256.
   <mark name="perf-combine" figure="none"/>
@@ -1237,8 +1232,8 @@
   How long is that in real seconds? It depends entirely on where the proof runs - from a fast native prover down
   to a phone browser.
   <mark name="perf-example" figure="none"/>
-  Take a whole swap. Its cost is just the circuit count times the per-proof time - one spend per input UTXO, one
-  output per output UTXO. Drag the sliders to pile on more of each, and watch the wall-clock cost climb: even a
+  Take a whole swap. Its cost is just the circuit count times the per-proof time - one spend per input coin, one
+  output per output coin. Drag the sliders to pile on more of each, and watch the wall-clock cost climb: even a
   small swap runs to tens of seconds in a browser.
 </script>
 
@@ -1800,12 +1795,12 @@
         </p>
         <figure id="indexer-figure" data-figure-src="dualIndexer">
           <!-- Enhanced into an animated dual-chain indexer by client/figures/dualIndexer.ts. -->
-          <svg class="idx-static" viewBox="0 0 520 150" role="img" aria-label="EffectStream consumes two chains: Celestia's new offers and Midnight's spent UTXOs, reconciling them into one live order book where spent offers are struck through.">
+          <svg class="idx-static" viewBox="0 0 520 150" role="img" aria-label="EffectStream consumes two chains: Celestia's new offers and Midnight's spends, reconciling them into one live order book where spent offers are struck through.">
             <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
               <rect x="10" y="20" width="150" height="34" rx="6" fill="#efeafb" stroke="#9a82d8"/>
               <text x="85" y="41" text-anchor="middle">Celestia: new offers</text>
               <rect x="10" y="96" width="150" height="34" rx="6" fill="#eaf0f6" stroke="#7fa8cf"/>
-              <text x="85" y="117" text-anchor="middle">Midnight: spent UTXOs</text>
+              <text x="85" y="117" text-anchor="middle">Midnight: spends</text>
               <text x="172" y="60" fill="#999">&rarr;</text>
               <text x="172" y="104" fill="#999">&rarr;</text>
               <rect x="196" y="48" width="120" height="54" rx="8" fill="#f3f0fb" stroke="#6a4fb0"/>
@@ -2070,6 +2065,53 @@
           <code>Coin</code> hashed together with your <strong>secret</strong> key.</li>
       </ul>
 
+      <figure id="coin-fingerprints-figure">
+        <svg viewBox="0 54 540 150" role="img" aria-label="One coin produces two one-way SHA-256 fingerprints. Hashed with the owner's public key it yields the commitment, posted when the coin is created. Hashed with the owner's secret key it yields the nullifier, posted when the coin is spent. The two use different keys, so they cannot be linked, and only the secret-key holder can produce the nullifier.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <rect x="14" y="62" width="132" height="104" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="80" y="84" text-anchor="middle" font-weight="700" fill="#4b3b8f">a coin</text>
+            <text x="30" y="108">🌙 5 NIGHT</text>
+            <text x="30" y="128" font-size="10" fill="#656c74">type &middot; value</text>
+            <text x="30" y="150" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#656c74">nonce c1d9 (unique)</text>
+
+            <text x="170" y="80" font-size="9" fill="#2f7d4d">+ public key</text>
+            <text x="150" y="104" fill="#9aa0a8">&rarr;</text>
+            <rect x="170" y="88" width="58" height="24" rx="6" fill="#eef2f7" stroke="#cbd3dd"/>
+            <text x="199" y="104" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#3a4750">SHA-256</text>
+            <text x="234" y="104" fill="#9aa0a8">&rarr;</text>
+            <rect x="252" y="88" width="116" height="24" rx="8" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="310" y="104" text-anchor="middle" font-weight="700" fill="#2f7d4d">commitment</text>
+            <text x="374" y="104" fill="#9aa0a8">&rarr;</text>
+            <text x="392" y="100" font-size="10" font-weight="600" fill="#2f7d4d">at creation</text>
+            <text x="392" y="113" font-size="9" fill="#656c74">marks: exists</text>
+
+            <text x="170" y="138" font-size="9" fill="#b23b3b">+ secret key</text>
+            <text x="150" y="156" fill="#9aa0a8">&rarr;</text>
+            <rect x="170" y="140" width="58" height="24" rx="6" fill="#eef2f7" stroke="#cbd3dd"/>
+            <text x="199" y="156" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#3a4750">SHA-256</text>
+            <text x="234" y="156" fill="#9aa0a8">&rarr;</text>
+            <rect x="252" y="140" width="116" height="24" rx="8" fill="#f6eefb" stroke="#9a82d8"/>
+            <text x="310" y="156" text-anchor="middle" font-weight="700" fill="#5a45a8">nullifier</text>
+            <text x="374" y="156" fill="#9aa0a8">&rarr;</text>
+            <text x="392" y="152" font-size="10" font-weight="600" fill="#5a45a8">at spend</text>
+            <text x="392" y="165" font-size="9" fill="#656c74">marks: spent</text>
+
+            <text x="14" y="196" font-size="10" fill="#656c74">Different keys, so the two can't be linked &mdash; and only the secret key makes the nullifier.</text>
+          </g>
+        </svg>
+        <figcaption>
+          One coin, two one-way fingerprints. Hashed with your <strong>public</strong> key it becomes a
+          <strong>commitment</strong>, posted when the coin is <em>created</em>; hashed with your
+          <strong>secret</strong> key it becomes a <strong>nullifier</strong>, posted when it's <em>spent</em>.
+          Different keys mean no one can link the two - and only the secret-key holder can produce the nullifier,
+          so only the owner can spend.
+        </figcaption>
+      </figure>
+
+      <p id="privateutxo-contrast">
+        It's worth seeing how that lands against a plain, public UTXO - the same coin, side by side:
+      </p>
+
       <figure id="privateutxo-figure">
         <svg viewBox="0 0 560 244" role="img" aria-label="Public versus private representation of a coin, in a grid of output and input columns against public and private rows. In the public UTXO model an output is a visible UTXO showing 5 NIGHT owned by Alice, and an input spends it by reference, all in the clear. On the shielded side an output is instead a CoinCommitment - the Coin hashed with the public key - and an input is a Nullifier - the Coin hashed with the secret key - both opaque one-way hashes that reveal nothing.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
@@ -2112,6 +2154,22 @@
           each other.
         </figcaption>
       </figure>
+
+      <p id="privateutxo-props">
+        Two properties follow, and together they're the whole point:
+      </p>
+      <ul id="privateutxo-props-list">
+        <li><strong>Privacy</strong> - because a coin's commitment and nullifier are hashed with <em>different</em>
+          keys, no one can match one to the other, so no observer can even tell which coins are still unspent.</li>
+        <li><strong>Integrity</strong> - each coin has exactly one nullifier, and the ledger remembers every
+          nullifier ever published and rejects any repeat, so a coin can be spent <strong>at most once</strong> and
+          double-spends are impossible.</li>
+      </ul>
+      <p id="privateutxo-props-close">
+        The chain enforces all of that without ever learning which coin a nullifier belongs to. How the ledger
+        actually stores those commitments and checks those nullifiers is <a href="#commitment-tree-heading">a
+        subtlety we come back to</a>.
+      </p>
     </section>
 
     <section>
@@ -2150,7 +2208,7 @@
       <p id="anatomy-utxo">
         So which thing actually gets <em>spent</em> in a trade? Not the file - the
         <strong>coin underneath it</strong>. Loosely, every copy is the same
-        <em>pre-signed spend</em> of one UTXO, and the chain is the only source of
+        <em>pre-signed spend</em> of one coin, and the chain is the only source of
         truth: the moment that coin is spent on Midnight - by whoever uses any copy,
         for whatever reason - every copy everywhere transitively stops being spendable.
         Drive the figure and watch the cascade.
@@ -2193,17 +2251,15 @@
       </p>
 
       <figure id="nullifier-share-figure">
-        <svg class="ns2-static" viewBox="0 0 520 150" role="img" aria-label="One coin - recorded as a CoinCommitment, H of Coin and public key - backs two different offer files, one asking 80 NIGHT and one asking 70 NIGHT. The same coin's nullifier, H of Coin and secret key equal to a3f1, rides along in both, so at most one can ever settle: spending the coin kills the other.">
+        <svg class="ns2-static" viewBox="0 0 520 150" role="img" aria-label="One coin, recorded as a CoinCommitment and spendable by its nullifier a3f1, backs two different offer files - one asking 80 NIGHT, one asking 70 NIGHT. The same nullifier a3f1 rides along in both, so at most one can ever settle: spending the coin kills the other.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
-            <rect x="8" y="22" width="166" height="96" rx="9" fill="#f3f0fb" stroke="#b9a9e6"/>
-            <text x="91" y="40" text-anchor="middle" font-weight="700" fill="#4b3b8f">your coin &middot; the NFT</text>
-            <text x="20" y="60" font-size="9" font-weight="600" fill="#5a45a8">CoinCommitment</text>
-            <text x="20" y="72" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.5" fill="#7a7385">H(Coin, pk)</text>
-            <rect x="16" y="82" width="150" height="28" rx="7" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="24" y="95" font-size="9" font-weight="600" fill="#5a45a8">nullifier 🔒 a3f1</text>
-            <text x="24" y="106" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.5" fill="#7a7385">H(Coin, sk)</text>
-            <line x1="176" y1="50" x2="186" y2="40" stroke="#9aa0a8"/>
-            <line x1="176" y1="92" x2="186" y2="96" stroke="#9aa0a8"/>
+            <rect x="10" y="28" width="152" height="84" rx="9" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="86" y="46" text-anchor="middle" font-weight="700" fill="#4b3b8f">your coin &middot; the NFT</text>
+            <rect x="20" y="56" width="132" height="46" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="86" y="74" text-anchor="middle" font-size="9.5" font-weight="700" fill="#5a45a8">CoinCommitment</text>
+            <text x="86" y="91" text-anchor="middle" font-size="9" fill="#555c63">spendable by nullifier 🔒 a3f1</text>
+            <line x1="162" y1="50" x2="186" y2="40" stroke="#9aa0a8"/>
+            <line x1="162" y1="86" x2="186" y2="96" stroke="#9aa0a8"/>
             <g font-size="10">
               <rect x="190" y="22" width="200" height="36" rx="7" fill="#fff" stroke="#aab"/>
               <text x="200" y="37" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#4b3b8f">zswapoffer1qpzry…</text>
@@ -2221,11 +2277,10 @@
         </svg>
         <figcaption>
           You can go further: <em>different</em> offers from the same coin - here, two
-          prices for the same NFT. The coin is recorded as a <strong><code>CoinCommitment</code></strong>,
-          <code>H(Coin,&nbsp;pk)</code>; every offer that spends it carries the matching
-          <strong>nullifier</strong>, <code>H(Coin,&nbsp;sk)</code>&nbsp;=&nbsp;<code>a3f1</code> - the same
-          <code>Coin</code>, so the same tag. They're visibly alternatives: at most one can ever settle, and the
-          first spend of the coin invalidates the other.
+          prices for the same NFT. The coin is recorded as a <strong><code>CoinCommitment</code></strong>, and
+          it's spendable by its <strong>nullifier</strong> 🔒 <code>a3f1</code>. Every offer built from it carries
+          that same nullifier, so they're visibly alternatives: at most one can ever settle, and the first spend of
+          the coin invalidates the other.
         </figcaption>
       </figure>
 
@@ -2374,82 +2429,28 @@
 
     <section>
       <h2 id="commitment-tree-heading">The commitment tree</h2>
-      <p id="commitment-tree-coin">
-        We've leaned on a phrase a few times - <a href="#anatomy-deltas">ownership is proven in
-        zero-knowledge</a> - without ever saying how. Here's the machinery, built from the coin up. A coin is just
-        data: a value, a token type, and a unique <strong>nonce</strong>, controlled by a keypair. From it the
-        chain derives two one-way fingerprints, and <em>which key you use decides which one you get</em>. Hash the
-        coin with your <strong>public</strong> key and you get its <strong>commitment</strong>, posted the moment
-        the coin is created - "this coin exists." Hash it with your <strong>secret</strong> key and you get its
-        <a href="#anatomy-nullifier"><strong>nullifier</strong></a>, posted the moment it's spent - "this coin is
-        gone." Different keys, so no one can tell the two belong to the same coin; and because only you hold the
-        secret key, only you can mint the nullifier that spends it.
-      </p>
-
-      <figure id="coin-fingerprints-figure">
-        <svg viewBox="0 0 540 216" role="img" aria-label="One coin produces two one-way SHA-256 fingerprints. Hashed with the owner's public key it yields the commitment, posted when the coin is created. Hashed with the owner's secret key it yields the nullifier, posted when the coin is spent. The two use different keys, so they cannot be linked, and only the secret-key holder can produce the nullifier.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
-            <rect x="14" y="62" width="132" height="104" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="80" y="84" text-anchor="middle" font-weight="700" fill="#4b3b8f">a coin</text>
-            <text x="30" y="108">🌙 5 NIGHT</text>
-            <text x="30" y="128" font-size="10" fill="#656c74">type &middot; value</text>
-            <text x="30" y="150" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#656c74">nonce a1f9 (unique)</text>
-
-            <text x="170" y="80" font-size="9" fill="#2f7d4d">+ public key</text>
-            <text x="150" y="104" fill="#9aa0a8">&rarr;</text>
-            <rect x="170" y="88" width="58" height="24" rx="6" fill="#eef2f7" stroke="#cbd3dd"/>
-            <text x="199" y="104" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#3a4750">SHA-256</text>
-            <text x="234" y="104" fill="#9aa0a8">&rarr;</text>
-            <rect x="252" y="88" width="116" height="24" rx="8" fill="#e6f5ec" stroke="#5bb87a"/>
-            <text x="310" y="104" text-anchor="middle" font-weight="700" fill="#2f7d4d">commitment</text>
-            <text x="374" y="104" fill="#9aa0a8">&rarr;</text>
-            <text x="392" y="100" font-size="10" font-weight="600" fill="#2f7d4d">at creation</text>
-            <text x="392" y="113" font-size="9" fill="#656c74">marks: exists</text>
-
-            <text x="170" y="138" font-size="9" fill="#b23b3b">+ secret key</text>
-            <text x="150" y="156" fill="#9aa0a8">&rarr;</text>
-            <rect x="170" y="140" width="58" height="24" rx="6" fill="#eef2f7" stroke="#cbd3dd"/>
-            <text x="199" y="156" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#3a4750">SHA-256</text>
-            <text x="234" y="156" fill="#9aa0a8">&rarr;</text>
-            <rect x="252" y="140" width="116" height="24" rx="8" fill="#f6eefb" stroke="#9a82d8"/>
-            <text x="310" y="156" text-anchor="middle" font-weight="700" fill="#5a45a8">nullifier</text>
-            <text x="374" y="156" fill="#9aa0a8">&rarr;</text>
-            <text x="392" y="152" font-size="10" font-weight="600" fill="#5a45a8">at spend</text>
-            <text x="392" y="165" font-size="9" fill="#656c74">marks: spent</text>
-
-            <text x="14" y="196" font-size="10" fill="#656c74">Different keys, so the two can't be linked &mdash; and only the secret key makes the nullifier.</text>
-          </g>
-        </svg>
-        <figcaption>
-          One coin, two one-way fingerprints. Hashed with your <strong>public</strong> key it becomes a
-          <strong>commitment</strong>, posted when the coin is <em>created</em>; hashed with your
-          <strong>secret</strong> key it becomes a <strong>nullifier</strong>, posted when it's <em>spent</em>.
-          Different keys mean no one can link the two - and only the secret-key holder can produce the nullifier,
-          so only the owner can spend.
-        </figcaption>
-      </figure>
-
-      <p id="commitment-tree-sets">
-        The ledger simply keeps two ever-growing sets: every <strong>commitment</strong> ever made, and every
-        <strong>nullifier</strong> ever revealed. A coin is <em>unspent</em> when its commitment is present and its
-        nullifier is not - but since nobody can pair a commitment with its nullifier, <strong>nobody can list the
-        unspent coins at all</strong>. That uncomputable difference is the whole privacy of the scheme: the chain
-        knows exactly how many coins exist and how many were spent, yet can't point to a single live one.
-      </p>
-
       <p id="commitment-tree-tree">
-        So how do you spend a coin without revealing <em>which</em> one is yours? You prove it belongs. Every
+        How do you spend a coin without revealing <em>which</em> one is yours? Every
         commitment is a <strong>leaf</strong> of one enormous, append-only <strong>Merkle tree</strong> - the
-        <strong>commitment tree</strong> - whose <strong>root</strong> is a single hash standing in for every coin
-        ever made. To spend, your input carries a <strong>zero-knowledge proof of membership</strong>: a proof that
-        your coin's commitment sits <em>somewhere</em> under that published root, plus the coin's nullifier, and
-        nothing more. The chain learns the root and the nullifier; it never learns which leaf. <em>That</em> is
-        what "ownership proven in zero-knowledge" comes down to - and a double-spend is caught for free, since the
-        nullifier is already in the set.
+        <strong>commitment tree</strong>. The tree grows a block at a time: when a block is processed, the
+        <code>CoinCommitment</code> of every new <em>output</em> in it is appended as a fresh leaf, and the tree is
+        re-hashed pairwise up to a single <strong>root</strong> - one hash that pins down the whole set of coins so
+        far - which the chain then publishes. To spend, your input does two things at once:
+      </p>
+      <ul id="commitment-tree-spend-list">
+        <li>it <strong>proves membership</strong>, in <strong>zero-knowledge</strong> - that your coin's commitment
+          is one of the leaves under a published <strong>root</strong>;</li>
+        <li>it <strong>publishes the coin's <a href="#privateutxo-heading">nullifier</a></strong> - an opaque
+          marker only the owner can produce (so it proves the coin is <em>yours</em>) and the public "spent" tag
+          the ledger records to stop any second spend.</li>
+      </ul>
+      <p id="commitment-tree-tree-close">
+        So the chain ends up knowing only the root and the nullifier - never which leaf. <em>That</em> is what
+        "ownership proven in zero-knowledge" comes down to.
       </p>
 
       <figure id="commitment-merkle-figure">
-        <svg viewBox="0 0 540 286" role="img" aria-label="A Merkle tree whose leaves are coin commitments c0 through c3, combined pairwise into hashes h01 and h23 and then into a single root. To spend coin c1, the owner gives a zero-knowledge proof that c1 sits under the published root using the sibling hashes along the path, revealing the root and the coin's nullifier but never which leaf.">
+        <svg viewBox="0 16 540 270" role="img" aria-label="A Merkle tree whose leaves are coin commitments c0 through c3, combined pairwise into hashes h01 and h23 and then into a single root. To spend coin c1, the owner gives a zero-knowledge proof that c1 sits under the published root using the sibling hashes along the path, revealing the root and the coin's nullifier but never which leaf.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
             <rect x="18" y="24" width="14" height="14" rx="3" fill="#efeafb" stroke="#9a82d8"/>
             <text x="38" y="35" font-size="9" fill="#5a45a8">your coin's path to the root</text>
@@ -2463,8 +2464,9 @@
 
             <rect x="238" y="48" width="64" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
             <text x="270" y="65" text-anchor="middle" font-weight="700" fill="#5a45a8">root</text>
-            <rect x="312" y="51" width="74" height="20" rx="10" fill="#e6f5ec" stroke="#5bb87a"/>
-            <text x="349" y="65" text-anchor="middle" font-size="9" font-weight="700" fill="#2f7d4d">published</text>
+            <text x="362" y="64" text-anchor="middle" font-size="9" font-weight="700" fill="#2f7d4d">published</text>
+            <line x1="332" y1="61" x2="315" y2="61" stroke="#2f7d4d" stroke-width="1.2"/>
+            <path d="M307 61 L315 57 L315 65 Z" fill="#2f7d4d"/>
 
             <rect x="98" y="130" width="64" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
             <text x="130" y="147" text-anchor="middle" font-weight="600" fill="#5a45a8">h01</text>
@@ -2495,12 +2497,6 @@
         </figcaption>
       </figure>
 
-      <p id="commitment-tree-block">
-        One last detail, and it's the one <a href="#chaining-cost-heading">chaining</a> hinges on: the tree only
-        <strong>grows when a block is processed</strong>. A coin you made a moment ago isn't a leaf yet - no block
-        has folded it in, and the very leaf it will land on depends on whatever other transactions share its block
-        - so it has no root an input could prove membership against.
-      </p>
     </section>
 
     <section>
@@ -3428,8 +3424,7 @@
         resting order, and a marketplace is just a filter over them. For a taker it's
         ideal - browse, pick one, settle with a single on-chain transaction; listing
         and re-listing orders costs nothing. The catch hides in how Midnight represents a
-        swap. An offer is built from a specific coin - a <strong>UTXO</strong>
-        (unspent transaction output) - and the offer is valid only while that coin
+        swap. An offer is built from a specific coin - and the offer is valid only while that coin
         stays unspent (the coin-and-copies cascade from
         <a href="#utxo-figure">the anatomy</a>).
       </p>
@@ -4014,7 +4009,7 @@
         <figcaption>
           Circuit size is <code>2^k</code>, so the cost curve is <strong>exponential</strong> -
           every step right doubles the height. zSwap's <strong>spend</strong> (<code>k=15</code>,
-          once per UTXO spent) and <strong>output</strong> (<code>k=14</code>, once per UTXO
+          once per coin spent) and <strong>output</strong> (<code>k=14</code>, once per coin
           created) hash with <strong>SHA-256</strong> today; swapping to a ZK-friendly hash like
           <strong>Poseidon1</strong> slides each two steps left (to <code>k=13</code> and
           <code>k=12</code>) - about <strong>¼ the size</strong>, roughly <strong>4&times;
@@ -4032,7 +4027,7 @@
 
       <div class="provescale" data-provescale>
         <div class="provescale-ctl">
-          <label for="provescale-n">input UTXOs</label>
+          <label for="provescale-n">input coins</label>
           <input id="provescale-n" type="range" min="1" max="18" value="1" step="1" data-slider />
           <span class="provescale-n" data-n>1</span>
           <span class="provescale-formula" data-formula>cost = 1&times;spend + 1&times;output</span>
@@ -4094,26 +4089,26 @@
       <p>
         Most zero-knowledge systems, Midnight included, prevent double-spends with
         <strong>nullifiers</strong>. On a transparent UTXO chain you'd simply mark a spent output as
-        spent. zSwap wants the same guarantee - each UTXO spent at most once - but
-        <em>without</em> revealing which UTXO it was. So rather than marking the UTXO directly,
+        spent. zSwap wants the same guarantee - each coin spent at most once - but
+        <em>without</em> revealing which coin it was. So rather than marking the coin directly,
         spending it publishes a <strong>nullifier</strong>: a deterministic, private tag derived
-        from that UTXO that reveals nothing about it. The ledger keeps the set of nullifiers
-        - effectively <strong>the set of spent UTXOs</strong> - and rejects any
-        nullifier it has already seen. The same UTXO always yields the same nullifier, so it can
-        never be spent twice, and no observer can tell which UTXO a nullifier came from.
+        from that coin that reveals nothing about it. The ledger keeps the set of nullifiers
+        - effectively <strong>one opaque marker per spent coin</strong> - and rejects any
+        nullifier it has already seen. The same coin always yields the same nullifier, so it can
+        never be spent twice, and no observer can tell which coin a nullifier came from.
       </p>
 
       <figure id="nullifier-figure" data-figure-src="nullifierGrowth">
         <!-- Enhanced into an interactive demo by client/figures/nullifierGrowth.ts. -->
-        <svg class="nf-static" viewBox="0 0 480 200" role="img" aria-label="Spending a UTXO publishes its nullifier, a private 'spent' marker, into the nullifier set (the set of spent UTXOs). That set only ever grows, so on a high-throughput L2 it balloons without bound.">
+        <svg class="nf-static" viewBox="0 0 480 200" role="img" aria-label="Spending a coin publishes its nullifier, a private 'spent' marker, into the nullifier set (one opaque marker per spent coin). That set only ever grows, so on a high-throughput L2 it balloons without bound.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
             <rect x="10" y="14" width="120" height="44" rx="8" fill="#fafafc" stroke="#d2d2dc"/>
-            <text x="70" y="34" text-anchor="middle" font-weight="600">🪙 a UTXO</text>
+            <text x="70" y="34" text-anchor="middle" font-weight="600">🪙 a coin</text>
             <text x="70" y="50" text-anchor="middle" fill="#888" font-size="9">spend it →</text>
             <rect x="170" y="10" width="200" height="52" rx="8" fill="#f3f0fb" stroke="#b9a9e6"/>
             <text x="270" y="30" text-anchor="middle" font-weight="700" fill="#4b3b8f">nullifier</text>
-            <text x="270" y="48" text-anchor="middle" fill="#888" font-size="9">a private “this UTXO is spent” marker</text>
-            <text x="10" y="92" font-weight="600" fill="#555">nullifier set - the spent UTXOs - only ever grows:</text>
+            <text x="270" y="48" text-anchor="middle" fill="#888" font-size="9">a private “this coin is spent” marker</text>
+            <text x="10" y="92" font-weight="600" fill="#555">nullifier set - one marker per spent coin - only ever grows:</text>
             <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#4b3b8f">
               <text x="10" y="112">🔒 a3f1  🔒 b7c2  🔒 9e04  🔒 1d8a  🔒 6f33  🔒 c0b9  🔒 22ae  🔒 e5d7  …</text>
             </g>
@@ -4122,8 +4117,8 @@
           </g>
         </svg>
         <figcaption>
-          A nullifier is a private &ldquo;this UTXO is spent&rdquo; marker. Spend a UTXO and its
-          nullifier joins the set; spend it again and you're rejected (same UTXO → same nullifier).
+          A nullifier is a private &ldquo;this coin is spent&rdquo; marker. Spend a coin and its
+          nullifier joins the set; spend it again and you're rejected (same coin → same nullifier).
           But <strong>nullifiers are never removed</strong> - drag the throughput slider to
           watch the set balloon over a year. That unbounded growth is the open problem.
         </figcaption>
@@ -4798,9 +4793,9 @@
       </p>
       <ul id="perf-circuits-list">
         <li>The <strong><code>spend</code></strong> circuit (<code>k=15</code>) runs
-          <em>once per UTXO you consume</em>.</li>
+          <em>once per coin you consume</em>.</li>
         <li>The <strong><code>output</code></strong> circuit (<code>k=14</code>) runs
-          <em>once per UTXO you create</em>.</li>
+          <em>once per coin you create</em>.</li>
       </ul>
       <p id="perf-circuits-hash">
         Hashing dominates the cost of both, and today that hash is <strong>SHA-256</strong>.
@@ -4809,14 +4804,14 @@
       <figure id="zswapcost-figure" data-figure-src="zswapCost">
         <!-- Enhanced into a stepped flow (2 inputs -> zSwap -> 1 output, with the
              cost tally) by figures/zswapCost.ts. -->
-        <svg class="zc-static" viewBox="0 0 520 200" role="img" aria-label="Two input UTXOs - one holding 5 NIGHT, the other 4 GOLD, each a single token - each need one spend circuit; they feed into a zSwap and produce one output UTXO of 3 ROCK needing one output circuit. The proving cost is two spends plus one output.">
+        <svg class="zc-static" viewBox="0 0 520 200" role="img" aria-label="Two input coins - one holding 5 NIGHT, the other 4 GOLD, each a single token - each need one spend circuit; they feed into a zSwap and produce one output coin of 3 ROCK needing one output circuit. The proving cost is two spends plus one output.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
             <rect x="8" y="24" width="122" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="69" y="39" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="69" y="39" text-anchor="middle" font-size="9" fill="#656c74">coin</text>
             <text x="69" y="55" text-anchor="middle" font-weight="600">🌙 5 NIGHT</text>
             <text x="69" y="80" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">spend · k=15</text>
             <rect x="8" y="104" width="122" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="69" y="119" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="69" y="119" text-anchor="middle" font-size="9" fill="#656c74">coin</text>
             <text x="69" y="135" text-anchor="middle" font-weight="600">🪙 4 GOLD</text>
             <text x="69" y="160" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">spend · k=15</text>
             <line x1="134" y1="44" x2="172" y2="80" stroke="#9aa0a8"/>
@@ -4825,7 +4820,7 @@
             <text x="220" y="90" text-anchor="middle" font-weight="800" fill="#5a45a8" font-size="13">zSwap</text>
             <text x="293" y="90" text-anchor="middle" font-size="16" fill="#9aa0a8">&rarr;</text>
             <rect x="318" y="65" width="132" height="40" rx="8" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="384" y="80" text-anchor="middle" font-size="9" fill="#656c74">UTXO</text>
+            <text x="384" y="80" text-anchor="middle" font-size="9" fill="#656c74">coin</text>
             <text x="384" y="96" text-anchor="middle" font-weight="600">🪨 3 ROCK</text>
             <text x="384" y="122" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0969da">output · k=14</text>
             <text x="260" y="190" text-anchor="middle" font-size="11" font-weight="700">
@@ -4834,7 +4829,7 @@
           </g>
         </svg>
         <figcaption>
-          A swap's proving cost is just a count of UTXOs. Each coin holds one token, so two input coins
+          A swap's proving cost is just a count of coins. Each coin holds one token, so two input coins
           (5 NIGHT, 4 GOLD) each need one <strong>spend</strong> circuit (<code>k=15</code>); they feed a zSwap and
           come out as one output coin (3 ROCK) - one <strong>output</strong> circuit (<code>k=14</code>). So the
           cost is <strong>2 &times; spend + 1 &times; output</strong>: it scales with how many coins move, in and
@@ -4997,23 +4992,23 @@
       </div>
 
       <p id="perf-example">
-        Put that against a whole swap. Each input UTXO you spend is one <strong>spend</strong> circuit, and each
-        output UTXO you create is one <strong>output</strong> circuit - so the total cost is just <strong>N &times;
-        spend + M &times; output</strong>. Drag the sliders to set how many UTXOs go in and out, and watch the
+        Put that against a whole swap. Each input coin you spend is one <strong>spend</strong> circuit, and each
+        output coin you create is one <strong>output</strong> circuit - so the total cost is just <strong>N &times;
+        spend + M &times; output</strong>. Drag the sliders to set how many coins go in and out, and watch the
         wall-clock cost climb on each platform:
       </p>
 
       <div class="provescale" data-provescale-io>
         <div class="provescale-ctl">
-          <label for="provescale-io-n">input UTXOs</label>
+          <label for="provescale-io-n">input coins</label>
           <input id="provescale-io-n" type="range" min="1" max="18" value="1" step="1" data-slider-in />
           <span class="provescale-n" data-n-in>1</span>
-          <label for="provescale-io-m">output UTXOs</label>
+          <label for="provescale-io-m">output coins</label>
           <input id="provescale-io-m" type="range" min="1" max="18" value="1" step="1" data-slider-out />
           <span class="provescale-n" data-n-out>1</span>
           <span class="provescale-formula" data-formula>cost = 1&times;spend + 1&times;output</span>
         </div>
-        <div class="benchmark-wrap" id="bench-prove-swap" tabindex="0" role="region" aria-label="Swap prove time by number of input and output UTXOs (scrollable)">
+        <div class="benchmark-wrap" id="bench-prove-swap" tabindex="0" role="region" aria-label="Swap prove time by number of input and output coins (scrollable)">
           <table class="benchmark">
             <thead>
               <tr>
@@ -5122,11 +5117,11 @@
           </thead>
           <tbody>
             <tr>
-              <th class="platform">ZswapInput <span class="meta">per input UTXO</span></th>
+              <th class="platform">ZswapInput <span class="meta">per input coin</span></th>
               <td>~4,934 bytes</td>
             </tr>
             <tr>
-              <th class="platform">ZswapOutput <span class="meta">per output UTXO</span></th>
+              <th class="platform">ZswapOutput <span class="meta">per output coin</span></th>
               <td>~5,136 bytes</td>
             </tr>
             <tr>
@@ -5148,10 +5143,10 @@
       </p>
       <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
         <div class="provescale-ctl">
-          <label for="tput-n">input UTXOs</label>
+          <label for="tput-n">input coins</label>
           <input id="tput-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
           <span class="provescale-n" data-n-in>1</span>
-          <label for="tput-m">output UTXOs</label>
+          <label for="tput-m">output coins</label>
           <input id="tput-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
           <span class="provescale-n" data-n-out>1</span>
           <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
@@ -5219,10 +5214,10 @@
       </p>
       <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
         <div class="provescale-ctl">
-          <label for="pertx-n">input UTXOs</label>
+          <label for="pertx-n">input coins</label>
           <input id="pertx-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
           <span class="provescale-n" data-n-in>1</span>
-          <label for="pertx-m">output UTXOs</label>
+          <label for="pertx-m">output coins</label>
           <input id="pertx-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
           <span class="provescale-n" data-n-out>1</span>
           <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
@@ -5254,7 +5249,7 @@
       <p class="table-note" id="throughput-blobcap">
         &dagger; On Celestia the 8 MiB cap is the whole <em>transaction</em> - the blob (the offer data) plus its
         PFB metadata and signatures - so the blob itself sits a touch under 8 MiB. Even so, that is well over a
-        thousand UTXOs, far beyond any normal offer.
+        thousand coins, far beyond any normal offer.
       </p>
       <p class="table-note" id="throughput-pertx-cap">
         &Dagger; Midnight's strict transaction limit is 1 MiB, but the fee model's
@@ -5282,10 +5277,10 @@
       </p>
       <div class="provescale" data-offersize data-in-bytes="4934" data-out-bytes="5136" data-overhead="73">
         <div class="provescale-ctl">
-          <label for="cost-n">input UTXOs</label>
+          <label for="cost-n">input coins</label>
           <input id="cost-n" type="range" min="1" max="10" value="1" step="1" data-slider-in />
           <span class="provescale-n" data-n-in>1</span>
-          <label for="cost-m">output UTXOs</label>
+          <label for="cost-m">output coins</label>
           <input id="cost-m" type="range" min="1" max="10" value="1" step="1" data-slider-out />
           <span class="provescale-n" data-n-out>1</span>
           <span class="provescale-formula" data-formula>1×4,934 + 1×5,136 + 73 = 10,143 bytes</span>
