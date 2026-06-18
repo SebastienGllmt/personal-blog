@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/presidocs/scripts/post-checks.ts\" \"$CLAUDE_PROJECT_DIR/personal-blog\"",
+            "statusMessage": "Running post checks"
+          }
+        ]
+      }
+    ]
+  }
+}
