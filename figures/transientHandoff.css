@@ -1,0 +1,156 @@
+/* Styles for the "transients are interactive" figure (posts/offer-files.html).
+ *
+ * External stylesheet (not inline <style>) because the production CSP is
+ * `style-src 'self'` with no 'unsafe-inline' (see shared/securityHeaders.ts).
+ * Dynamic visuals are class toggles or GSAP CSSOM writes — never inline `style=`.
+ * Everything is scoped under `.th-fig` (the JS-injected stage).
+ *
+ * Two chain rows (their coin → your offer, your coin → their offer). In each, a
+ * `Transient` chip — the whole struct that gets handed over — slides by `left`
+ * only (never opacity) from the owner's swap into the receiver's offer, so it
+ * stays legible at every held state (rule 17). Height is invariant across the
+ * journey (rule 16): both rows are always present, each chip is absolutely
+ * positioned in its track (no flow impact), and the readout copy swap is
+ * reserved by a hidden sizer holding the longest string. Colours come from the
+ * shared --fig-* palette (base.css; DESIGN.md §1). */
+
+/* Progressive enhancement: hide the static SVG fallback once enhanced. */
+#transient-interactive-figure.th-enhanced .th-static {
+  display: none;
+}
+
+.th-fig {
+  font-family: var(--font-sans);
+  color: var(--fig-ink);
+  font-size: 0.92rem;
+}
+
+.th-row {
+  border: 1.5px solid #e0e0e8;
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem 0.7rem;
+  margin-bottom: 0.7rem;
+  transition: border-color 0.3s, background 0.3s;
+}
+.th-row.is-active {
+  border-color: var(--fig-purple);
+  background: #fbfaff;
+}
+
+.th-row-head {
+  font-size: 0.8rem;
+  color: var(--fig-muted);
+  margin-bottom: 0.7rem;
+}
+.th-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fig-purple);
+  background: var(--fig-purple-bg);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  margin-right: 0.3rem;
+}
+
+.th-flow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.th-party {
+  flex: none;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.78rem;
+  border: 1.5px solid #c8c8d4;
+  border-radius: 9px;
+  background: #f7f7fb;
+  padding: 0.4rem 0.55rem;
+  line-height: 1.3;
+}
+/* The owner of the middle coin — the side that builds the transient. */
+.th-party.owner {
+  border-color: var(--fig-purple);
+  background: var(--fig-purple-bg);
+  color: #3a2b7a;
+}
+.th-sub {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--fig-purple);
+}
+
+/* The track the Transient chip travels across, owner → receiver. */
+.th-track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 120px;
+  height: 34px;
+}
+.th-path {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  right: 4px;
+  border-top: 2px dotted var(--fig-amber);
+}
+
+/* The Transient struct, handed across. Amber/dashed = transient identity, the
+ * same vocabulary as the ZswapTransient struct figure and the chain transient
+ * in the merge-vs-chain figure. */
+.th-tx {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+  border: 1.5px dashed var(--fig-amber);
+  border-radius: 9px;
+  background: var(--fig-amber-bg);
+  padding: 0.15rem 0.45rem 0.2rem;
+  white-space: nowrap;
+}
+.th-tx-name {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--fig-amber);
+}
+.th-tx-fields {
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  font-weight: 600;
+  color: var(--fig-amber);
+}
+
+/* Fixed-height readout: a hidden sizer holds the longest copy to reserve the
+ * height; the live readout is overlaid (same idiom as the merge-vs-chain fig). */
+.th-readout-wrap {
+  position: relative;
+  margin-top: 0.5rem;
+}
+.th-readout-sizer,
+.th-readout {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--fig-muted);
+}
+.th-readout-sizer { visibility: hidden; }
+.th-readout {
+  position: absolute;
+  inset: 0;
+}
+
+@media (max-width: 560px) {
+  .th-flow { gap: 0.35rem; }
+  .th-party { font-size: 0.7rem; padding: 0.35rem 0.4rem; }
+  .th-track { min-width: 84px; }
+}

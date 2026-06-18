@@ -1,0 +1,218 @@
+/* Styles for the "merge vs. chain" figure (posts/offer-files.html).
+ *
+ * External stylesheet (not inline <style>) because the production CSP is
+ * `style-src 'self'` with no 'unsafe-inline' (see shared/securityHeaders.ts).
+ * Dynamic visuals are class toggles or GSAP CSSOM writes — never inline `style=`
+ * attributes that CSP would block. Everything is scoped under `.mc-fig` (the
+ * JS-injected stage) so it can't leak into the article.
+ *
+ * Colours come from the shared --fig-* palette (base.css; DESIGN.md §1) so the
+ * contrast gate passes by construction. The only opacity-animated element is the
+ * decorative .mc-glow (not load-bearing — rule 17). Height is kept invariant
+ * across the journey (rule 16): both rows are always present and the readout
+ * copy swap is reserved by a hidden sizer holding the longer string. */
+
+/* Progressive enhancement: hide the static SVG fallback once enhanced. */
+#mergechain-figure.mc-enhanced .mc-static {
+  display: none;
+}
+
+.mc-fig {
+  font-family: var(--font-sans);
+  color: var(--fig-ink);
+  font-size: 0.92rem;
+}
+
+.mc-row {
+  position: relative;
+  border: 1px solid #d8d8e0;
+  border-radius: 12px;
+  background: #fafafc;
+  padding: 0.7rem 0.85rem 0.8rem;
+  margin-bottom: 0.8rem;
+  transition: border-color 0.3s;
+}
+.mc-row.is-active {
+  border-color: #b9a9e6;
+}
+.mc-row[data-row="chain"].is-active {
+  border-color: #8fcfa6;
+}
+
+/* Decorative emphasis ring — opacity-animated by the tour. Not load-bearing
+ * (the readout + active border carry the meaning), so opacity is allowed. */
+.mc-glow {
+  position: absolute;
+  inset: -3px;
+  border-radius: 14px;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px rgba(106, 79, 176, 0.28);
+  opacity: 0;
+}
+.mc-row[data-row="chain"] .mc-glow {
+  box-shadow: 0 0 0 3px rgba(20, 122, 53, 0.26);
+}
+
+.mc-row-head {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fig-muted);
+  margin-bottom: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+.mc-tag {
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+}
+.mc-tag.merge { color: var(--fig-purple); background: var(--fig-purple-bg); }
+.mc-tag.chain { color: var(--fig-green); background: var(--fig-green-bg); }
+
+.mc-flow {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+.mc-feeds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* The on-chain commitment set the merge/chain inputs are drawn from. */
+.mc-pool {
+  flex: none;
+  text-align: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--fig-blue);
+  background: var(--fig-blue-bg);
+  border: 1.5px solid var(--fig-blue);
+  border-radius: 9px;
+  padding: 0.4rem 0.55rem;
+}
+.mc-pool-sub { font-weight: 600; }
+
+.mc-swap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* Dotted "drawn from the on-chain commitment set" connector, sitting just left of
+ * each input the pool feeds. Decorative (the readout + caption state provenance in
+ * text); coloured like the pool so the eye ties them together. */
+.mc-from {
+  position: relative;
+  flex: none;
+  align-self: center;
+  width: 22px;
+  height: 0;
+  border-top: 2px dotted var(--fig-blue);
+  margin-right: 0.1rem;
+}
+.mc-from::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -4px;
+  border-left: 6px solid var(--fig-blue);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+.mc-coin {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.86rem;
+  border-radius: 8px;
+  padding: 0.22rem 0.45rem;
+  white-space: nowrap;
+}
+.mc-coin.night { color: var(--fig-purple); background: var(--fig-purple-bg); }
+.mc-coin.rock  { color: var(--fig-amber);  background: var(--fig-amber-bg); }
+.mc-coin.gem   { color: var(--fig-green);  background: var(--fig-green-bg); }
+/* The two merge-case 3 ROCK coins are *different* coins; distinguish them by the
+ * brightness of the amber fill instead of an a/b subscript. rock-b uses a deeper
+ * amber fill AND a darker label, so the difference is clearly visible while the
+ * label contrast goes UP (~8.9:1), not down — a light fill with the standard amber
+ * label was the muddy/faint case. */
+.mc-coin.rock.rock-a { background: var(--fig-amber-bg); }
+.mc-coin.rock.rock-b { background: #ecd9a6; color: #4d3409; }
+
+.mc-to {
+  color: var(--fig-faint);
+  font-weight: 700;
+}
+
+.mc-box {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--fig-ink);
+  background: #eef0f3;
+  border: 1px solid #c9ced6;
+  border-radius: 7px;
+  padding: 0.22rem 0.5rem;
+  white-space: nowrap;
+}
+
+.mc-note {
+  font-size: 0.66rem;
+  font-style: italic;
+  color: var(--fig-faint);
+}
+
+/* The transient capsule: an ephemeral one-leaf tree that the middle coin lives
+ * in, fused into the chained transaction. Dashed = never settles on-chain. */
+.mc-transient {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  border: 1.5px dashed var(--fig-amber);
+  border-radius: 10px;
+  padding: 0.25rem 0.4rem 0.3rem;
+  background: var(--fig-amber-bg);
+}
+.mc-transient-tag {
+  font-size: 0.56rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--fig-amber);
+}
+
+/* Fixed-height readout: a hidden sizer holds the LONGER (merge) copy to reserve
+ * the height, the live readout is overlaid — so the merge↔chain copy swap as the
+ * tour animates can't shift the article below it (same idiom as offerMerge's
+ * verdict sizer). */
+.mc-readout-wrap {
+  position: relative;
+  margin-top: 0.3rem;
+}
+.mc-readout-sizer,
+.mc-readout {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--fig-muted);
+}
+.mc-readout-sizer { visibility: hidden; }
+.mc-readout {
+  position: absolute;
+  inset: 0;
+}
+
+@media (max-width: 560px) {
+  .mc-flow { gap: 0.5rem; }
+  .mc-pool { width: 100%; }
+}
