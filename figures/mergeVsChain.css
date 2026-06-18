@@ -142,12 +142,9 @@
 .mc-coin.rock  { color: var(--fig-amber);  background: var(--fig-amber-bg); }
 .mc-coin.gem   { color: var(--fig-green);  background: var(--fig-green-bg); }
 /* The two merge-case 3 ROCK coins are *different* coins; distinguish them by the
- * brightness of the amber fill instead of an a/b subscript. rock-b uses a deeper
- * amber fill AND a darker label, so the difference is clearly visible while the
- * label contrast goes UP (~8.9:1), not down — a light fill with the standard amber
- * label was the muddy/faint case. */
+ * background color */
 .mc-coin.rock.rock-a { background: var(--fig-amber-bg); }
-.mc-coin.rock.rock-b { background: #ecd9a6; color: #4d3409; }
+.mc-coin.rock.rock-b { background:var(--fig-red-bg) }
 
 .mc-to {
   color: var(--fig-faint);
