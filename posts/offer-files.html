@@ -139,7 +139,7 @@
   Alice's offer says: plus five NIGHT, minus three ROCK. The chain will only ever accept
   a transaction where none of those numbers comes out negative - in a simple trade,
   they cancel to exactly zero. So her offer alone is never valid. It's half of a trade,
-  waiting for its other half.
+  waiting for its other half. In this post, we'll assume you're using Shielded NIGHT.
   <mark name="merge-figure" figure="merge-figure"/>
   Here's where it gets fun. Look at the figure. Alice posted the offer on the left.
   You assemble the matching half on the right - you take the NIGHT she's giving,
@@ -153,14 +153,11 @@
   zero-knowledge proof inside it, nobody has to re-prove anything to combine them.
   The taker doesn't even need a proving system. It's completely non-interactive.
   <mark name="zswap-compose" figure="compose-figure"/>
-  And one subtlety worth knowing: the match doesn't have to be a perfect mirror. The
-  real rule is that no token may come out negative. Look at the figure: one offer gives
-  seven ROCK, another only wants five - and you can fill both anyway, by attaching a
-  piece of your own that pockets the spare two. Every want is met, nothing goes negative,
-  and the bundle settles. That's not a loophole; it's the mechanic that makes aggregators and arbitrage
-  routing possible later. Strictly speaking, you could even leave the surplus unclaimed
-  - the chain would accept it and simply destroy it, crediting no one - which is why
-  in practice you always pocket it explicitly.
+  And a match doesn't have to be a perfect two-party mirror, because a taker can bundle
+  several offers that don't individually line up. Look at the figure: one offer gives seven
+  ROCK, another wants only five, and you fill both anyway by attaching a piece of your own
+  that pockets the spare two - a three-way trade, and routing across more tokens gives the
+  n-way version.
   <mark name="zswap-trustless" figure="none"/>
   It's also tamper-proof. Change a single byte of someone's offer and its proof no
   longer verifies, so it's worthless. You can hand an offer to a complete stranger and
@@ -383,76 +380,6 @@
   same tag on both - meaning the same user is behind them. The coins stay sealed; the connection doesn't.
 </script>
 
-<script type="text/narration" data-chapter-id="p-subtleties" data-chapter-title="A few zSwap subtleties">
-  <mark name="p-subtleties" figure="none"/>
-  Before we get to what you can build, a few subtleties about how zSwap works underneath - small things, but each
-  one quietly shapes the design choices ahead.
-</script>
-
-<script type="text/narration" data-chapter-id="merge" data-chapter-title="Offers merge into one" data-chapter-parent="p-subtleties">
-  <mark name="merge-heading" figure="none"/>
-  The first: we keep saying offers, plural, but the chain settles one.
-  <mark name="merge-body" figure="none"/>
-  Here's the surprising part: a Midnight transaction isn't a list of offers. Offers merge - cheaply - into one, so
-  a transaction carries at most a single offer, built by merging any and all of them together. Merging is simply
-  the union of the offers' fields, with any token that nets to zero dropping out.
-  <mark name="merge-disjoint" figure="none"/>
-  There's one rule - the pieces must be disjoint. Two offers merge only if they share no input, no output, no
-  transient, which is just to say the same coin can't be spent twice in one transaction.
-  <mark name="merge-free" figure="none"/>
-  Importantly, merging proves nothing new. Each piece was already proven, so a merge is just set-union plus
-  addition - no proof regenerated.
-  <mark name="merge-onetx" figure="txstruct-figure"/>
-  So the transaction we drew as three lassoed offers? That's really one merged offer the moment it's a
-  transaction.
-</script>
-
-<script type="text/narration" data-chapter-id="commitment-tree" data-chapter-title="The commitment tree" data-chapter-parent="p-subtleties">
-  <mark name="commitment-tree-heading" figure="none"/>
-  Now the commitment tree itself - the structure that makes "ownership proven in zero-knowledge" real.
-  <mark name="commitment-tree-tree" figure="commitment-merkle-figure"/>
-  How do you spend without revealing which coin is yours? Every commitment is a leaf of one
-  giant append-only Merkle tree, the commitment tree. It grows a block at a time - when a block is processed, the
-  commitment of every new output gets appended as a fresh leaf, and the tree is re-hashed up to a single published
-  root. To spend, your input does two things at once. It proves, in zero-knowledge, that your coin's commitment is
-  one of the leaves under a published root. And it publishes the coin's nullifier - an opaque marker only the owner
-  can produce, so it proves the coin is yours, and the public spent-tag that stops any second spend. So the chain
-  learns only the root and the nullifier, never which leaf. That's what proving ownership in zero-knowledge really
-  is.
-  <mark name="root-history" figure="root-history-figure"/>
-  The tree also hands an offer its deadline. An input proves membership against a specific root, and the chain
-  keeps only a rolling history of recent roots - about two weeks of them. Once the root your input was proven
-  against ages out, there's nothing left to check it against, so the input - and the offer carrying it - just
-  expires. That retained-root window is an offer's time-to-live.
-</script>
-
-<script type="text/narration" data-chapter-id="transients" data-chapter-title="Chaining needs a transient" data-chapter-parent="p-subtleties">
-  <mark name="chaining-cost-heading" figure="none"/>
-  One last subtlety, and it's the catch behind a feature we're about to use - chaining: spending a coin in the
-  same transaction that creates it.
-  <mark name="chaining-cost-merge" figure="none"/>
-  You'd think merge does it. It doesn't. Merge is a disjoint union - it refuses offers that share a coin.
-  <mark name="chaining-cost-why" figure="none"/>
-  The tricky part comes from the commitment tree we just saw. An input proves its coin is a leaf of that tree, against a
-  published root - but a coin you just made isn't a leaf yet, not until a block folds it in. So a normal input has
-  no root to point at.
-  <mark name="chaining-cost-transient" figure="transient-tree-figure"/>
-  The fix is a transient: an output and an input for the same coin, fused into one part, where the input proves
-  membership against a throwaway single-leaf tree holding just that one commitment. It's one of the fields of a
-  ZswapOffer, alongside its inputs and outputs.
-  <mark name="chaining-cost-asymmetry" figure="none"/>
-  A transient is just an output and an input, proven independently. The output's proof is made exactly as any
-  output's is. The input is proven against the throwaway root instead of the global tree - but it's the same
-  circuit on different data, so it costs the same as any spend. So a transient is no more proving work than
-  creating the coin and then spending it separately; what you save is the round trip - the coin never has to settle
-  into a block first.
-  <mark name="transient-interactive-figure" figure="transient-interactive-figure"/>
-  One catch: a transient, unlike a merge, is an interactive construction. Only the owner of the middle coin can
-  build its spend - the nullifier comes from a secret key only they hold - so they assemble the whole Transient
-  struct and hand it over. If you chain their coin into your offer, the Transient comes from them; if they chain
-  yours into theirs, it comes from you. Merge stays the non-interactive primitive.
-</script>
-
 <script type="text/narration" data-chapter-id="p-chaining" data-chapter-title="Chaining offers">
   <mark name="p-chaining" figure="none"/>
   Here's a capability a lot of projects are quietly waiting for - and it turns out zSwap already has it.
@@ -501,6 +428,9 @@
   time-to-live on every offer, and the Celestia bulletin board keeps about a week of
   history. So an offer that needs days to weeks fits everything we've built so far,
   exactly as it stands. Post the file, wait, settle. Done.
+  <mark name="spectrum-ceiling" figure="spectrum-figure"/>
+  And two weeks is a ceiling, not a fixed length. An offer file can specify a shorter
+  lifetime at creation time, which turns out to be useful for a variety of use-cases.
   <mark name="spectrum-short" figure="spectrum-figure"/>
   Short-term breaks on cost. Shrink the lifetime to seconds and you're cancelling and
   re-quoting constantly - and every cancel is an on-chain spend, every fresh quote a new
@@ -615,6 +545,10 @@
   machinery offer files don't natively have. And a bid is backed by a specific coin, so
   keeping a bid open means leaving that coin untouched - spend it, and your bid silently
   dies.
+  <mark name="auction-ttl" figure="none"/>
+  And when you place a bid, you've got a choice. Set a TTL so the offer expires at the
+  auction's close - the backing coin freed automatically, no cleanup spend - or leave the
+  bid standing, in case the winner later decides to sell.
 </script>
 
 <script type="text/narration" data-chapter-id="medium-launchpad" data-chapter-title="Launchpads" data-chapter-parent="p-medium">
@@ -648,6 +582,13 @@
   executable - the project settles it without the buyer ever re-approving. And the
   visible tag cuts both ways here: a sale can see which of its pledges are also pledged
   elsewhere, so it can judge how oversubscribed it really is.
+  <mark name="launchpad-floor" figure="pledge-promise-figure"/>
+  And oversubscription has a happy side-effect. The pledges the sale doesn't fill don't
+  vanish - each is still a live, executable zSwap, a standing bid to buy the token at the
+  launch price. So the moment the token exists, anyone who got an allocation can sell
+  straight into those unfilled pledges - instant liquidity at a built-in floor. That lasts
+  only as far as those pledgers leave their offers alive - someone who set a short TTL to expire
+  just after the sale closes drops out of the floor when it lapses.
   <mark name="launchpad-limit" figure="launchpad-rollout-figure" step="grief"/>
   Now the honest challenge, and it's generic to any sale settled with offer files. A
   transaction can only carry so many zSwaps - roughly eighteen today, fewer if it's
@@ -1311,6 +1252,132 @@
   <mark name="cost-caveat" figure="none"/>
   Both fees float with network congestion, so treat them as ballpark, not fixed.
 </script>
+
+<script type="text/narration" data-chapter-id="p-subtleties" data-chapter-title="zSwap subtleties">
+  <mark name="p-subtleties" figure="none"/>
+  And to close, a few subtleties about how zSwap works underneath - how offers merge, what "balanced" really means,
+  which assets you can even trade, the commitment tree, and transients. None of it is needed to follow the post;
+  it's here for readers who want to see the gears turn.
+</script>
+
+<script type="text/narration" data-chapter-id="merge" data-chapter-title="Offers merge into one" data-chapter-parent="p-subtleties">
+  <mark name="merge-heading" figure="none"/>
+  The first: we keep saying offers, plural, but the chain settles one.
+  <mark name="merge-body" figure="none"/>
+  Here's the surprising part: a Midnight transaction isn't a list of offers. Offers merge - cheaply - into one, so
+  a transaction carries at most a single offer, built by merging any and all of them together. Merging is simply
+  the union of the offers' fields, with any token that nets to zero dropping out.
+  <mark name="merge-disjoint" figure="none"/>
+  There's one rule - the pieces must be disjoint. Two offers merge only if they share no input, no output, no
+  transient, which is just to say the same coin can't be spent twice in one transaction.
+  <mark name="merge-free" figure="none"/>
+  Importantly, merging proves nothing new. Each piece was already proven, so a merge is just set-union plus
+  addition - no proof regenerated.
+  <mark name="merge-onetx" figure="txstruct-figure"/>
+  So the transaction we drew as three lassoed offers? That's really one merged offer the moment it's a
+  transaction.
+</script>
+
+<script type="text/narration" data-chapter-id="surplus" data-chapter-title="Unclaimed coins get burned" data-chapter-parent="p-subtleties">
+  <mark name="surplus-heading" figure="none"/>
+  A short rule, but a sharp one - get it wrong and you can permanently burn coins.
+  <mark name="surplus-rule" figure="surplus-burn-figure"/>
+  The chain doesn't require every token to net to zero. It requires that no token nets negative. A perfectly
+  mirrored trade cancels to zero, sure, but a bundle that leaves a positive surplus in some token is just as
+  valid - the chain simply destroys the leftover, crediting it to no one.
+  <mark name="surplus-levels-lead" figure="none"/>
+  This surplus-allowed behavior applies at two levels, and the second is the dangerous one. Per offer, an
+  individual ZswapOffer is allowed to be unbalanced - that's by design, it's what lets you publish a one-sided
+  offer for someone else to complete. But the final merged offer in the transaction itself can also carry a
+  surplus, and there it bites: any coins brought in that don't appear in an output get burned.
+  <mark name="surplus-burn-note" figure="none"/>
+  And burned really means burned. The value isn't sent to a 0x0 address, and it never shows up in a treasury -
+  because these coins live on the private ledger, the burn isn't recorded anywhere or visible in any explorer.
+  The coins are simply gone.
+</script>
+
+<script type="text/narration" data-chapter-id="shielded" data-chapter-title="Only shielded assets" data-chapter-parent="p-subtleties">
+  <mark name="shielded-heading" figure="none"/>
+  Here's a constraint that quietly shaped everything: an offer file can only carry shielded assets.
+  <mark name="shielded-rule" figure="none"/>
+  Everything inside an offer is a shielded coin - the commitment-and-nullifier machinery only exists on the
+  shielded side of the ledger. So an asset can ride in an offer file only if it exists in shielded form. Midnight's
+  other half, the public unshielded UTXO ledger, is invisible to zSwap; the two sides don't mix.
+  <mark name="shielded-mint" figure="none"/>
+  And not every token is guaranteed to exist in shielded form. Every token on Midnight is minted and governed by a
+  contract, and it decides, as part of its contract definition, whether its token can exist as shielded,
+  unshielded, both, or neither. Plenty of assets are unshielded - including NIGHT itself.
+  <mark name="shielded-sources-lead" figure="shielded-wrap-figure"/>
+  So a tradable shielded form comes from one of two places. Either the asset's own contract offers a shielded
+  version directly, or - if it doesn't - anyone can deploy a wrapper contract that locks the unshielded asset and
+  mints a shielded twin one-for-one, redeemable back at any time. Wrapping is what makes any asset shieldable,
+  even when it isn't natively.
+  <mark name="shielded-night" figure="none"/>
+  NIGHT is the case that matters most. Because it's unshielded, trading it through offer files means trading a
+  shielded wrapper of it.
+  <mark name="shielded-canonical" figure="none"/>
+  And if every app rolled its own, you'd get a dozen incompatible wrapped-NIGHT tokens and fragmented liquidity,
+  the exact thing offer files exist to avoid. So the plan is a single canonical Shielded NIGHT contract everyone
+  shares. And note: every instance of NIGHT in a swap in this post implicitly assumes you're using that
+  shielded-NIGHT wrapper.
+  <mark name="shielded-unshielded-lead" figure="none"/>
+  None of this means unshielded assets can't be swapped at all - they can, just not as an offer file. An
+  unshielded swap is interactive, where a zSwap is non-interactive: instead of posting a file any stranger can
+  complete later, every party has to agree on the whole trade and sign it together, up front. That means knowing
+  in advance which address you're sending to, and which exact UTXO inputs every other party will spend.
+  <mark name="shielded-unshielded-close" figure="swap-modes-figure"/>
+  More precisely, the entire segment - the atomic chunk of a transaction that succeeds or fails together - has to
+  be fixed before anyone signs, since each signature binds the whole thing. So the offer file's real superpower,
+  posting it and walking away for any stranger to complete, is something only the shielded side gives you.
+</script>
+
+<script type="text/narration" data-chapter-id="commitment-tree" data-chapter-title="The commitment tree" data-chapter-parent="p-subtleties">
+  <mark name="commitment-tree-heading" figure="none"/>
+  Now the commitment tree itself - the structure that makes "ownership proven in zero-knowledge" real.
+  <mark name="commitment-tree-tree" figure="commitment-merkle-figure"/>
+  How do you spend without revealing which coin is yours? Every commitment is a leaf of one
+  giant append-only Merkle tree, the commitment tree. It grows a block at a time - when a block is processed, the
+  commitment of every new output gets appended as a fresh leaf, and the tree is re-hashed up to a single published
+  root. To spend, your input does two things at once. It proves, in zero-knowledge, that your coin's commitment is
+  one of the leaves under a published root. And it publishes the coin's nullifier - an opaque marker only the owner
+  can produce, so it proves the coin is yours, and the public spent-tag that stops any second spend. So the chain
+  learns only the root and the nullifier, never which leaf. That's what proving ownership in zero-knowledge really
+  is.
+  <mark name="root-history" figure="root-history-figure"/>
+  The tree also hands an offer its deadline. An input proves membership against a specific root, and the chain
+  keeps only a rolling history of recent roots - about two weeks of them. Once the root your input was proven
+  against ages out, there's nothing left to check it against, so the input - and the offer carrying it - just
+  expires. That retained-root window is an offer's time-to-live. And nothing forces you to prove against the
+  newest root - cite an older one that's still in the window, and the offer inherits only its shorter remaining
+  life. That's how a wallet dials a TTL below the two-week ceiling, for free, at proving time.
+</script>
+
+<script type="text/narration" data-chapter-id="transients" data-chapter-title="Chaining needs a transient" data-chapter-parent="p-subtleties">
+  <mark name="chaining-cost-heading" figure="none"/>
+  One last subtlety, and it's the catch behind a feature we're about to use - chaining: spending a coin in the
+  same transaction that creates it.
+  <mark name="chaining-cost-merge" figure="none"/>
+  You'd think merge does it. It doesn't. Merge is a disjoint union - it refuses offers that share a coin.
+  <mark name="chaining-cost-why" figure="none"/>
+  The tricky part comes from the commitment tree we just saw. An input proves its coin is a leaf of that tree, against a
+  published root - but a coin you just made isn't a leaf yet, not until a block folds it in. So a normal input has
+  no root to point at.
+  <mark name="chaining-cost-transient" figure="transient-tree-figure"/>
+  The fix is a transient: an output and an input for the same coin, fused into one part, where the input proves
+  membership against a throwaway single-leaf tree holding just that one commitment. It's one of the fields of a
+  ZswapOffer, alongside its inputs and outputs.
+  <mark name="chaining-cost-asymmetry" figure="none"/>
+  A transient is just an output and an input, proven independently. The output's proof is made exactly as any
+  output's is. The input is proven against the throwaway root instead of the global tree - but it's the same
+  circuit on different data, so it costs the same as any spend. So a transient is no more proving work than
+  creating the coin and then spending it separately; what you save is the round trip - the coin never has to settle
+  into a block first.
+  <mark name="transient-interactive-figure" figure="transient-interactive-figure"/>
+  One catch: a transient, unlike a merge, is an interactive construction. Only the owner of the middle coin can
+  build its spend - the nullifier comes from a secret key only they hold - so they assemble the whole Transient
+  struct and hand it over. If you chain their coin into your offer, the Transient comes from them; if they chain
+  yours into theirs, it comes from you. Merge stays the non-interactive primitive.
+</script>
 </head>
 <body>
   <article data-narration-src="/generated/offer-files/manifest.json"
@@ -1385,7 +1452,8 @@
         Concretely, every offer carries a signed amount per token - its
         <code>deltas</code> map. Alice's offer might read
         <code>{ NIGHT: +5, ROCK: &minus;3 }</code>: it contributes five NIGHT and
-        withdraws three ROCK. The ledger only accepts a transaction in which no token nets
+        withdraws three ROCK. (In this post, we'll assume you're using
+        <a href="#shielded-heading">Shielded NIGHT</a>.) The ledger only accepts a transaction in which no token nets
         <strong>negative</strong> - in the simple trade, everything cancels to exactly
         zero - so her offer alone is never valid. It is one half of a trade, waiting for
         the other half.
@@ -1437,14 +1505,10 @@
         whole that the chain accepts in one shot.
       </p>
       <p id="zswap-compose">
-        And the match doesn't have to be a perfect mirror. The real rule is the gentler one
-        above - <strong>no token may come out negative</strong> - so a taker can combine
-        offers that don't quite line up and attach a piece of their own that
-        <strong>pockets the difference</strong> (the figure shows the move). That's not a loophole - it's the
-        mechanic that makes <a href="#perf-arbitrage">aggregators and arbitrage
-        routing</a> work. (Strictly, you could even leave the surplus unclaimed - the
-        chain accepts a positive leftover and simply <em>destroys</em> it, crediting no
-        one - which is why in practice you always pocket it explicitly.)
+        And a match needn't be a perfect two-party mirror, because a taker can bundle
+        <em>several</em> offers that don't individually line up - filling one offer from
+        another, routing across tokens - and attach a piece of their own that
+        <strong>pockets the difference</strong> (the figure shows a three-way version).
       </p>
 
       <figure id="compose-figure">
@@ -2343,416 +2407,6 @@
 
     </section>
 
-    <div class="section-divider-labeled" id="p-subtleties">A few zSwap subtleties</div>
-
-    <section>
-      <h2 id="merge-heading">Offers merge into one</h2>
-      <p id="merge-body">
-        Contrary to what you might expect, a transaction in Midnight is <em>not</em> a list of
-        <code>ZswapOffer</code>s. Instead, offers can be (cheaply) <strong>merged</strong> together, and a
-        transaction accepts at most a <em>single</em> <code>ZswapOffer</code> - built by merging any and all
-        offers into one. Merging is defined simply as the union of the fields, where any token that nets to zero
-        simply drops out of the map.
-      </p>
-      <p id="merge-disjoint">
-        There is one rule: the pieces must be <strong>disjoint</strong>. Two offers merge only if they share no
-        input, no output, and no transient - which is exactly what you want, since the same coin must not be spent
-        twice in one transaction. The merge checks this and refuses otherwise.
-      </p>
-      <p id="merge-free">
-        Importantly, merging <strong>proves nothing new</strong>. Each input and output was already proven when
-        its own offer was built. A merge is just set-union plus addition: no circuit runs, no proof is regenerated.
-      </p>
-
-      <details id="merge-aside" class="aside">
-        <summary>Technical aside - how hidden values can still be added up and checked, and why that makes merging cheap (most readers can skip this)</summary>
-        <p>
-          The commitments that hide each coin's value are a form of
-          <strong>semi-homomorphic encryption</strong>: you can't read the hidden value,
-          but you <em>can</em> add two commitments together and get a valid commitment to
-          the sum. That is the whole reason the chain can confirm an offer balances -
-          add up the committed inputs, subtract the outputs and the public
-          <code>deltas</code>, and check that the result cancels to zero - without
-          ever seeing a single amount. It is also why <strong>merging</strong> needs no new
-          proof: the combined offer's commitments are just the sums of the parts', and they
-          still open to zero if each part did.
-        </p>
-        <p>
-          <strong>Pedersen commitments</strong> are one common implementation of this
-          (typically over an elliptic curve, as Midnight uses): a value becomes a curve
-          point, blinded by a random factor so it reveals nothing, yet two such points
-          still add. It's worth flagging because that additive structure is exactly what
-          the <a href="#solution-heading">L2's recursive proof</a> later leans on - it
-          lets the prover fold and aggregate these commitments across every swap, rather
-          than re-deriving balances from scratch.
-        </p>
-      </details>
-
-      <p id="merge-onetx">
-        So look back at the <a href="#txmodel-heading">transaction we drew earlier</a>: what was sketched as three
-        lassoed offers is really one merged offer the instant it becomes a transaction.
-      </p>
-
-      <figure id="txstruct-figure">
-        <svg class="tx-wrong" width="100%" viewBox="0 0 560 42" role="img" aria-label="The shape people reach for — Transaction with offers of type Vec of ZswapOffer — crossed out: there is no array.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12" fill="#24292f">
-            <text x="2" y="10" font-size="10" fill="#656c74">what you'd reach for</text>
-            <rect x="0" y="16" width="360" height="24" rx="7" fill="#fdf2f2" stroke="#e2b6b6"/>
-            <text x="12" y="32" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="11" fill="#9b6b6b">Transaction { offers: Vec&lt;ZswapOffer&gt; }</text>
-            <line x1="104" y1="28" x2="258" y2="28" stroke="#c0392b" stroke-width="1.5" stroke-opacity="0.45"/>
-            <rect x="386" y="18" width="150" height="20" rx="10" fill="#fbe8e8" stroke="#d98a8a"/>
-            <text x="461" y="32" text-anchor="middle" font-size="10" font-weight="700" fill="#b23b3b">&#10007; there is no array</text>
-          </g>
-        </svg>
-        <pre><code class="language-rust">struct Transaction {
-  // ...
-  guaranteed_offer: Option&lt;ZswapOffer&gt;, // @note: one slot — a single Option
-  // ...
-}</code></pre>
-        <svg class="tx-merge-flow" width="100%" viewBox="0 0 560 48" role="img" aria-label="So you must merge first: offers A, B and C combine into one ZswapOffer, which then fills the single guaranteed_offer slot.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12" fill="#24292f">
-            <text x="2" y="10" font-size="10" fill="#656c74">so you must merge first</text>
-            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#24292f">
-              <rect x="2" y="18" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="22" y="34" text-anchor="middle">A</text>
-              <text x="48" y="34" fill="#9aa0a8">&#8853;</text>
-              <rect x="62" y="18" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="82" y="34" text-anchor="middle">B</text>
-              <text x="108" y="34" fill="#9aa0a8">&#8853;</text>
-              <rect x="122" y="18" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="142" y="34" text-anchor="middle">C</text>
-              <text x="174" y="34" fill="#9aa0a8">&rarr;</text>
-              <rect x="194" y="16" width="150" height="28" rx="8" fill="#efeafb" stroke="#9a82d8"/><text x="269" y="34" text-anchor="middle" font-weight="700" fill="#5a45a8">one ZswapOffer</text>
-              <text x="352" y="34" fill="#9aa0a8">&rarr;</text>
-              <text x="372" y="34" fill="#5a45a8">fills guaranteed_offer</text>
-            </g>
-          </g>
-        </svg>
-        <figcaption>
-          A <code>Transaction</code> doesn't hold a <em>list</em> of offers. Its shielded side is a single
-          <code>guaranteed_offer: Option&lt;ZswapOffer&gt;</code> slot (its other fields elided here) - there is no
-          <code>Vec&lt;ZswapOffer&gt;</code> to push onto. So to settle several swaps together you must
-          <strong>merge</strong> them into one <code>ZswapOffer</code> first; only then does it fill that single
-          slot.
-        </figcaption>
-      </figure>
-    </section>
-
-    <section>
-      <h2 id="commitment-tree-heading">The commitment tree</h2>
-      <p id="commitment-tree-tree">
-        How do you spend a coin without revealing <em>which</em> one is yours? Every
-        commitment is a <strong>leaf</strong> of one enormous, append-only <strong>Merkle tree</strong> - the
-        <strong>commitment tree</strong>. The tree grows a block at a time: when a block is processed, the
-        <code>CoinCommitment</code> of every new <em>output</em> in it is appended as a fresh leaf, and the tree is
-        re-hashed pairwise up to a single <strong>root</strong> - one hash that pins down the whole set of coins so
-        far - which the chain then publishes.
-      </p>
-
-      <figure id="zswapoutput-struct-figure">
-        <pre><code class="language-rust">struct ZswapOutput {
-  commitment: CoinCommitment, // @note: appended to the tree as a leaf
-  // ...
-}</code></pre>
-        <figcaption>
-          A coin enters the tree as the <code>commitment</code> field of a <code>ZswapOutput</code> - a
-          <code>CoinCommitment</code>, the one-way hash that becomes its leaf. (Its other fields are elided here.)
-        </figcaption>
-      </figure>
-
-      <p id="commitment-tree-spend-lead">
-        To spend, your input does two things at once:
-      </p>
-      <ul id="commitment-tree-spend-list">
-        <li>it <strong>proves membership</strong>, in <strong>zero-knowledge</strong> - that your coin's commitment
-          is one of the leaves under a published <strong>root</strong>;</li>
-        <li>it <strong>publishes the coin's <a href="#privateutxo-heading">nullifier</a></strong> - an opaque
-          marker only the owner can produce (so it proves the coin is <em>yours</em>) and the public "spent" tag
-          the ledger records to stop any second spend.</li>
-      </ul>
-      <p id="commitment-tree-tree-close">
-        So the chain ends up knowing only the root and the nullifier - never which leaf. <em>That</em> is what
-        "ownership proven in zero-knowledge" comes down to.
-      </p>
-
-      <figure id="zswapinput-struct-figure">
-        <pre><code class="language-rust">struct ZswapInput {
-  merkle_tree_root: MerkleTreeRoot, // @note: proves membership
-  nullifier: CoinNullifier, // @note: the spent-tag
-  // ...
-}</code></pre>
-        <figcaption>
-          Those two jobs are exactly the first two fields of a <code>ZswapInput</code>: the
-          <code>merkle_tree_root</code> it proves membership against, and the <code>nullifier</code> it publishes to
-          spend. (Its other fields are elided here.)
-        </figcaption>
-      </figure>
-
-      <figure id="commitment-merkle-figure">
-        <svg viewBox="0 16 540 270" role="img" aria-label="A Merkle tree whose leaves are coin commitments c0 through c3, combined pairwise into hashes h01 and h23 and then into a single root. To spend coin c1, the owner gives a zero-knowledge proof that c1 sits under the published root using the sibling hashes along the path, revealing the root and the coin's nullifier but never which leaf.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
-            <rect x="18" y="24" width="14" height="14" rx="3" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="38" y="35" font-size="9" fill="#5a45a8">your coin's path to the root</text>
-
-            <line x1="270" y1="74" x2="130" y2="130" stroke="#9a82d8" stroke-width="2"/>
-            <line x1="270" y1="74" x2="410" y2="130" stroke="#cbd3dd"/>
-            <line x1="130" y1="156" x2="64" y2="208" stroke="#cbd3dd"/>
-            <line x1="130" y1="156" x2="196" y2="208" stroke="#9a82d8" stroke-width="2"/>
-            <line x1="410" y1="156" x2="344" y2="208" stroke="#cbd3dd"/>
-            <line x1="410" y1="156" x2="476" y2="208" stroke="#cbd3dd"/>
-
-            <rect x="238" y="48" width="64" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="270" y="65" text-anchor="middle" font-weight="700" fill="#5a45a8">root</text>
-            <text x="362" y="64" text-anchor="middle" font-size="9" font-weight="700" fill="#2f7d4d">published</text>
-            <line x1="332" y1="61" x2="315" y2="61" stroke="#2f7d4d" stroke-width="1.2"/>
-            <path d="M307 61 L315 57 L315 65 Z" fill="#2f7d4d"/>
-
-            <rect x="98" y="130" width="64" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="130" y="147" text-anchor="middle" font-weight="600" fill="#5a45a8">h01</text>
-            <rect x="378" y="130" width="64" height="26" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="410" y="147" text-anchor="middle" fill="#656c74">h23</text>
-            <text x="410" y="172" text-anchor="middle" font-size="9" fill="#9aa0a8">sibling in proof</text>
-
-            <rect x="18" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="64" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c0</text>
-            <text x="64" y="252" text-anchor="middle" font-size="9" fill="#9aa0a8">sibling in proof</text>
-            <rect x="150" y="208" width="92" height="28" rx="7" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="196" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#5a45a8">c1</text>
-            <text x="196" y="252" text-anchor="middle" font-size="9" font-weight="700" fill="#5a45a8">your coin</text>
-            <rect x="298" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="344" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c2</text>
-            <rect x="430" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="476" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c3</text>
-
-            <text x="270" y="276" text-anchor="middle" font-size="10" fill="#656c74">Spend proves c1 is some leaf under the root &mdash; revealing the root and the nullifier, never which leaf.</text>
-          </g>
-        </svg>
-        <figcaption>
-          The <strong>commitment tree</strong>: every coin's commitment is a <strong>leaf</strong>
-          (<code>c0</code>&hellip;<code>c3</code>), hashed pairwise up to a single <strong>root</strong>. To spend
-          <code>c1</code> you prove in zero-knowledge that it sits <em>somewhere</em> under the published root -
-          supplying the <strong>sibling hashes</strong> along the path (<code>c0</code>, <code>h23</code>) - and
-          reveal the root and the coin's nullifier, <strong>never which leaf</strong>.
-        </figcaption>
-      </figure>
-
-      <p id="root-history">
-        That tree also gives an offer its <strong>deadline</strong>. An <code>input</code> proves membership
-        against a <em>specific</em> published root, and the chain keeps only a rolling <strong>history of recent
-        roots</strong> - about <strong>two weeks</strong> of them. The moment the root an input was proven against
-        ages out of that history, the chain has nothing left to check the proof against, so the input - and the
-        whole <code>ZswapOffer</code> carrying it - simply expires. That retained-root window <em>is</em> an
-        offer's <strong>time-to-live</strong>.
-      </p>
-
-      <figure id="root-history-figure">
-        <svg viewBox="0 0 560 200" role="img" aria-label="The chain keeps a rolling history of recent commitment-tree roots, about two weeks' worth. Roots r4 through r7 are inside the kept window; older roots r1 through r3 have been dropped. An input proved against a kept root is still spendable, while an input proved against a dropped root has expired along with its offer.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
-            <rect x="300" y="16" width="180" height="30" rx="7" fill="#e6f5ec" stroke="#5bb87a"/>
-            <text x="390" y="35" text-anchor="middle" font-weight="600" fill="#2f7d4d">input vs a kept root &check;</text>
-            <line x1="390" y1="46" x2="390" y2="86" stroke="#5bb87a" stroke-width="1.5"/>
-            <path d="M390 92 L386 84 L394 84 Z" fill="#5bb87a"/>
-
-            <rect x="244" y="84" width="237" height="40" rx="8" fill="none" stroke="#9a82d8" stroke-dasharray="4 3"/>
-            <text x="362" y="78" text-anchor="middle" font-size="10" font-weight="700" fill="#5a45a8">history kept ~2 weeks</text>
-
-            <rect x="55"  y="94" width="30" height="20" rx="5" fill="#f4f5f8" stroke="#cfd3dc"/><text x="70"  y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#9aa0a8">r<tspan baseline-shift="sub" font-size="7">1</tspan></text>
-            <rect x="120" y="94" width="30" height="20" rx="5" fill="#f4f5f8" stroke="#cfd3dc"/><text x="135" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#9aa0a8">r<tspan baseline-shift="sub" font-size="7">2</tspan></text>
-            <rect x="185" y="94" width="30" height="20" rx="5" fill="#f4f5f8" stroke="#cfd3dc"/><text x="200" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#9aa0a8">r<tspan baseline-shift="sub" font-size="7">3</tspan></text>
-            <rect x="250" y="94" width="30" height="20" rx="5" fill="#efeafb" stroke="#9a82d8"/><text x="265" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">4</tspan></text>
-            <rect x="315" y="94" width="30" height="20" rx="5" fill="#efeafb" stroke="#9a82d8"/><text x="330" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">5</tspan></text>
-            <rect x="380" y="94" width="30" height="20" rx="5" fill="#efeafb" stroke="#9a82d8"/><text x="395" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">6</tspan></text>
-            <rect x="445" y="94" width="30" height="20" rx="5" fill="#efeafb" stroke="#9a82d8"/><text x="460" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">7</tspan></text>
-
-            <text x="55" y="132" font-size="9" fill="#9aa0a8">older</text>
-            <text x="475" y="132" text-anchor="end" font-size="9" fill="#9aa0a8">newer (now)</text>
-
-            <line x1="135" y1="150" x2="135" y2="116" stroke="#c0392b" stroke-opacity="0.5" stroke-width="1.5"/>
-            <path d="M135 114 L131 122 L139 122 Z" fill="#c0392b" fill-opacity="0.6"/>
-            <rect x="40" y="150" width="190" height="40" rx="7" fill="#fdf2f2" stroke="#e2b6b6"/>
-            <text x="135" y="167" text-anchor="middle" font-weight="600" fill="#b23b3b">input vs a dropped root &#10007;</text>
-            <text x="135" y="182" text-anchor="middle" font-size="9" fill="#b23b3b">its root aged out &mdash; the offer expired</text>
-          </g>
-        </svg>
-        <figcaption>
-          The chain keeps only a rolling <strong>history of recent roots</strong> - about two weeks' worth
-          (<code>r<sub>4</sub></code>&hellip;<code>r<sub>7</sub></code> here). An <code>input</code> proved against
-          a root still in the window is spendable; once the root it committed to drops off the back
-          (<code>r<sub>1</sub></code>&hellip;<code>r<sub>3</sub></code>), there is nothing to verify against, and the
-          input - and its offer - <strong>expires</strong>.
-        </figcaption>
-      </figure>
-
-    </section>
-
-    <section>
-      <h2 id="chaining-cost-heading">Chaining needs a transient</h2>
-      <p id="chaining-cost-merge">
-        Chaining - spending a coin in the same transaction that creates it - looks like another job for
-        <a href="#merge-heading">merge</a>. It isn't. Merge is a disjoint set-union: it <em>refuses</em> two
-        offers that share a coin.
-      </p>
-      <p id="chaining-cost-why">
-        The tricky part comes from <a href="#commitment-tree-heading">the commitment tree</a>. An
-        <code>input</code> proves its coin is a leaf of that tree, against a published root - but a coin you just
-        created isn't a leaf yet, and won't be until a block folds it in. So an ordinary input spending a
-        brand-new output has no real root to point at.
-      </p>
-      <p id="chaining-cost-transient">
-        The fix is a <strong>transient</strong>: an output and an input for the <em>same</em> coin, fused into a
-        single part of the offer.
-      </p>
-
-      <figure id="transient-struct-figure">
-        <pre><code class="language-rust">struct ZswapTransient {
-  coin_com: CoinCommitment, // @note-create: the coin it creates
-  proof_output: Proof, // @note-create: reused from the creation
-  nullifier: CoinNullifier, // @note-spend: the spend of that coin
-  proof_input: Proof, // @note-spend: proves the spend (ephemeral tree)
-  // ...
-}</code></pre>
-        <figcaption>
-          A <code>ZswapTransient</code> bundles both halves of the chained coin in one struct: the
-          <code>coin_com</code> it <strong>creates</strong> and the <code>nullifier</code> that <strong>spends</strong>
-          it, each with its own proof (<code>proof_output</code> is reused from the creation; <code>proof_input</code>
-          proves the spend against the ephemeral one-leaf tree). Because all of it rides inside the one struct,
-          handing someone a <code>ZswapTransient</code> gives them everything they need to drop the spend straight
-          into their <a href="#offer-anatomy-figure"><code>ZswapOffer</code></a> &mdash; no extra data required.
-        </figcaption>
-      </figure>
-
-      <p id="chaining-cost-transient-tree">
-        The input proves membership not against the global tree but against an <strong>ephemeral single-leaf
-        tree</strong> holding exactly that one output's commitment. Transients are tracked as
-        <a href="#offer-anatomy-figure">one of the fields</a> in a <code>ZswapOffer</code>.
-      </p>
-
-      <figure id="transient-tree-figure">
-        <svg viewBox="0 0 560 270" role="img" aria-label="Two ways to prove a coin can be spent. A normal spend proves the coin is a leaf of the global commitment tree, but a coin you just created isn't in that tree yet. A transient instead builds a throwaway one-leaf tree whose only leaf is the new coin's commitment cx and proves the spending input against that tree's root. The transient fuses an output that creates cx, whose proof is reused for free, with an input that spends cx, which needs a fresh proof.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
-            <text x="135" y="16" text-anchor="middle" font-size="9" fill="#656c74">spend an existing coin</text>
-            <text x="415" y="16" text-anchor="middle" font-size="9" fill="#656c74">spend a coin you just made</text>
-            <line x1="276" y1="22" x2="276" y2="162" stroke="#e2e2ea" stroke-dasharray="3 3"/>
-
-            <path d="M135 30 L78 116 L192 116 Z" fill="#f4f5f8" stroke="#cfd3dc"/>
-            <text x="135" y="26" text-anchor="middle" font-size="9" fill="#656c74">root</text>
-            <text x="135" y="84" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#7b828b">c<tspan baseline-shift="sub" font-size="7">0</tspan> c<tspan baseline-shift="sub" font-size="7">1</tspan> c<tspan baseline-shift="sub" font-size="7">2</tspan> &hellip; c<tspan baseline-shift="sub" font-size="7">N</tspan></text>
-            <text x="135" y="134" text-anchor="middle" font-size="9" fill="#656c74">the global commitment tree</text>
-            <text x="135" y="150" text-anchor="middle" font-size="9" fill="#b23b3b">&#10007; a coin you just made isn't in it yet</text>
-
-            <rect x="388" y="32" width="54" height="24" rx="7" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="415" y="48" text-anchor="middle" font-weight="700" fill="#5a45a8">root'</text>
-            <line x1="415" y1="56" x2="415" y2="91" stroke="#9a82d8" stroke-width="2"/>
-            <rect x="373" y="91" width="84" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
-            <text x="415" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-weight="700" fill="#5a45a8">c<tspan baseline-shift="sub" font-size="8">x</tspan></text>
-            <text x="415" y="138" text-anchor="middle" font-size="9" fill="#656c74">a one-leaf tree, built on the spot</text>
-            <text x="415" y="152" text-anchor="middle" font-size="9" fill="#2f7d4d">&check; prove c<tspan baseline-shift="sub" font-size="7">x</tspan> against root'</text>
-
-            <rect x="20" y="178" width="520" height="80" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
-            <text x="34" y="197" font-size="10" font-weight="600" fill="#4b3b8f">a transient &mdash; output + input for c<tspan baseline-shift="sub" font-size="8">x</tspan>, fused into one part</text>
-            <rect x="40" y="206" width="226" height="42" rx="7" fill="#e6f5ec" stroke="#5bb87a"/>
-            <text x="153" y="224" text-anchor="middle" font-weight="600" fill="#2f7d4d">output &middot; creates c<tspan baseline-shift="sub" font-size="8">x</tspan></text>
-            <text x="153" y="240" text-anchor="middle" font-size="9" fill="#2f7d4d">&check; proof reused &mdash; free</text>
-            <rect x="296" y="206" width="226" height="42" rx="7" fill="#f6eefb" stroke="#9a82d8"/>
-            <text x="409" y="224" text-anchor="middle" font-weight="600" fill="#5a45a8">input &middot; spends c<tspan baseline-shift="sub" font-size="8">x</tspan></text>
-            <text x="409" y="240" text-anchor="middle" font-size="9" fill="#5a45a8">new proof vs root'</text>
-          </g>
-        </svg>
-        <figcaption>
-          A normal spend proves your coin is a leaf of the <strong>global commitment tree</strong> - but a coin you
-          just created isn't in it yet. So a <strong>transient</strong> builds a throwaway <strong>one-leaf
-          tree</strong> whose only leaf is the new coin <code>c<sub>x</sub></code>, and proves the spending input against
-          <em>its</em> root. The output that created <code>c<sub>x</sub></code> carries its proof over <strong>free</strong>;
-          only the input needs a <strong>fresh proof</strong> - so a transient costs about one spend: cheaper than
-          creating then separately spending the coin, but not free like a plain <a href="#merge-heading">merge</a>.
-        </figcaption>
-      </figure>
-
-      <p id="chaining-cost-asymmetry">
-        A transient is just an output and an input, and the two halves are proven independently:
-      </p>
-      <ul>
-        <li>
-          The <code>output</code> proves nothing about any tree, so its proof is generated the same way as it would
-          be for any output - chaining changes nothing about it.
-        </li>
-        <li>
-          The <code>input</code>, though, must be proven against that ephemeral root. While that may seem different,
-          it still runs the <em>same</em> circuit as a regular input - just on different data - and so has the
-          <a href="#performance-heading">same performance</a> (<code>k=15</code>) as spending any coin.
-        </li>
-      </ul>
-      <p>
-        So a transient is no more proving work than creating the coin and then spending it in a separate
-        transaction - one output proof and one input proof either way. What you save is the round trip: the coin
-        never has to settle into a block before it can be spent.
-      </p>
-      <p>
-        One catch: a transient, unlike a <a href="#merge-heading">merge</a>, is an explicitly
-        <strong>interactive</strong> construction.
-      </p>
-      <ul>
-        <li>
-          For a <strong>merge</strong>, you can combine any two <code>ZswapOffer</code>s as long as they don't
-          overlap - no work required from the offer creators.
-        </li>
-        <li>
-          For a <strong>transient</strong>, the middle coin can only be spent by its owner - building the spend
-          needs that coin's <a href="#anatomy-nullifier">nullifier</a>, derived from a secret key only they hold. So
-          they assemble the whole <a href="#transient-struct-figure"><code>Transient</code></a> (commitment,
-          nullifier, and both proofs) and hand it over:
-          <ul>
-            <li>if you chain <em>their</em> coin into your offer, the <code>Transient</code> comes from them;</li>
-            <li>if they chain <em>your</em> coin into theirs, it comes from you.</li>
-          </ul>
-        </li>
-      </ul>
-      <p>
-        You cannot chain an existing <code>ZswapOffer</code> non-interactively (it would require re-proving to
-        change the input into a transient); <a href="#merge-heading">merge</a> is usually the right primitive for
-        non-interactive combinations.
-      </p>
-
-      <figure id="transient-interactive-figure" data-figure-src="transientHandoff">
-        <!-- Enhanced into a "who makes the nullifier" tour by client/figures/transientHandoff.ts;
-             static SVG below is the no-JS fallback / initial frame. -->
-        <svg class="th-static" viewBox="0 0 500 152" role="img" aria-label="The two chaining cases, each as a chain. In the first, their swap builds the whole Transient struct - carrying the coin commitment and the nullifier - which travels from their swap into your offer. In the second the roles mirror: your swap builds the Transient and it travels into their offer. The Transient is the unit handed across; a merge, by contrast, needs no such handoff.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
-            <!-- Row 1: their coin -> your offer; Transient built by their swap -->
-            <text x="12" y="16" font-size="10" font-weight="700" fill="#5a45a8">Chain their coin into your offer</text>
-            <rect x="12" y="24" width="120" height="38" rx="9" fill="#efeafb" stroke="#5a45a8" stroke-width="1.5"/>
-            <text x="72" y="44" text-anchor="middle" font-weight="600" fill="#3a2b7a">their swap</text>
-            <text x="72" y="56" text-anchor="middle" font-size="8" fill="#5a45a8">builds the transient</text>
-            <line x1="138" y1="43" x2="356" y2="43" stroke="#8a5a16" stroke-width="1.5" stroke-dasharray="3 2"/>
-            <path d="M352 40 L360 43 L352 46 Z" fill="#8a5a16"/>
-            <rect x="200" y="30" width="98" height="26" rx="8" fill="#faf2dd" stroke="#8a5a16" stroke-width="1.5" stroke-dasharray="4 3"/>
-            <text x="249" y="41" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#8a5a16">Transient</text>
-            <text x="249" y="51" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="7" font-weight="600" fill="#8a5a16">coin_com &middot; nullifier</text>
-            <rect x="368" y="24" width="120" height="38" rx="9" fill="#f7f7fb" stroke="#c8c8d4" stroke-width="1.5"/>
-            <text x="428" y="47" text-anchor="middle" font-weight="600">your offer</text>
-
-            <!-- Row 2: your coin -> their offer; Transient built by your swap -->
-            <text x="12" y="92" font-size="10" font-weight="700" fill="#5a45a8">Chain your coin into their offer</text>
-            <rect x="12" y="100" width="120" height="38" rx="9" fill="#efeafb" stroke="#5a45a8" stroke-width="1.5"/>
-            <text x="72" y="120" text-anchor="middle" font-weight="600" fill="#3a2b7a">your swap</text>
-            <text x="72" y="132" text-anchor="middle" font-size="8" fill="#5a45a8">builds the transient</text>
-            <line x1="138" y1="119" x2="356" y2="119" stroke="#8a5a16" stroke-width="1.5" stroke-dasharray="3 2"/>
-            <path d="M352 116 L360 119 L352 122 Z" fill="#8a5a16"/>
-            <rect x="200" y="106" width="98" height="26" rx="8" fill="#faf2dd" stroke="#8a5a16" stroke-width="1.5" stroke-dasharray="4 3"/>
-            <text x="249" y="117" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#8a5a16">Transient</text>
-            <text x="249" y="127" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="7" font-weight="600" fill="#8a5a16">coin_com &middot; nullifier</text>
-            <rect x="368" y="100" width="120" height="38" rx="9" fill="#f7f7fb" stroke="#c8c8d4" stroke-width="1.5"/>
-            <text x="428" y="123" text-anchor="middle" font-weight="600">their offer</text>
-          </g>
-        </svg>
-        <figcaption>
-          A <strong>merge</strong> needs no cooperation - either party can union two non-overlapping offers, since
-          both were already proven. A <strong>transient</strong> is different: only the holder of the middle coin's
-          secret key can build it, because it carries that coin's
-          <a href="#anatomy-nullifier">nullifier</a>. So whoever <em>owns</em> the coin builds the whole
-          <a href="#transient-struct-figure"><code>Transient</code></a> and hands it across - if you chain their
-          coin into your offer, it comes from them; if they chain yours into theirs, it comes from you.
-        </figcaption>
-      </figure>
-    </section>
-
     <div class="section-divider-labeled" id="p-chaining">Chaining offers</div>
 
     <section>
@@ -2880,6 +2534,11 @@
         weeks fits the machinery we've built so far with no further work: post the file,
         wait, settle.
       </p>
+      <p id="spectrum-ceiling">
+        And two weeks is a <strong>ceiling</strong>, not a fixed length. Offer files can
+        <a href="#root-history">specify a shorter lifetime</a> at creation time, which is
+        useful for a variety of use-cases.
+      </p>
       <p id="spectrum-short">
         <strong>Short-term</strong> breaks on cost: shrink the lifetime to seconds and
         you're cancelling and re-quoting constantly - every cancel an on-chain spend,
@@ -2922,7 +2581,7 @@
         </svg>
         <figcaption>
           The map for the rest of the post. An offer's required <strong>lifetime</strong>
-          picks its zone: the middle - days to weeks, bounded by the two-week TTL - is
+          picks its zone: the middle - days to weeks, under the two-week TTL ceiling - is
           the <strong>native zone</strong>, where the design so far works unchanged. Shrink
           to seconds and cancel/re-quote cost takes over (you'll need a L2); stretch to
           years and expiry takes over (you'll need refresh machinery).
@@ -3299,6 +2958,12 @@
         specific coin: keeping it open means leaving that coin untouched, and spending it
         kills the bid silently.
       </p>
+      <p id="auction-ttl">
+        When placing a bid, you can choose: have the offer expire at the auction's
+        close by <a href="#spectrum-ceiling">setting a TTL</a> - the backing coin
+        freed automatically, no cleanup spend - or leave the bid standing in
+        case the winner later decides to sell.
+      </p>
     </section>
 
     <section>
@@ -3399,6 +3064,15 @@
         re-approving. (The <a href="#anatomy-nullifier">visible tag</a> cuts both ways
         here: a sale can see which of its pledges are simultaneously pledged elsewhere,
         and judge how oversubscribed it <em>really</em> is.)
+      </p>
+      <p id="launchpad-floor">
+        And oversubscription has a happy side-effect. The pledges the sale <em>doesn't</em>
+        fill don't vanish - each is still a live, executable zSwap: a standing bid to buy the
+        token at the launch price. So the moment the token exists, anyone who got an
+        allocation can sell straight into those unfilled pledges - <strong>instant
+        liquidity at a built-in floor</strong>. (This lasts only as far as those
+        pledgers leave their offers alive - one who set a short <a href="#spectrum-ceiling">TTL</a>
+        to expire shortly after the sale's close drops out of the floor when it lapses.)
       </p>
 
       <figure id="pledge-promise-figure">
@@ -5574,6 +5248,599 @@
       <p id="cost-caveat">
         Both fees float with network congestion, so read these as ballpark, not fixed.
       </p>
+    </section>
+
+    <div class="section-divider-labeled" id="p-subtleties">Appendix B: a few zSwap subtleties</div>
+
+    <section>
+      <h2 id="merge-heading">Offers merge into one</h2>
+      <p id="merge-body">
+        Contrary to what you might expect, a transaction in Midnight is <em>not</em> a list of
+        <code>ZswapOffer</code>s. Instead, offers can be (cheaply) <strong>merged</strong> together, and a
+        transaction accepts at most a <em>single</em> <code>ZswapOffer</code> - built by merging any and all
+        offers into one. Merging is defined simply as the union of the fields, where any token that nets to zero
+        simply drops out of the map.
+      </p>
+      <p id="merge-disjoint">
+        There is one rule: the pieces must be <strong>disjoint</strong>. Two offers merge only if they share no
+        input, no output, and no transient - which is exactly what you want, since the same coin must not be spent
+        twice in one transaction. The merge checks this and refuses otherwise.
+      </p>
+      <p id="merge-free">
+        Importantly, merging <strong>proves nothing new</strong>. Each input and output was already proven when
+        its own offer was built. A merge is just set-union plus addition: no circuit runs, no proof is regenerated.
+      </p>
+
+      <details id="merge-aside" class="aside">
+        <summary>Technical aside - how hidden values can still be added up and checked, and why that makes merging cheap (most readers can skip this)</summary>
+        <p>
+          The commitments that hide each coin's value are a form of
+          <strong>semi-homomorphic encryption</strong>: you can't read the hidden value,
+          but you <em>can</em> add two commitments together and get a valid commitment to
+          the sum. That is the whole reason the chain can confirm an offer balances -
+          add up the committed inputs, subtract the outputs and the public
+          <code>deltas</code>, and check that the result cancels to zero - without
+          ever seeing a single amount. It is also why <strong>merging</strong> needs no new
+          proof: the combined offer's commitments are just the sums of the parts', and they
+          still open to zero if each part did.
+        </p>
+        <p>
+          <strong>Pedersen commitments</strong> are one common implementation of this
+          (typically over an elliptic curve, as Midnight uses): a value becomes a curve
+          point, blinded by a random factor so it reveals nothing, yet two such points
+          still add. It's worth flagging because that additive structure is exactly what
+          the <a href="#solution-heading">L2's recursive proof</a> later leans on - it
+          lets the prover fold and aggregate these commitments across every swap, rather
+          than re-deriving balances from scratch.
+        </p>
+      </details>
+
+      <p id="merge-onetx">
+        So look back at the <a href="#txmodel-heading">transaction we drew earlier</a>: what was sketched as three
+        lassoed offers is really one merged offer the instant it becomes a transaction.
+      </p>
+
+      <figure id="txstruct-figure">
+        <svg class="tx-wrong" width="100%" viewBox="0 0 560 42" role="img" aria-label="The shape people reach for — Transaction with offers of type Vec of ZswapOffer — crossed out: there is no array.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12" fill="#24292f">
+            <text x="2" y="10" font-size="10" fill="#656c74">what you'd reach for</text>
+            <rect x="0" y="16" width="360" height="24" rx="7" fill="#fdf2f2" stroke="#e2b6b6"/>
+            <text x="12" y="32" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="11" fill="#9b6b6b">Transaction { offers: Vec&lt;ZswapOffer&gt; }</text>
+            <line x1="104" y1="28" x2="258" y2="28" stroke="#c0392b" stroke-width="1.5" stroke-opacity="0.45"/>
+            <rect x="386" y="18" width="150" height="20" rx="10" fill="#fbe8e8" stroke="#d98a8a"/>
+            <text x="461" y="32" text-anchor="middle" font-size="10" font-weight="700" fill="#b23b3b">&#10007; there is no array</text>
+          </g>
+        </svg>
+        <pre><code class="language-rust">struct Transaction {
+  // ...
+  guaranteed_offer: Option&lt;ZswapOffer&gt;, // @note: one slot — a single Option
+  // ...
+}</code></pre>
+        <svg class="tx-merge-flow" width="100%" viewBox="0 0 560 48" role="img" aria-label="So you must merge first: offers A, B and C combine into one ZswapOffer, which then fills the single guaranteed_offer slot.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="12" fill="#24292f">
+            <text x="2" y="10" font-size="10" fill="#656c74">so you must merge first</text>
+            <g font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#24292f">
+              <rect x="2" y="18" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="22" y="34" text-anchor="middle">A</text>
+              <text x="48" y="34" fill="#9aa0a8">&#8853;</text>
+              <rect x="62" y="18" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="82" y="34" text-anchor="middle">B</text>
+              <text x="108" y="34" fill="#9aa0a8">&#8853;</text>
+              <rect x="122" y="18" width="40" height="24" rx="6" fill="#fff" stroke="#cfd3dc"/><text x="142" y="34" text-anchor="middle">C</text>
+              <text x="174" y="34" fill="#9aa0a8">&rarr;</text>
+              <rect x="194" y="16" width="150" height="28" rx="8" fill="#efeafb" stroke="#9a82d8"/><text x="269" y="34" text-anchor="middle" font-weight="700" fill="#5a45a8">one ZswapOffer</text>
+              <text x="352" y="34" fill="#9aa0a8">&rarr;</text>
+              <text x="372" y="34" fill="#5a45a8">fills guaranteed_offer</text>
+            </g>
+          </g>
+        </svg>
+        <figcaption>
+          A <code>Transaction</code> doesn't hold a <em>list</em> of offers. Its shielded side is a single
+          <code>guaranteed_offer: Option&lt;ZswapOffer&gt;</code> slot (its other fields elided here) - there is no
+          <code>Vec&lt;ZswapOffer&gt;</code> to push onto. So to settle several swaps together you must
+          <strong>merge</strong> them into one <code>ZswapOffer</code> first; only then does it fill that single
+          slot.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2 id="surplus-heading">Careful: coins that don't appear in any output get burned</h2>
+      <p id="surplus-rule">
+        The chain does <em>not</em> require every token to net to zero - it
+        requires that no token nets <strong>negative</strong>. A perfectly mirrored trade
+        does cancel to zero, but a bundle that leaves a positive <strong>surplus</strong> in
+        some token is equally valid; the chain simply <strong>destroys</strong> the leftover,
+        crediting it to no one.
+      </p>
+      <figure id="surplus-burn-figure">
+        <svg class="cmp-static" viewBox="0 0 520 78" role="img" aria-label="A bundle brings in seven ROCK. An output claims five of them; the remaining two are not claimed by any output, so they are destroyed - burned, credited to no one.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11">
+            <text x="10" y="18" font-weight="700" fill="#1d1d1f">Leave a token unclaimed and it's gone</text>
+
+            <rect x="10" y="32" width="184" height="30" rx="7" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="22" y="51" font-weight="700" fill="#4b3b8f">inputs bring in 7 🪨 ROCK</text>
+
+            <text x="204" y="51" font-size="14" fill="#9aa0a8">&rarr;</text>
+
+            <rect x="230" y="24" width="180" height="20" rx="6" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="242" y="38" fill="#2f7d4d" font-weight="700">output claims 5 🪨 &check;</text>
+
+            <rect x="230" y="50" width="180" height="20" rx="6" fill="#fbeded" stroke="#d98a8a"/>
+            <text x="242" y="64" fill="#b23b3b" font-weight="700">2 🪨 unclaimed &rarr; 🔥 burned</text>
+          </g>
+        </svg>
+        <figcaption>
+          The acceptance rule is one-sided: a bundle settles as long as no token nets
+          <strong>negative</strong>. Bring in 7 ROCK but attach outputs for only 5, and the
+          spare 2 aren't returned - they're <strong>burned</strong>, credited to no one. On the
+          private ledger that burn is final and invisible: no <code>0x0</code> address, no
+          treasury entry, nothing in any explorer.
+        </figcaption>
+      </figure>
+      <p id="surplus-levels-lead">
+        This "surplus allowed" behavior applies at <strong>two</strong> levels, and the second
+        is the dangerous one:
+      </p>
+      <ul id="surplus-levels">
+        <li><strong>Per offer.</strong> An individual <code>ZswapOffer</code> is allowed to be
+          unbalanced - that's <em>by design</em>, and it's exactly what lets you publish a
+          one-sided offer for <a href="#zswap-compose">someone else to complete</a>.</li>
+        <li><strong>Per transaction.</strong> The final <a href="#merge-heading">merged</a>
+          offer in the transaction itself can also contain a surplus. Dangerously, any coins
+          brought in that don't appear in an output <strong>get burned</strong>.</li>
+      </ul>
+      <p id="surplus-burn-note">
+        And "burned" is unusually final. The value isn't sent to a <code>0x0</code> address and
+        it never appears in any treasury; because these coins live on the
+        <strong>private ledger</strong>, the burn is <strong>recorded nowhere and visible in no
+        explorer</strong>. The coins are simply gone.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="shielded-heading">Offer files only carry shielded assets</h2>
+      <p id="shielded-rule">
+        Everything in an offer file is a <a href="#privateutxo-heading">shielded coin</a> - the
+        commitment-and-nullifier machinery only exists on the shielded side of the ledger. So an
+        asset can ride in an offer file only if it exists in <strong>shielded</strong> form.
+        Midnight's other half - the public, unshielded UTXO ledger - is invisible to zSwap; the
+        two sides don't mix.
+      </p>
+
+      <p id="shielded-mint">
+        Note that not every token is guaranteed to exist in shielded form. Every token on
+        Midnight is minted and governed by a <strong>contract</strong>, and it decides, as part
+        of its contract definition, whether its token can exist as shielded,
+        unshielded, <em>both</em>, or neither. Plenty of assets are unshielded - including
+        <strong>NIGHT</strong> itself.
+      </p>
+      <p id="shielded-sources-lead">
+        So a tradable, shielded form of an asset comes from one of two places:
+      </p>
+      <ul id="shielded-sources">
+        <li><strong>Native.</strong> The asset's own contract offers a shielded version
+          directly - nothing else needed.</li>
+        <li><strong>Wrapped.</strong> If it doesn't, anyone can deploy a <strong>wrapper</strong>
+          contract that locks the unshielded asset and mints a shielded twin one-for-one,
+          redeemable back at any time. Wrapping is what makes <em>any</em> asset shieldable,
+          even when it isn't natively.</li>
+      </ul>
+
+      <figure id="shielded-wrap-figure">
+        <svg class="cmp-static" viewBox="0 0 520 116" role="img" aria-label="Two routes to a shielded token a zSwap can use. Native: a contract mints a shielded token directly, which is used in a zSwap. Wrapped: an unshielded token passes through a wrapper contract, which mints the shielded twin used in a zSwap.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10" font-weight="700">
+            <text x="10" y="16" font-size="11" fill="#1d1d1f">Two routes to a shielded token</text>
+
+            <text x="10" y="46" fill="#2f7d4d">native</text>
+            <rect x="78" y="32" width="128" height="26" rx="7" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="142" y="49" text-anchor="middle" fill="#4b3b8f">a contract</text>
+            <text x="212" y="49" text-anchor="middle" fill="#9aa0a8">&rarr;</text>
+            <rect x="228" y="32" width="128" height="26" rx="7" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="292" y="49" text-anchor="middle" fill="#2f7d4d">shielded token</text>
+            <text x="362" y="49" text-anchor="middle" fill="#9aa0a8">&rarr;</text>
+            <rect x="378" y="32" width="128" height="26" rx="7" fill="#eef0f3" stroke="#c9ced6"/>
+            <text x="442" y="49" text-anchor="middle" fill="#24292f">use in a zSwap &check;</text>
+
+            <text x="10" y="92" fill="#b23b3b">wrapped</text>
+            <rect x="78" y="78" width="128" height="26" rx="7" fill="#fbeded" stroke="#d98a8a"/>
+            <text x="142" y="95" text-anchor="middle" fill="#b23b3b">unshielded token</text>
+            <text x="212" y="95" text-anchor="middle" fill="#9aa0a8">&rarr;</text>
+            <rect x="228" y="78" width="128" height="26" rx="7" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="292" y="95" text-anchor="middle" fill="#4b3b8f">wrapper contract</text>
+            <text x="362" y="95" text-anchor="middle" fill="#9aa0a8">&rarr;</text>
+            <rect x="378" y="78" width="128" height="26" rx="7" fill="#eef0f3" stroke="#c9ced6"/>
+            <text x="442" y="95" text-anchor="middle" fill="#24292f">use in a zSwap &check;</text>
+          </g>
+        </svg>
+        <figcaption>
+          Two routes to a shielded token a zSwap can use: a contract that mints one
+          <strong>natively</strong>, or a <strong>wrapper</strong> that locks an unshielded
+          token and mints its shielded twin.
+        </figcaption>
+      </figure>
+
+      <p id="shielded-night">
+        NIGHT is the case that matters most. Because it's unshielded, trading NIGHT through offer
+        files means trading a <strong>shielded wrapper</strong> of it.
+      </p>
+      <p id="shielded-canonical">
+        And if every app rolled its own, you'd get a dozen incompatible "wrapped NIGHT" tokens
+        and <a href="#liquidity-heading">fragmented liquidity</a>, the exact thing offer files
+        exist to avoid. So the plan is a single <strong>canonical Shielded NIGHT</strong>
+        contract everyone shares. (Note: every instance of NIGHT in a swap in this post
+        implicitly assumes you're using this shielded-NIGHT wrapper.)
+      </p>
+      <p id="shielded-unshielded-lead">
+        None of this means unshielded assets can't be swapped at all - they can, just not as an
+        offer file. An unshielded swap is <strong>interactive</strong>, where a zSwap is
+        <a href="#zswap-merge">non-interactive</a>: instead of posting a file any stranger can
+        complete later, every party has to agree on the whole trade and sign it together, up
+        front. That means knowing in advance:
+      </p>
+      <ul id="shielded-unshielded-list">
+        <li>which <strong>address</strong> you're sending to, and</li>
+        <li>which exact <strong>UTXO inputs</strong> every other party will spend.</li>
+      </ul>
+      <p id="shielded-unshielded-close">
+        More precisely, the entire <strong>segment</strong> - the atomic chunk of a transaction
+        that succeeds or fails together - has to be fixed before anyone signs, since each
+        signature binds the whole thing. So the offer file's real superpower - post it and walk
+        away, and let any stranger complete it - is something only the shielded side gives you.
+      </p>
+
+      <figure id="swap-modes-figure">
+        <svg class="cmp-static" viewBox="0 0 520 132" role="img" aria-label="The same two steps in opposite order. Shielded: sign your part, then bundle into a transaction, then submit - your ZK proof covers only your own part, so you can sign before the bundle exists, which makes it non-interactive. Unshielded: bundle into a transaction, then sign the bundle, then submit - your signature covers the whole bundle, so it must be assembled first, which makes it interactive.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="9">
+            <text x="10" y="16" font-size="11" font-weight="700" fill="#1d1d1f">Same two steps, opposite order</text>
+
+            <text x="10" y="36" font-size="10" font-weight="700" fill="#2f7d4d">shielded · sign, then bundle</text>
+            <rect x="10" y="44" width="150" height="24" rx="7" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="85" y="59" text-anchor="middle" font-weight="700" fill="#4b3b8f">sign <tspan font-weight="400" font-size="8">just your part</tspan></text>
+            <text x="166" y="59" font-size="12" fill="#9aa0a8">&rarr;</text>
+            <rect x="182" y="44" width="150" height="24" rx="7" fill="#eef0f3" stroke="#c9ced6"/>
+            <text x="257" y="59" text-anchor="middle" font-weight="700" fill="#24292f">bundle into a tx</text>
+            <text x="338" y="59" font-size="12" fill="#9aa0a8">&rarr;</text>
+            <rect x="354" y="44" width="150" height="24" rx="7" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="429" y="59" text-anchor="middle" font-weight="700" fill="#2f7d4d">submit &check;</text>
+
+            <text x="10" y="92" font-size="10" font-weight="700" fill="#b23b3b">unshielded · bundle, then sign</text>
+            <rect x="10" y="100" width="150" height="24" rx="7" fill="#eef0f3" stroke="#c9ced6"/>
+            <text x="85" y="115" text-anchor="middle" font-weight="700" fill="#24292f">bundle into a tx</text>
+            <text x="166" y="115" font-size="12" fill="#9aa0a8">&rarr;</text>
+            <rect x="182" y="100" width="150" height="24" rx="7" fill="#f3f0fb" stroke="#b9a9e6"/>
+            <text x="257" y="115" text-anchor="middle" font-weight="700" fill="#4b3b8f">sign <tspan font-weight="400" font-size="8">the whole bundle</tspan></text>
+            <text x="338" y="115" font-size="12" fill="#9aa0a8">&rarr;</text>
+            <rect x="354" y="100" width="150" height="24" rx="7" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="429" y="115" text-anchor="middle" font-weight="700" fill="#2f7d4d">submit &check;</text>
+          </g>
+        </svg>
+        <figcaption>
+          The whole difference is the <strong>order of two steps</strong>. Shielded: your
+          <strong>ZK proof covers only your own part</strong>, so you sign first and bundle
+          after - nobody else need be involved (non-interactive). Unshielded: your
+          <strong>signature covers the whole bundle</strong>, so it has to be assembled first
+          and everyone signs it together (interactive).
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2 id="commitment-tree-heading">The commitment tree</h2>
+      <p id="commitment-tree-tree">
+        How do you spend a coin without revealing <em>which</em> one is yours? Every
+        commitment is a <strong>leaf</strong> of one enormous, append-only <strong>Merkle tree</strong> - the
+        <strong>commitment tree</strong>. The tree grows a block at a time: when a block is processed, the
+        <code>CoinCommitment</code> of every new <em>output</em> in it is appended as a fresh leaf, and the tree is
+        re-hashed pairwise up to a single <strong>root</strong> - one hash that pins down the whole set of coins so
+        far - which the chain then publishes.
+      </p>
+
+      <figure id="zswapoutput-struct-figure">
+        <pre><code class="language-rust">struct ZswapOutput {
+  commitment: CoinCommitment, // @note: appended to the tree as a leaf
+  // ...
+}</code></pre>
+        <figcaption>
+          A coin enters the tree as the <code>commitment</code> field of a <code>ZswapOutput</code> - a
+          <code>CoinCommitment</code>, the one-way hash that becomes its leaf. (Its other fields are elided here.)
+        </figcaption>
+      </figure>
+
+      <p id="commitment-tree-spend-lead">
+        To spend, your input does two things at once:
+      </p>
+      <ul id="commitment-tree-spend-list">
+        <li>it <strong>proves membership</strong>, in <strong>zero-knowledge</strong> - that your coin's commitment
+          is one of the leaves under a published <strong>root</strong>;</li>
+        <li>it <strong>publishes the coin's <a href="#privateutxo-heading">nullifier</a></strong> - an opaque
+          marker only the owner can produce (so it proves the coin is <em>yours</em>) and the public "spent" tag
+          the ledger records to stop any second spend.</li>
+      </ul>
+      <p id="commitment-tree-tree-close">
+        So the chain ends up knowing only the root and the nullifier - never which leaf. <em>That</em> is what
+        "ownership proven in zero-knowledge" comes down to.
+      </p>
+
+      <figure id="zswapinput-struct-figure">
+        <pre><code class="language-rust">struct ZswapInput {
+  merkle_tree_root: MerkleTreeRoot, // @note: proves membership
+  nullifier: CoinNullifier, // @note: the spent-tag
+  // ...
+}</code></pre>
+        <figcaption>
+          Those two jobs are exactly the first two fields of a <code>ZswapInput</code>: the
+          <code>merkle_tree_root</code> it proves membership against, and the <code>nullifier</code> it publishes to
+          spend. (Its other fields are elided here.)
+        </figcaption>
+      </figure>
+
+      <figure id="commitment-merkle-figure">
+        <svg viewBox="0 16 540 270" role="img" aria-label="A Merkle tree whose leaves are coin commitments c0 through c3, combined pairwise into hashes h01 and h23 and then into a single root. To spend coin c1, the owner gives a zero-knowledge proof that c1 sits under the published root using the sibling hashes along the path, revealing the root and the coin's nullifier but never which leaf.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <rect x="18" y="24" width="14" height="14" rx="3" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="38" y="35" font-size="9" fill="#5a45a8">your coin's path to the root</text>
+
+            <line x1="270" y1="74" x2="130" y2="130" stroke="#9a82d8" stroke-width="2"/>
+            <line x1="270" y1="74" x2="410" y2="130" stroke="#cbd3dd"/>
+            <line x1="130" y1="156" x2="64" y2="208" stroke="#cbd3dd"/>
+            <line x1="130" y1="156" x2="196" y2="208" stroke="#9a82d8" stroke-width="2"/>
+            <line x1="410" y1="156" x2="344" y2="208" stroke="#cbd3dd"/>
+            <line x1="410" y1="156" x2="476" y2="208" stroke="#cbd3dd"/>
+
+            <rect x="238" y="48" width="64" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="270" y="65" text-anchor="middle" font-weight="700" fill="#5a45a8">root</text>
+            <text x="362" y="64" text-anchor="middle" font-size="9" font-weight="700" fill="#2f7d4d">published</text>
+            <line x1="332" y1="61" x2="315" y2="61" stroke="#2f7d4d" stroke-width="1.2"/>
+            <path d="M307 61 L315 57 L315 65 Z" fill="#2f7d4d"/>
+
+            <rect x="98" y="130" width="64" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="130" y="147" text-anchor="middle" font-weight="600" fill="#5a45a8">h01</text>
+            <rect x="378" y="130" width="64" height="26" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="410" y="147" text-anchor="middle" fill="#656c74">h23</text>
+            <text x="410" y="172" text-anchor="middle" font-size="9" fill="#9aa0a8">sibling in proof</text>
+
+            <rect x="18" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="64" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c0</text>
+            <text x="64" y="252" text-anchor="middle" font-size="9" fill="#9aa0a8">sibling in proof</text>
+            <rect x="150" y="208" width="92" height="28" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="196" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#5a45a8">c1</text>
+            <text x="196" y="252" text-anchor="middle" font-size="9" font-weight="700" fill="#5a45a8">your coin</text>
+            <rect x="298" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="344" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c2</text>
+            <rect x="430" y="208" width="92" height="28" rx="7" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="476" y="226" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace">c3</text>
+
+            <text x="270" y="276" text-anchor="middle" font-size="10" fill="#656c74">Spend proves c1 is some leaf under the root &mdash; revealing the root and the nullifier, never which leaf.</text>
+          </g>
+        </svg>
+        <figcaption>
+          The <strong>commitment tree</strong>: every coin's commitment is a <strong>leaf</strong>
+          (<code>c0</code>&hellip;<code>c3</code>), hashed pairwise up to a single <strong>root</strong>. To spend
+          <code>c1</code> you prove in zero-knowledge that it sits <em>somewhere</em> under the published root -
+          supplying the <strong>sibling hashes</strong> along the path (<code>c0</code>, <code>h23</code>) - and
+          reveal the root and the coin's nullifier, <strong>never which leaf</strong>.
+        </figcaption>
+      </figure>
+
+      <p id="root-history">
+        That tree also gives an offer its <strong>deadline</strong>. An <code>input</code> proves membership
+        against a <em>specific</em> published root, and the chain keeps only a rolling <strong>history of recent
+        roots</strong> - about <strong>two weeks</strong> of them. The moment the root an input was proven against
+        ages out of that history, the chain has nothing left to check the proof against, so the input - and the
+        whole <code>ZswapOffer</code> carrying it - simply expires. That retained-root window <em>is</em> an
+        offer's <strong>time-to-live</strong>. Nothing forces you to prove against the <em>newest</em> root,
+        though: cite an older one still inside the window and the offer inherits only its shorter remaining
+        life - the way a wallet dials a TTL <em>below</em> the two-week ceiling, for free, at proving time.
+      </p>
+
+      <figure id="root-history-figure">
+        <svg viewBox="0 0 560 200" role="img" aria-label="The chain keeps a rolling history of recent commitment-tree roots, about two weeks' worth. Roots r4 through r7 are inside the kept window; older roots r1 through r3 have been dropped. An input proved against a kept root is still spendable, while an input proved against a dropped root has expired along with its offer.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <rect x="300" y="16" width="180" height="30" rx="7" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="390" y="35" text-anchor="middle" font-weight="600" fill="#2f7d4d">input vs a kept root &check;</text>
+            <line x1="390" y1="46" x2="390" y2="86" stroke="#5bb87a" stroke-width="1.5"/>
+            <path d="M390 92 L386 84 L394 84 Z" fill="#5bb87a"/>
+
+            <rect x="244" y="84" width="237" height="40" rx="8" fill="none" stroke="#9a82d8" stroke-dasharray="4 3"/>
+            <text x="362" y="78" text-anchor="middle" font-size="10" font-weight="700" fill="#5a45a8">history kept ~2 weeks</text>
+
+            <rect x="55"  y="94" width="30" height="20" rx="5" fill="#f4f5f8" stroke="#cfd3dc"/><text x="70"  y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#9aa0a8">r<tspan baseline-shift="sub" font-size="7">1</tspan></text>
+            <rect x="120" y="94" width="30" height="20" rx="5" fill="#f4f5f8" stroke="#cfd3dc"/><text x="135" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#9aa0a8">r<tspan baseline-shift="sub" font-size="7">2</tspan></text>
+            <rect x="185" y="94" width="30" height="20" rx="5" fill="#f4f5f8" stroke="#cfd3dc"/><text x="200" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#9aa0a8">r<tspan baseline-shift="sub" font-size="7">3</tspan></text>
+            <rect x="250" y="94" width="30" height="20" rx="5" fill="#efeafb" stroke="#9a82d8"/><text x="265" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">4</tspan></text>
+            <rect x="315" y="94" width="30" height="20" rx="5" fill="#efeafb" stroke="#9a82d8"/><text x="330" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">5</tspan></text>
+            <rect x="380" y="94" width="30" height="20" rx="5" fill="#efeafb" stroke="#9a82d8"/><text x="395" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">6</tspan></text>
+            <rect x="445" y="94" width="30" height="20" rx="5" fill="#efeafb" stroke="#9a82d8"/><text x="460" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">7</tspan></text>
+
+            <text x="55" y="132" font-size="9" fill="#9aa0a8">older</text>
+            <text x="475" y="132" text-anchor="end" font-size="9" fill="#9aa0a8">newer (now)</text>
+
+            <line x1="135" y1="150" x2="135" y2="116" stroke="#c0392b" stroke-opacity="0.5" stroke-width="1.5"/>
+            <path d="M135 114 L131 122 L139 122 Z" fill="#c0392b" fill-opacity="0.6"/>
+            <rect x="40" y="150" width="190" height="40" rx="7" fill="#fdf2f2" stroke="#e2b6b6"/>
+            <text x="135" y="167" text-anchor="middle" font-weight="600" fill="#b23b3b">input vs a dropped root &#10007;</text>
+            <text x="135" y="182" text-anchor="middle" font-size="9" fill="#b23b3b">its root aged out &mdash; the offer expired</text>
+          </g>
+        </svg>
+        <figcaption>
+          The chain keeps only a rolling <strong>history of recent roots</strong> - about two weeks' worth
+          (<code>r<sub>4</sub></code>&hellip;<code>r<sub>7</sub></code> here). An <code>input</code> proved against
+          a root still in the window is spendable; once the root it committed to drops off the back
+          (<code>r<sub>1</sub></code>&hellip;<code>r<sub>3</sub></code>), there is nothing to verify against, and the
+          input - and its offer - <strong>expires</strong>.
+        </figcaption>
+      </figure>
+
+    </section>
+
+    <section>
+      <h2 id="chaining-cost-heading">Chaining needs a transient</h2>
+      <p id="chaining-cost-merge">
+        Chaining - spending a coin in the same transaction that creates it - looks like another job for
+        <a href="#merge-heading">merge</a>. It isn't. Merge is a disjoint set-union: it <em>refuses</em> two
+        offers that share a coin.
+      </p>
+      <p id="chaining-cost-why">
+        The tricky part comes from <a href="#commitment-tree-heading">the commitment tree</a>. An
+        <code>input</code> proves its coin is a leaf of that tree, against a published root - but a coin you just
+        created isn't a leaf yet, and won't be until a block folds it in. So an ordinary input spending a
+        brand-new output has no real root to point at.
+      </p>
+      <p id="chaining-cost-transient">
+        The fix is a <strong>transient</strong>: an output and an input for the <em>same</em> coin, fused into a
+        single part of the offer.
+      </p>
+
+      <figure id="transient-struct-figure">
+        <pre><code class="language-rust">struct ZswapTransient {
+  coin_com: CoinCommitment, // @note-create: the coin it creates
+  proof_output: Proof, // @note-create: reused from the creation
+  nullifier: CoinNullifier, // @note-spend: the spend of that coin
+  proof_input: Proof, // @note-spend: proves the spend (ephemeral tree)
+  // ...
+}</code></pre>
+        <figcaption>
+          A <code>ZswapTransient</code> bundles both halves of the chained coin in one struct: the
+          <code>coin_com</code> it <strong>creates</strong> and the <code>nullifier</code> that <strong>spends</strong>
+          it, each with its own proof (<code>proof_output</code> is reused from the creation; <code>proof_input</code>
+          proves the spend against the ephemeral one-leaf tree). Because all of it rides inside the one struct,
+          handing someone a <code>ZswapTransient</code> gives them everything they need to drop the spend straight
+          into their <a href="#offer-anatomy-figure"><code>ZswapOffer</code></a> &mdash; no extra data required.
+        </figcaption>
+      </figure>
+
+      <p id="chaining-cost-transient-tree">
+        The input proves membership not against the global tree but against an <strong>ephemeral single-leaf
+        tree</strong> holding exactly that one output's commitment. Transients are tracked as
+        <a href="#offer-anatomy-figure">one of the fields</a> in a <code>ZswapOffer</code>.
+      </p>
+
+      <figure id="transient-tree-figure">
+        <svg viewBox="0 0 560 270" role="img" aria-label="Two ways to prove a coin can be spent. A normal spend proves the coin is a leaf of the global commitment tree, but a coin you just created isn't in that tree yet. A transient instead builds a throwaway one-leaf tree whose only leaf is the new coin's commitment cx and proves the spending input against that tree's root. The transient fuses an output that creates cx, whose proof is reused for free, with an input that spends cx, which needs a fresh proof.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <text x="135" y="16" text-anchor="middle" font-size="9" fill="#656c74">spend an existing coin</text>
+            <text x="415" y="16" text-anchor="middle" font-size="9" fill="#656c74">spend a coin you just made</text>
+            <line x1="276" y1="22" x2="276" y2="162" stroke="#e2e2ea" stroke-dasharray="3 3"/>
+
+            <path d="M135 30 L78 116 L192 116 Z" fill="#f4f5f8" stroke="#cfd3dc"/>
+            <text x="135" y="26" text-anchor="middle" font-size="9" fill="#656c74">root</text>
+            <text x="135" y="84" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#7b828b">c<tspan baseline-shift="sub" font-size="7">0</tspan> c<tspan baseline-shift="sub" font-size="7">1</tspan> c<tspan baseline-shift="sub" font-size="7">2</tspan> &hellip; c<tspan baseline-shift="sub" font-size="7">N</tspan></text>
+            <text x="135" y="134" text-anchor="middle" font-size="9" fill="#656c74">the global commitment tree</text>
+            <text x="135" y="150" text-anchor="middle" font-size="9" fill="#b23b3b">&#10007; a coin you just made isn't in it yet</text>
+
+            <rect x="388" y="32" width="54" height="24" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="415" y="48" text-anchor="middle" font-weight="700" fill="#5a45a8">root'</text>
+            <line x1="415" y1="56" x2="415" y2="91" stroke="#9a82d8" stroke-width="2"/>
+            <rect x="373" y="91" width="84" height="26" rx="7" fill="#efeafb" stroke="#9a82d8"/>
+            <text x="415" y="108" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-weight="700" fill="#5a45a8">c<tspan baseline-shift="sub" font-size="8">x</tspan></text>
+            <text x="415" y="138" text-anchor="middle" font-size="9" fill="#656c74">a one-leaf tree, built on the spot</text>
+            <text x="415" y="152" text-anchor="middle" font-size="9" fill="#2f7d4d">&check; prove c<tspan baseline-shift="sub" font-size="7">x</tspan> against root'</text>
+
+            <rect x="20" y="178" width="520" height="80" rx="10" fill="#fafbfc" stroke="#cfd3dc"/>
+            <text x="34" y="197" font-size="10" font-weight="600" fill="#4b3b8f">a transient &mdash; output + input for c<tspan baseline-shift="sub" font-size="8">x</tspan>, fused into one part</text>
+            <rect x="40" y="206" width="226" height="42" rx="7" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="153" y="224" text-anchor="middle" font-weight="600" fill="#2f7d4d">output &middot; creates c<tspan baseline-shift="sub" font-size="8">x</tspan></text>
+            <text x="153" y="240" text-anchor="middle" font-size="9" fill="#2f7d4d">&check; proof reused &mdash; free</text>
+            <rect x="296" y="206" width="226" height="42" rx="7" fill="#f6eefb" stroke="#9a82d8"/>
+            <text x="409" y="224" text-anchor="middle" font-weight="600" fill="#5a45a8">input &middot; spends c<tspan baseline-shift="sub" font-size="8">x</tspan></text>
+            <text x="409" y="240" text-anchor="middle" font-size="9" fill="#5a45a8">new proof vs root'</text>
+          </g>
+        </svg>
+        <figcaption>
+          A normal spend proves your coin is a leaf of the <strong>global commitment tree</strong> - but a coin you
+          just created isn't in it yet. So a <strong>transient</strong> builds a throwaway <strong>one-leaf
+          tree</strong> whose only leaf is the new coin <code>c<sub>x</sub></code>, and proves the spending input against
+          <em>its</em> root. The output that created <code>c<sub>x</sub></code> carries its proof over <strong>free</strong>;
+          only the input needs a <strong>fresh proof</strong> - so a transient costs about one spend: cheaper than
+          creating then separately spending the coin, but not free like a plain <a href="#merge-heading">merge</a>.
+        </figcaption>
+      </figure>
+
+      <p id="chaining-cost-asymmetry">
+        A transient is just an output and an input, and the two halves are proven independently:
+      </p>
+      <ul>
+        <li>
+          The <code>output</code> proves nothing about any tree, so its proof is generated the same way as it would
+          be for any output - chaining changes nothing about it.
+        </li>
+        <li>
+          The <code>input</code>, though, must be proven against that ephemeral root. While that may seem different,
+          it still runs the <em>same</em> circuit as a regular input - just on different data - and so has the
+          <a href="#performance-heading">same performance</a> (<code>k=15</code>) as spending any coin.
+        </li>
+      </ul>
+      <p>
+        So a transient is no more proving work than creating the coin and then spending it in a separate
+        transaction - one output proof and one input proof either way. What you save is the round trip: the coin
+        never has to settle into a block before it can be spent.
+      </p>
+      <p>
+        One catch: a transient, unlike a <a href="#merge-heading">merge</a>, is an explicitly
+        <strong>interactive</strong> construction.
+      </p>
+      <ul>
+        <li>
+          For a <strong>merge</strong>, you can combine any two <code>ZswapOffer</code>s as long as they don't
+          overlap - no work required from the offer creators.
+        </li>
+        <li>
+          For a <strong>transient</strong>, the middle coin can only be spent by its owner - building the spend
+          needs that coin's <a href="#anatomy-nullifier">nullifier</a>, derived from a secret key only they hold. So
+          they assemble the whole <a href="#transient-struct-figure"><code>Transient</code></a> (commitment,
+          nullifier, and both proofs) and hand it over:
+          <ul>
+            <li>if you chain <em>their</em> coin into your offer, the <code>Transient</code> comes from them;</li>
+            <li>if they chain <em>your</em> coin into theirs, it comes from you.</li>
+          </ul>
+        </li>
+      </ul>
+      <p>
+        You cannot chain an existing <code>ZswapOffer</code> non-interactively (it would require re-proving to
+        change the input into a transient); <a href="#merge-heading">merge</a> is usually the right primitive for
+        non-interactive combinations.
+      </p>
+
+      <figure id="transient-interactive-figure" data-figure-src="transientHandoff">
+        <!-- Enhanced into a "who makes the nullifier" tour by client/figures/transientHandoff.ts;
+             static SVG below is the no-JS fallback / initial frame. -->
+        <svg class="th-static" viewBox="0 0 500 152" role="img" aria-label="The two chaining cases, each as a chain. In the first, their swap builds the whole Transient struct - carrying the coin commitment and the nullifier - which travels from their swap into your offer. In the second the roles mirror: your swap builds the Transient and it travels into their offer. The Transient is the unit handed across; a merge, by contrast, needs no such handoff.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="11" fill="#24292f">
+            <!-- Row 1: their coin -> your offer; Transient built by their swap -->
+            <text x="12" y="16" font-size="10" font-weight="700" fill="#5a45a8">Chain their coin into your offer</text>
+            <rect x="12" y="24" width="120" height="38" rx="9" fill="#efeafb" stroke="#5a45a8" stroke-width="1.5"/>
+            <text x="72" y="44" text-anchor="middle" font-weight="600" fill="#3a2b7a">their swap</text>
+            <text x="72" y="56" text-anchor="middle" font-size="8" fill="#5a45a8">builds the transient</text>
+            <line x1="138" y1="43" x2="356" y2="43" stroke="#8a5a16" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <path d="M352 40 L360 43 L352 46 Z" fill="#8a5a16"/>
+            <rect x="200" y="30" width="98" height="26" rx="8" fill="#faf2dd" stroke="#8a5a16" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text x="249" y="41" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#8a5a16">Transient</text>
+            <text x="249" y="51" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="7" font-weight="600" fill="#8a5a16">coin_com &middot; nullifier</text>
+            <rect x="368" y="24" width="120" height="38" rx="9" fill="#f7f7fb" stroke="#c8c8d4" stroke-width="1.5"/>
+            <text x="428" y="47" text-anchor="middle" font-weight="600">your offer</text>
+
+            <!-- Row 2: your coin -> their offer; Transient built by your swap -->
+            <text x="12" y="92" font-size="10" font-weight="700" fill="#5a45a8">Chain your coin into their offer</text>
+            <rect x="12" y="100" width="120" height="38" rx="9" fill="#efeafb" stroke="#5a45a8" stroke-width="1.5"/>
+            <text x="72" y="120" text-anchor="middle" font-weight="600" fill="#3a2b7a">your swap</text>
+            <text x="72" y="132" text-anchor="middle" font-size="8" fill="#5a45a8">builds the transient</text>
+            <line x1="138" y1="119" x2="356" y2="119" stroke="#8a5a16" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <path d="M352 116 L360 119 L352 122 Z" fill="#8a5a16"/>
+            <rect x="200" y="106" width="98" height="26" rx="8" fill="#faf2dd" stroke="#8a5a16" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text x="249" y="117" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#8a5a16">Transient</text>
+            <text x="249" y="127" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="7" font-weight="600" fill="#8a5a16">coin_com &middot; nullifier</text>
+            <rect x="368" y="100" width="120" height="38" rx="9" fill="#f7f7fb" stroke="#c8c8d4" stroke-width="1.5"/>
+            <text x="428" y="123" text-anchor="middle" font-weight="600">their offer</text>
+          </g>
+        </svg>
+        <figcaption>
+          A <strong>merge</strong> needs no cooperation - either party can union two non-overlapping offers, since
+          both were already proven. A <strong>transient</strong> is different: only the holder of the middle coin's
+          secret key can build it, because it carries that coin's
+          <a href="#anatomy-nullifier">nullifier</a>. So whoever <em>owns</em> the coin builds the whole
+          <a href="#transient-struct-figure"><code>Transient</code></a> and hands it across - if you chain their
+          coin into your offer, it comes from them; if they chain yours into theirs, it comes from you.
+        </figcaption>
+      </figure>
     </section>
 
   </article>
