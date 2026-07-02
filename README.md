@@ -31,7 +31,7 @@ first — otherwise `bun install` fails with "failed linking … package presido
 ( cd ../presidocs && bun link )       # register the engine as linkable (once per machine)
 bun install                           # links presidocs/ + installs content deps
 ln -sfn ../presidocs engine           # if the symlink isn't present
-cp .env.example .env                  # fill in secrets for OAuth/comments
+cp engine/templates/content-repo/.env.example .env  # fill in secrets for OAuth/comments
 ```
 
 ## Commands
