@@ -1,0 +1,22 @@
+/* Per-post styling for posts/offer-files.html.
+
+   Wrapped in `@layer post` per the engine's cascade-layer contract (see
+   offerData.css for the full rationale) so these article-scoped rules can't
+   cascade onto engine-injected components. External (not inline) because the
+   production CSP forbids inline <style>/style=. */
+@layer post {
+  /* Signed-delta emphasis in the deltas explanation: a positive contribution
+     reads green, a negative (withdrawal) reads red — replaces bold there.
+     Uses the shared good/cost tokens, which clear AA on the article's white
+     background. */
+  .delta-pos { color: var(--fig-green); }
+  .delta-neg { color: var(--fig-red); }
+
+  /* Title above the "fields you sign" code figure (signed-scope-figure). */
+  #signed-scope-figure .signed-scope-title { font-weight: 600; margin: 0 0 0.5rem; }
+
+  /* Quiet lead-in note before the combine figure - small + muted, like a table
+     note (proveBenchmark.css .table-note) - so it doesn't compete with it. */
+  #unshielded-fields-callout { font-size: 0.75rem; color: var(--fig-muted); margin: 0.4rem 0 0; }
+  #unshielded-fields-list { font-size: 0.75rem; color: var(--fig-muted); margin: 0.15rem 0 0; }
+}

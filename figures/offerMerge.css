@@ -34,7 +34,7 @@
   background: #f3f0fb;
   border-color: #b9a9e6;
 }
-#merge-figure.is-balanced .offer-card {
+#merge-figure.is-valid .offer-card {
   border-color: #5bb87a;
   box-shadow: 0 0 0 1px #5bb87a inset;
 }
@@ -97,6 +97,8 @@
   min-width: 1.2rem;
   text-align: center;
 }
+/* The taker's number goes red when it pushes its token's merged delta negative. */
+.merge-fig .amt.neg { color: #b23b3b; }
 .merge-fig .tok {
   font-weight: 600;
   white-space: nowrap;
@@ -125,7 +127,8 @@
   text-align: center;
   transform-origin: center;
 }
-#merge-figure.is-balanced .merge-op { color: var(--fig-green); }
+#merge-figure.is-valid .merge-op { color: var(--fig-green); }
+#merge-figure:not(.is-valid) .merge-op { color: #b23b3b; }
 
 /* delta ledger */
 .merge-fig .ledger {
@@ -200,8 +203,8 @@
   inset: 0;
   color: #555;
 }
-#merge-figure:not(.is-balanced) .merge-fig .verdict { color: #b23b3b; }
-#merge-figure.is-balanced .merge-fig .verdict { color: var(--fig-green); }
+#merge-figure:not(.is-valid) .merge-fig .verdict { color: #b23b3b; }
+#merge-figure.is-valid .merge-fig .verdict { color: var(--fig-green); }
 
 @media (max-width: 560px) {
   .merge-fig .offers {

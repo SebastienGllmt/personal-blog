@@ -37,10 +37,15 @@ const MAKER_NIGHT = 5; // +5 NIGHT contributed
 const MAKER_ROCK = 3; // −3 ROCK withdrawn
 const MAX = 9;
 
-const BALANCED_VERDICT =
-  "&check; <b>Balanced.</b> The two halves merge into one transaction that settles atomically on Midnight. <b>Press the &minus;/+ buttons</b> to unbalance it and watch it break.";
-const IMBALANCED_VERDICT =
-  "&times; <b>Imbalanced.</b> A non-zero &Delta; can't be submitted &mdash; mirror Alice's offer exactly to fix it.";
+// Validity is the ledger's real rule: a transaction is rejected only if some
+// token nets NEGATIVE. A token that nets to exactly zero is perfectly balanced;
+// a positive surplus is still valid (the surplus is simply burned). So under-
+// taking NIGHT or over-giving ROCK stays valid — only over-taking / under-giving
+// (a negative net) breaks it.
+const VALID_VERDICT =
+  "&check; <b>Valid.</b> No token nets negative, so the two halves merge into one transaction that settles atomically on Midnight. <b>Press the &minus;/+ buttons</b> to push a token negative and watch it break.";
+const INVALID_VERDICT =
+  "&times; <b>Invalid.</b> A token nets <b>negative</b> (shown in red) &mdash; the ledger rejects any transaction that takes out more of a token than goes in.";
 
 const fig = document.getElementById("merge-figure");
 if (fig) initMergeFigure(fig);
@@ -85,7 +90,7 @@ function initMergeFigure(figure: HTMLElement): void {
         <div class="delta-row"><span class="tok ROCK">🪨 ROCK</span><span class="bar"><span class="fill" data-bar-ROCK></span></span><span class="delta" data-delta-ROCK></span></div>
       </div>
       <div class="verdict-wrap">
-        <p class="verdict-sizer" aria-hidden="true">${BALANCED_VERDICT}</p>
+        <p class="verdict-sizer" aria-hidden="true">${VALID_VERDICT}</p>
         <p class="verdict" data-verdict></p>
       </div>
     </div>`;
@@ -151,10 +156,17 @@ function initMergeFigure(figure: HTMLElement): void {
     setDeltaText(dROCK, mergedROCK);
     setBarClass(barNight, mergedNight);
     setBarClass(barROCK, mergedROCK);
+    // The taker's own number turns red when it pushes its token negative
+    // (take > the 5 NIGHT offered, or give < the 3 ROCK wanted) — the only
+    // invalid case. Under-taking / over-giving leaves a positive surplus, still valid.
+    nightEl.classList.toggle("neg", mergedNight < 0);
+    ROCKEl.classList.toggle("neg", mergedROCK < 0);
+    const valid = mergedNight >= 0 && mergedROCK >= 0;
     const balanced = mergedNight === 0 && mergedROCK === 0;
+    figure.classList.toggle("is-valid", valid);
     figure.classList.toggle("is-balanced", balanced);
-    op.textContent = balanced ? "=" : "+";
-    verdict.innerHTML = balanced ? BALANCED_VERDICT : IMBALANCED_VERDICT;
+    op.textContent = valid ? "=" : "≠";
+    verdict.innerHTML = valid ? VALID_VERDICT : INVALID_VERDICT;
   }
 
   // Interactive render: discrete state + animated bar widths (detached tweens).
