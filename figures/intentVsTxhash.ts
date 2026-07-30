@@ -8,11 +8,10 @@
 //     input has to be fixed before you can sign. (Two arrows leave the whole box
 //     for the hash; a connector loops the witness back into its row.)
 //
-//   Midnight: the input is built together with its own `binding` off to the
-//     left, then the input slides into the transaction `body` row and the
-//     binding adds into the transaction's running `binding Σ` row. The input is
-//     bound locally and merges in, so anyone can fold it into a transaction
-//     after the fact.
+//   Midnight: each independent piece authorizes itself together with the segment
+//     it will occupy. Public intents do that with signatures; private zswap
+//     spends do it inside spend.zkir. The authorized piece can then be slotted or
+//     merged into a transaction without signing the transaction hash.
 //
 // Inline-SVG + GSAP: a fixed viewBox is responsive and height-invariant by
 // construction (rule 16 is free). The SVG is authored in its COMPLETE state, so
@@ -29,10 +28,7 @@ const DONE = "#5bb87a";
 // by the live free-run loop and the registered journey (baked in via
 // buildLoopingJourney) so the page and the rendered video pause identically.
 const LOOP_GAP = 2.4;
-// Where the Midnight input/binding are parked (their "local build" spot) before
-// they fly into the transaction rows. Offsets from their authored (final) place.
-const INPUT_PARK = { x: -336, y: 32 };
-const BIND_PARK = { x: -342, y: -5 };
+const FLOW_PARK = { x: -290, y: 0 };
 
 const fig = document.getElementById("intent-vs-txhash-figure");
 if (fig) initIntentVsTxhash(fig);
@@ -50,13 +46,16 @@ function initIntentVsTxhash(figure: HTMLElement): void {
   const tradConnector = el("trad-connector");
   const tradWitnessrow = el("trad-witnessrow");
   const midTx = el("mid-tx");
-  const midInput = el("mid-input");
-  const midBinding = el("mid-binding");
+  const midPublic = el("mid-public");
+  const midPrivate = el("mid-private");
+  const midPublicResult = el("mid-public-result");
+  const midPrivateResult = el("mid-private-result");
   if (!tradTx || !tradInput || !tradHasharrows || !tradHash || !tradSignop || !tradWitness ||
-      !tradConnector || !tradWitnessrow || !midTx || !midInput || !midBinding) return;
+      !tradConnector || !tradWitnessrow || !midTx || !midPublic || !midPrivate ||
+      !midPublicResult || !midPrivateResult) return;
 
   const fades = [tradInput, tradHasharrows, tradHash, tradSignop, tradWitness, tradConnector,
-    tradWitnessrow, midInput, midBinding];
+    tradWitnessrow, midPublic, midPrivate, midPublicResult, midPrivateResult];
 
   // A driver (video capture / narrator) takes exclusive control via reset();
   // `driven` stands the live triggers down (rule 7).
@@ -66,8 +65,7 @@ function initIntentVsTxhash(figure: HTMLElement): void {
   // their local-build spot; both boxes read neutral. reset() restores this exactly.
   function showInitial(): void {
     gsap.set(fades, { opacity: 0 });
-    gsap.set(midInput, INPUT_PARK);
-    gsap.set(midBinding, BIND_PARK);
+    gsap.set([midPublicResult, midPrivateResult], FLOW_PARK);
     gsap.set([tradTx, midTx], { attr: { stroke: NEUTRAL } });
   }
 
@@ -96,22 +94,36 @@ function initIntentVsTxhash(figure: HTMLElement): void {
     tl.fromTo(tradTx, { attr: { stroke: NEUTRAL } }, { attr: { stroke: DONE }, duration: 0.4, immediateRender: false }, "<");
     tl.to({}, { duration: 0.5 });
 
-    // --- Midnight: the input is bound locally, then merges in -----------------
-    tl.addLabel("mid-input");
-    tl.fromTo(midInput, { opacity: 0 }, { opacity: 1, duration: FADE, immediateRender: false });
-    tl.to({}, { duration: 0.15 });
-
-    tl.addLabel("mid-binding");
-    tl.fromTo(midBinding, { opacity: 0 }, { opacity: 1, duration: FADE, immediateRender: false });
+    // --- Midnight: each piece authorizes itself with its segment --------------
+    tl.addLabel("mid-public");
+    tl.fromTo(midPublic, { opacity: 0 }, { opacity: 1, duration: FADE, immediateRender: false });
     tl.to({}, { duration: 0.35 });
 
-    tl.addLabel("mid-into-body");
-    tl.fromTo(midInput, INPUT_PARK, { x: 0, y: 0, duration: 0.8, ease: "power2.inOut", immediateRender: false });
-    tl.fromTo(midTx, { attr: { stroke: NEUTRAL } }, { attr: { stroke: DONE }, duration: 0.4, immediateRender: false }, "-=0.3");
-    tl.to({}, { duration: 0.2 });
+    tl.addLabel("mid-public-slot");
+    tl.fromTo(midPublicResult, { opacity: 0, ...FLOW_PARK }, {
+      opacity: 1,
+      x: 0,
+      y: 0,
+      duration: 0.75,
+      ease: "power2.inOut",
+      immediateRender: false,
+    });
+    tl.to({}, { duration: 0.25 });
 
-    tl.addLabel("mid-bind-sum");
-    tl.fromTo(midBinding, BIND_PARK, { x: 0, y: 0, duration: 0.8, ease: "power2.inOut", immediateRender: false });
+    tl.addLabel("mid-private");
+    tl.fromTo(midPrivate, { opacity: 0 }, { opacity: 1, duration: FADE, immediateRender: false });
+    tl.to({}, { duration: 0.35 });
+
+    tl.addLabel("mid-private-merge");
+    tl.fromTo(midPrivateResult, { opacity: 0, ...FLOW_PARK }, {
+      opacity: 1,
+      x: 0,
+      y: 0,
+      duration: 0.75,
+      ease: "power2.inOut",
+      immediateRender: false,
+    });
+    tl.fromTo(midTx, { attr: { stroke: NEUTRAL } }, { attr: { stroke: DONE }, duration: 0.4, immediateRender: false }, "-=0.25");
     tl.to({}, { duration: 0.6 });
 
     return tl;

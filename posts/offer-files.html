@@ -79,6 +79,7 @@
 <script type="module" src="../figures/feeOrdering.ts"></script>
 <script type="module" src="../figures/timeToMarket.ts"></script>
 <script type="module" src="../figures/deltasVanish.ts"></script>
+<script type="module" src="../figures/bindingAnatomy.ts"></script>
 <script type="module" src="../figures/kValue.ts"></script>
 <script type="module" src="../figures/zswapCost.ts"></script>
 <script type="module" src="../figures/proveScale.ts"></script>
@@ -1598,43 +1599,64 @@
   <mark name="binding-anatomy-midnight" figure="none"/>
   Midnight wants the opposite, to make offer files work: inputs that act like intents. They state a result they'll accept, and anyone can include them in any transaction after the fact, as long as the intent is satisfied.
   <mark name="intent-vs-txhash-figure" figure="intent-vs-txhash-figure"/>
-  Walk it through. Traditionally, you assemble the transaction, hash the whole thing, sign that hash into a witness, and add the witness back in - so every input has to be fixed before you can sign. In Midnight, the input gets its own binding up front, then slides into the transaction body while its binding adds into the transaction's running binding sum - so it's bound on its own, and anyone can fold it into a transaction later.
+  Walk it through. Traditionally, you assemble the transaction, hash the whole thing, sign that hash into a witness, and add the witness back in - so every input has to be fixed before you can sign. Midnight flips the scope: each piece authorizes itself plus the segment it will occupy. Public intents sign that pair; private zswap spends prove it in spend.zkir. Either way, the piece can be slotted or merged into a later transaction without signing that transaction's full hash.
   <mark name="binding-anatomy-additive" figure="none"/>
-  The concept that makes that possible is the additively homomorphic commitment - notably, the Pedersen commitment. The next two sections build it up: first what one is, then the additive property that lets independent pieces compose.
+  The goal is that each piece is signed/proved individually, and then aggregated together into an atomic bundle (a transaction). However, to enable this, we need a way to stop people from splitting up the transaction into its component parts (i.e. make it an atomic bundle)
   <mark name="binding-anatomy-body" figure="none"/>
-  A shielded coin never appears as a plain number. It leaves a value commitment: one curve point built from two pieces added together.
-  <mark name="binding-anatomy-figure" figure="none"/>
-  The first piece places the amount on a base keyed by the coin's type and segment; the second is a random blind that hides it. You can't read the amount off the point.
+  To achieve atomic bundles, each piece is also given a random number (denoted r) that will be used to bind the whole transaction together so it cannot be split apart by anybody else. The idea is that if you tell somebody the sum of random numbers is "20", nobody can know which specific random numbers you used (assuming the numbers are sufficiently large enough, there are too many possibilities to guess). In practice, that means that we can have a binding_randomness field in a Transaction equal to the sum(random number of components)
+  <mark name="binding-anatomy-figure" figure="binding-anatomy-figure"/>
+  Think of the transaction as a grid being filled one column at a time. Each tick adds the next component above, and the matching r term beneath it.
   <mark name="binding-anatomy-segment" figure="none"/>
-  That base is the quiet workhorse. Because it folds in both type and segment, two commitments only cancel if they share both - so different types can't net against each other, and neither can different segments. That's exactly why balancing is per-segment: the independence is built into the cryptography, not bolted on.
+  Note: the individual random numbers are not necessarily private. In fact, if your transaction only has a single component, the r value is inherently public (which is fine since a single component can't be split up anyways). In fact, in some cases like Offer Files where transactions can be made by combining many offer files together, it's not uncommon that many subsets of a transaction have their binding randomness sum known. That just means that any user that wants a bundle of components to be atomically included in a transaction, they just need to never publish the individual r values (and only the binding_randomness, which is the sum of all the r)
 </script>
 
 <script type="text/narration" data-chapter-id="binding-property" data-chapter-title="The binding property" data-chapter-parent="p-bindings">
-  <mark name="binding-property-heading" figure="none"/>
-  Next, the property that makes it all work: binding.
-  <mark name="binding-property-intro" figure="none"/>
-  These commitments are additively homomorphic - add two and you get a commitment to the sum, so you can add hidden numbers without ever reading them. That's how the chain confirms a shielded offer balances - sum the inputs, subtract the outputs, check it cancels to zero - and why merging proves nothing new. Midnight uses the same trick across the whole transaction.
-  <mark name="binding-property-body" figure="none"/>
-  Every value commitment in a transaction sums into a single point, and the transaction reveals exactly one number to open it: binding_randomness, the sum of every part's blind. Only the sum is ever published; no individual blind can be pulled back out.
   <mark name="binding-sum-figure" figure="none"/>
-  Many commitments collapse into one point, opened by that one published total.
-  <mark name="binding-property-payoff" figure="none"/>
-  And that's the whole game. Since no one can recover an individual blind, no one can lift a part out of a finished transaction and re-balance it elsewhere - a transaction can only be taken apart by whoever assembled it. That's what binding means: the pieces are welded into the exact transaction they were built in. And that same additive structure later lets the L2 fold every swap into a single proof.
+  A known subset can be peeled away from the total; the rest keeps the complementary sum.
+  <mark name="binding-property-intro" figure="none"/>
+  A binding commitment is additive: commitment to r one plus commitment to r two is a commitment to r one plus r two. That is why independently-built pieces can merge without re-signing.
+</script>
+
+<script type="text/narration" data-chapter-id="binding-crypto" data-chapter-title="Relation to cryptography" data-chapter-parent="p-bindings">
+  <mark name="binding-crypto-heading" figure="none"/>
+  Now, how this relates to the usual cryptography notation.
+  <mark name="binding-crypto-body" figure="none"/>
+  Although r is not always private, it is sometimes private. So it is useful to think of r like a private key, and r times G like the corresponding public key.
+  <mark name="binding-crypto-aside" figure="none"/>
+  The technical aside spells out what G means here.
+  <mark name="binding-crypto-signing" figure="none"/>
+  Intents cannot sign r directly because signatures usually reveal the signed message. Instead, they sign r times G.
+  <mark name="binding-crypto-signing-aside" figure="none"/>
+  The technical aside explains why signing r times G works.
+  <mark name="binding-crypto-zswap" figure="none"/>
+  For Zswap, circuits accept r as an input directly because Midnight circuits support private inputs.
+  <mark name="binding-proof-flow" figure="none"/>
+  The r times G terms are tracked separately from binding randomness in each relevant component.
+  <mark name="binding-proof-flow-figure" figure="none"/>
+  The flow initializes r, calls prove() for Zswap terms, calls seal() for intent bindings, and broadcasts the transaction.
+  <mark name="binding-value-commitment-intro" figure="none"/>
+  The part of the proof that uses r is called the Value Commitment.
+  <mark name="binding-value-commitment-figure" figure="none"/>
+  The Value Commitment serves an additional goal.
+  <mark name="binding-value-fields-figure" figure="none"/>
+  Zswap inputs, outputs, and transients carry value commitments.
+  <mark name="binding-value-commitment-segment" figure="none"/>
+  The base includes both the token type and segment.
 </script>
 
 <script type="text/narration" data-chapter-id="binding-intent" data-chapter-title="How an intent joins the sum" data-chapter-parent="p-bindings">
   <mark name="binding-intent-heading" figure="none"/>
-  Last, how an unshielded intent joins that sum.
+  Finally, how the two rails differ in the lifecycle.
   <mark name="binding-intent-intro" figure="none"/>
-  An intent has none of this machinery - spends, outputs, contract calls, fees, but no value commitment, because nothing about it is hidden. So how does it take part in the sum that binds everything?
+  For an unshielded Intent, the random number belongs to the Intent as a whole. It is a value-free binding commitment: generator times r, with no hidden amount term.
   <mark name="binding-intent-body" figure="none"/>
-  It contributes a value-free binding: the same Pedersen point with the value term dropped, leaving just the blind. There's no amount to commit to, so it brings randomness and nothing else.
+  For Zswap, the random numbers live inside the input and output proof preimages. The transaction assembly code reads those preimages, adds their randomness into binding_randomness, and then proving replaces the preimages with proofs.
   <mark name="binding-valuefree-figure" figure="none"/>
-  A Zswap value commitment carries a value term; an unshielded binding is just generator times r.
+  Assembly computes the sum; prove and seal copy it through unchanged while erasing different per-piece openings.
   <mark name="binding-intent-koe" figure="none"/>
-  One safeguard makes that honest: since the binding has no circuit behind it, each one carries a small proof of knowledge that it's a pure generator times r, with no hidden value. Otherwise a malicious intent could fold a forged amount into the shared sum.
+  For intents, sealing replaces the plaintext r with a proof of knowledge of the corresponding pure-generator commitment, bound to the intent contents and segment.
   <mark name="binding-intent-additive" figure="none"/>
-  And the payoff is the one the unshielded rail rests on: because the points add, two intents signed by strangers merge by just summing their blinds - nothing re-proven, nothing re-signed. The binding is what makes that merge both safe and non-interactive.
+  So the final rule of thumb is: before prove and seal, known r values are composable handles; after prove and seal, the transaction keeps only their total.
 </script>
 </head>
 <body>
@@ -6577,19 +6599,23 @@ struct StandardTransaction {
         to know their side, so this <strong>requires interactivity</strong>.
       </p>
       <figure id="unshielded-fallible-shared-figure">
-        <svg class="cmp-static" viewBox="0 0 520 116" role="img" aria-label="One fallible segment holding both sides of the swap - your 5 ROCK and the other party's 3 NIGHT - balances, because balancing is per segment. But you had to know and include the other party's side, so building it means coordinating with them first: it is interactive.">
+        <svg class="cmp-static" viewBox="0 0 520 132" role="img" aria-label="One fallible segment holding both sides of the swap - your 5 ROCK and the other party's 3 NIGHT - balances, because balancing is per segment. But you had to know and include the other party's side, so building it means coordinating with them first: it is interactive.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10">
             <text x="10" y="16" font-size="11" font-weight="700" fill="#1d1d1f">Both sides in one fallible segment</text>
 
-            <rect x="10" y="30" width="324" height="48" rx="8" fill="#fff8e6" stroke="#ecd9a8"/>
-            <text x="24" y="48" font-weight="700" fill="#8a6d3b">one fallible segment</text>
-            <text x="24" y="66" fill="#8a6d3b">your 5 🪨 + their 3 🌙 &mdash; balances &check;</text>
+            <rect x="10" y="30" width="324" height="64" rx="8" fill="#fff8e6" stroke="#ecd9a8"/>
+            <text x="24" y="47" font-weight="700" fill="#8a6d3b">one fallible segment</text>
+            <rect x="24" y="54" width="190" height="16" rx="4" fill="#ffffff" stroke="#ecd9a8"/>
+            <text x="34" y="66" fill="#8a6d3b">your 5 🪨 for their 3 🌙</text>
+            <rect x="24" y="73" width="190" height="16" rx="4" fill="#ffffff" stroke="#ecd9a8"/>
+            <text x="34" y="85" fill="#8a6d3b">their 3 🌙 for your 5 🪨</text>
+            <text x="232" y="75" fill="#8a6d3b" font-weight="700">&rarr; balances &check;</text>
 
-            <text x="344" y="58" fill="#9aa0a8">&rarr;</text>
-            <rect x="364" y="40" width="146" height="28" rx="7" fill="#fbeded" stroke="#d98a8a"/>
-            <text x="437" y="58" text-anchor="middle" font-weight="700" fill="#b23b3b">needs coordination</text>
+            <text x="344" y="66" fill="#9aa0a8">&rarr;</text>
+            <rect x="364" y="52" width="146" height="28" rx="7" fill="#fbeded" stroke="#d98a8a"/>
+            <text x="437" y="70" text-anchor="middle" font-weight="700" fill="#b23b3b">needs coordination</text>
 
-            <text x="10" y="104" fill="#555">You had to include the other party's side, so you must agree on it up front &mdash; interactive.</text>
+            <text x="10" y="120" fill="#555">You had to include the other party's side, so you must agree on it up front &mdash; interactive.</text>
           </g>
         </svg>
         <figcaption>
@@ -6615,9 +6641,10 @@ struct StandardTransaction {
             <rect x="10" y="64" width="206" height="28" rx="7" fill="#fbeded" stroke="#d98a8a"/>
             <text x="24" y="82" fill="#b23b3b" font-weight="700">their segment: send 3 🌙 &rarr; fails</text>
 
-            <text x="224" y="74" fill="#9aa0a8">&rarr;</text>
-            <rect x="244" y="60" width="266" height="28" rx="7" fill="#fbeded" stroke="#d98a8a"/>
-            <text x="258" y="78" font-weight="700" fill="#b23b3b">you give 5 🪨, get nothing 🔥</text>
+            <text x="224" y="65" fill="#9aa0a8">&rarr;</text>
+            <rect x="244" y="41" width="266" height="42" rx="7" fill="#fbeded" stroke="#d98a8a"/>
+            <text x="258" y="58" font-weight="700" fill="#b23b3b">you give 5 🪨</text>
+            <text x="258" y="74" font-weight="700" fill="#b23b3b">get nothing 🔥</text>
 
             <text x="10" y="108" fill="#555">Fallible segments fail independently, so one leg can commit while the other doesn't.</text>
           </g>
@@ -6810,13 +6837,13 @@ struct StandardTransaction {
       </p>
       <p id="binding-anatomy-midnight">
         In Midnight, to enable patterns like offer files, we instead want inputs to act more like
-        <em>intents</em>: they describe an intended result, and can be included by any person in any transaction
-        after the fact, as long as the intent is satisfied.
+        <em>intents</em>: they describe an intended result, bind themselves to the segment where they will run,
+        and can be included by any person in a later transaction as long as the intent is satisfied.
       </p>
       <figure id="intent-vs-txhash-figure" data-figure-src="intentVsTxhash">
         <!-- Enhanced into a step-through animation by figures/intentVsTxhash.ts; this SVG is authored in its
              completed state, so it is also the no-JS fallback / initial frame. -->
-        <svg class="cmp-static" viewBox="0 0 560 320" role="img" aria-label="Two ways an input is bound into a transaction. Traditional: a transaction is a stack of fields - input, outputs, and a witness row. The whole transaction is hashed into a tx hash, that hash is signed into a witness, and the witness is added back as the witness row - so every input must be fixed before you can sign. Midnight: the input is built together with its own binding off to the side, then the input is added to the transaction body and its binding is added into the transaction's running binding sum (shown as rA plus rB plus this binding) - so the input is bound on its own, and anyone can fold it into a transaction later.">
+        <svg class="cmp-static" viewBox="0 0 560 388" role="img" aria-label="Two authorization scopes. Traditional: assemble a transaction, hash the whole transaction, sign the transaction hash into a witness, and add the witness back, so every input must be fixed before signing. Midnight: a public Intent and a segment flow into sign, producing a signed intent plus segment that slots into a transaction. A private ZswapInput and a segment flow into spend.zkir, producing a proven spend plus segment that merges into a transaction. Each piece authorizes itself plus its segment, not the full transaction hash.">
           <defs>
             <marker id="ivt-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" fill="#9aa0a8"/>
@@ -6842,7 +6869,7 @@ struct StandardTransaction {
 
             <g data-el="trad-hasharrows">
               <path d="M168 58 C222 58 252 82 296 84" fill="none" stroke="#9aa0a8" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
-              <path d="M168 116 C222 116 252 90 296 88" fill="none" stroke="#9aa0a8" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
+              <path d="M168 104 C222 104 252 88 296 86" fill="none" stroke="#9aa0a8" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
               <text x="180" y="50" font-size="9" fill="#8a6d3b">hash the whole transaction</text>
             </g>
             <g data-el="trad-hash">
@@ -6860,52 +6887,369 @@ struct StandardTransaction {
             </g>
 
             <!-- ===================== Midnight ===================== -->
-            <rect x="1" y="162" width="558" height="144" rx="12" fill="#f4fbf7" stroke="#bfe3cf"/>
-            <text x="16" y="181" font-size="11.5" font-weight="700" fill="#2f7d4d">Midnight &middot; the input carries its own binding</text>
+            <rect x="1" y="162" width="558" height="212" rx="12" fill="#f4fbf7" stroke="#bfe3cf"/>
+            <text x="16" y="181" font-size="11.5" font-weight="700" fill="#2f7d4d">Midnight &middot; each piece authorizes itself + segment</text>
 
-            <text x="20" y="224" font-size="9.5" fill="#656c74">build the input,</text>
-            <text x="20" y="239" font-size="9.5" fill="#656c74">and its own binding</text>
-            <path d="M200 263 C230 263 240 256 268 252" fill="none" stroke="#9aa0a8" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
-
-            <rect data-el="mid-tx" x="276" y="192" width="270" height="100" rx="9" fill="#ffffff" stroke="#c8c8d4" stroke-width="1.5"/>
-            <text x="284" y="206" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.5" fill="#656c74">Transaction</text>
-            <line x1="276" y1="210" x2="546" y2="210" stroke="#ececf2" data-contrast="exempt"/>
-            <text x="284" y="226" font-size="8.5" fill="#656c74">body</text>
-            <line x1="276" y1="250" x2="546" y2="250" stroke="#ececf2" data-contrast="exempt"/>
-            <text x="284" y="266" font-size="8.5" fill="#656c74">binding &Sigma;</text>
-            <text x="330" y="281" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#5a45a8">r<tspan font-size="7" dy="2">A</tspan><tspan dy="-2"> + r</tspan><tspan font-size="7" dy="2">B</tspan><tspan dy="-2"> +</tspan></text>
-
-            <g data-el="mid-input">
-              <rect x="360" y="220" width="62" height="22" rx="7" fill="#eaf0fc" stroke="#3b6fd4" stroke-width="1.4"/>
-              <text x="391" y="235" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#2f57b8">input</text>
+            <g data-el="mid-public">
+              <text x="18" y="205" font-size="9.5" font-weight="700" fill="#2f7d4d">public intent rail</text>
+              <rect x="18" y="216" width="78" height="24" rx="7" fill="#eaf0fc" stroke="#3b6fd4" stroke-width="1.2"/>
+              <text x="57" y="232" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" font-weight="700" fill="#2f57b8">Intent</text>
+              <rect x="18" y="248" width="78" height="24" rx="7" fill="#f2f2f6" stroke="#c8c8d4" stroke-width="1.2"/>
+              <text x="57" y="264" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" font-weight="700" fill="#656c74">segment</text>
+              <path d="M98 228 L126 244" fill="none" stroke="#9aa0a8" stroke-width="1.2" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
+              <path d="M98 260 L126 248" fill="none" stroke="#9aa0a8" stroke-width="1.2" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
+              <rect x="130" y="232" width="58" height="28" rx="7" fill="#fff4d6" stroke="#8a6d3b" stroke-width="1.3"/>
+              <text x="159" y="250" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" font-weight="700" fill="#8a6d3b">sign</text>
+              <path d="M190 246 C218 246 232 244 256 241" fill="none" stroke="#9aa0a8" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
             </g>
-            <g data-el="mid-binding">
-              <rect x="452" y="257" width="66" height="22" rx="7" fill="#efeafb" stroke="#5a45a8" stroke-width="1.4"/>
-              <text x="485" y="272" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" font-weight="700" fill="#5a45a8">binding</text>
+
+            <g data-el="mid-private">
+              <text x="18" y="322" font-size="9.5" font-weight="700" fill="#2f7d4d">private zswap rail</text>
+              <rect x="18" y="333" width="88" height="24" rx="7" fill="#efeafb" stroke="#5a45a8" stroke-width="1.2"/>
+              <text x="62" y="349" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.8" font-weight="700" fill="#5a45a8">ZswapInput</text>
+              <rect x="114" y="333" width="78" height="24" rx="7" fill="#f2f2f6" stroke="#c8c8d4" stroke-width="1.2"/>
+              <text x="153" y="349" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" font-weight="700" fill="#656c74">segment</text>
+              <path d="M106 345 L126 317" fill="none" stroke="#9aa0a8" stroke-width="1.2" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
+              <path d="M153 333 L154 321" fill="none" stroke="#9aa0a8" stroke-width="1.2" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
+              <rect x="126" y="290" width="74" height="28" rx="7" fill="#e6f5ec" stroke="#5bb87a" stroke-width="1.3"/>
+              <text x="163" y="308" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.8" font-weight="700" fill="#2f7d4d">spend.zkir</text>
+              <path d="M202 304 C226 304 236 308 256 310" fill="none" stroke="#9aa0a8" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ivt-arrow)" data-contrast="exempt"/>
             </g>
-            <text x="20" y="300" font-size="9.5" fill="#656c74">Bound on its own - so anyone can fold it into a transaction later.</text>
+
+            <rect data-el="mid-tx" x="262" y="202" width="282" height="150" rx="9" fill="#ffffff" stroke="#c8c8d4" stroke-width="1.5"/>
+            <text x="270" y="216" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.5" fill="#656c74">Transaction assembled later</text>
+            <line x1="262" y1="221" x2="544" y2="221" stroke="#ececf2" data-contrast="exempt"/>
+            <text x="270" y="239" font-size="8.5" fill="#656c74">intent map</text>
+            <line x1="262" y1="262" x2="544" y2="262" stroke="#ececf2" data-contrast="exempt"/>
+            <text x="270" y="281" font-size="8.5" fill="#656c74">zswap offer</text>
+            <line x1="262" y1="332" x2="544" y2="332" stroke="#ececf2" data-contrast="exempt"/>
+            <text x="270" y="345" font-size="8.5" fill="#656c74">plus unrelated rows from other parties</text>
+
+            <g data-el="mid-public-result">
+              <rect x="344" y="229" width="164" height="24" rx="7" fill="#eaf0fc" stroke="#3b6fd4" stroke-width="1.4"/>
+              <text x="426" y="245" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.7" font-weight="700" fill="#2f57b8">signed Intent + segment</text>
+            </g>
+            <g data-el="mid-private-result">
+              <rect x="344" y="299" width="164" height="24" rx="7" fill="#efeafb" stroke="#5a45a8" stroke-width="1.4"/>
+              <text x="426" y="315" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.5" font-weight="700" fill="#5a45a8">proven spend + segment</text>
+            </g>
+            <text x="18" y="366" font-size="9.5" fill="#656c74">The authorization scope is local: self + segment, not the full transaction hash.</text>
           </g>
         </svg>
         <figcaption>
           Two ways an input is bound into a transaction. <strong>Traditional</strong>: the transaction is assembled,
           the <em>whole</em> thing is hashed, that hash is signed into a witness, and the witness is added back in -
-          so every input has to be fixed before you can sign. <strong>Midnight</strong>: the input gets its own
-          binding up front, then the input slides into the transaction body and its binding adds into the
-          transaction's running binding sum - so the input is bound on its own, and anyone can fold it into a
-          transaction after the fact. The cryptography that makes that safe is the rest of this appendix.
+          so every input has to be fixed before you can sign. <strong>Midnight</strong>: each rail authorizes only
+          the piece being offered and the segment it will occupy. Public intents do this by signing the
+          <code>Intent</code> plus segment; zswap does it inside <code>spend.zkir</code>. The transaction can be
+          assembled later from independently authorized pieces.
         </figcaption>
       </figure>
       <p id="binding-anatomy-additive">
-        The cryptographic concept that makes this possible is the <em>additively homomorphic commitment</em> -
-        notably, the Pedersen commitment. The next two sections build it up: first what one is, then the
-        <a href="#binding-property-heading">additive property</a> that lets independently-built pieces compose into
-        one transaction after the fact.
+        The goal is that each piece is signed/proved individually, and then aggregated together into an atomic
+        bundle (a transaction). However, to enable this, we need a way to stop people from splitting up the
+        transaction into its component parts (i.e. make it an atomic bundle)
       </p>
       <p id="binding-anatomy-body">
-        A shielded coin never appears on-chain as a plain number. What it leaves behind is a <em>value
-        commitment</em>: a single point on an elliptic curve, built from two pieces added together.
+        To achieve atomic bundles, each piece is also given a random number (denoted <em>r</em>) that will be used
+        to bind the whole transaction together so it cannot be split apart by anybody else. The idea is that if you
+        tell somebody the sum of random numbers is "20", nobody can know which specific random numbers you used
+        (assuming the numbers are sufficiently large enough, there are too many possibilities to guess). In practice,
+        that means that we can have a <strong><em>binding_randomness</em></strong> field in a Transaction equal to
+        the sum(<em>random number of components</em>)
       </p>
-      <figure id="binding-anatomy-figure">
+      <figure id="binding-anatomy-figure" data-figure-src="bindingAnatomy">
+        <svg class="cmp-static" viewBox="0 0 560 238" role="img" aria-label="A transaction grid is filled over time. The first row receives an Intent, then a ZswapOffer input, then a ZswapOffer output, then another Intent. The binding_randomness row beneath it receives matching colored terms: r intent A, plus r input, plus r output, plus r intent B.">
+          <defs>
+            <marker id="bind-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#9aa0a8"/>
+            </marker>
+          </defs>
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10">
+            <text x="10" y="18" font-size="11" font-weight="700" fill="#1d1d1f">A transaction's binding row fills as components are added</text>
+
+            <rect x="10" y="34" width="540" height="170" rx="10" fill="#ffffff" stroke="#c9ced6" stroke-width="1.4"/>
+            <text x="24" y="54" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10.5" font-weight="700" fill="#24292f">Transaction</text>
+
+            <line x1="10" y1="64" x2="550" y2="64" stroke="#ececf2" data-contrast="exempt"/>
+            <text x="24" y="86" font-size="9.5" font-weight="700" fill="#656c74">components</text>
+            <text x="24" y="154" font-size="9.5" font-weight="700" fill="#656c74">binding_randomness</text>
+            <line x1="10" y1="118" x2="550" y2="118" stroke="#ececf2" data-contrast="exempt"/>
+            <line x1="128" y1="64" x2="128" y2="204" stroke="#ececf2" data-contrast="exempt"/>
+            <line x1="234" y1="64" x2="234" y2="204" stroke="#ececf2" data-contrast="exempt"/>
+            <line x1="340" y1="64" x2="340" y2="204" stroke="#ececf2" data-contrast="exempt"/>
+            <line x1="446" y1="64" x2="446" y2="204" stroke="#ececf2" data-contrast="exempt"/>
+
+            <g data-el="zswap-bracket">
+              <path d="M238 72 L238 68 L442 68 L442 72" fill="none" stroke="#5a45a8" stroke-width="1.3"/>
+              <text x="340" y="62" text-anchor="middle" font-size="9" font-weight="700" fill="#5a45a8">one ZswapOffer</text>
+            </g>
+
+            <g data-el="cell-intent-a">
+              <rect x="142" y="78" width="78" height="28" rx="7" fill="#eaf0fc" stroke="#3b6fd4" stroke-width="1.35"/>
+              <text x="181" y="96" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" font-weight="700" fill="#2f57b8">Intent A</text>
+            </g>
+            <g data-el="cell-zin">
+              <rect x="248" y="78" width="78" height="28" rx="7" fill="#efeafb" stroke="#5a45a8" stroke-width="1.35"/>
+              <text x="287" y="96" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.6" font-weight="700" fill="#5a45a8">ZswapInput</text>
+            </g>
+            <g data-el="cell-zout">
+              <rect x="354" y="78" width="78" height="28" rx="7" fill="#fff4d6" stroke="#8a6d3b" stroke-width="1.35"/>
+              <text x="393" y="96" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="8.2" font-weight="700" fill="#8a6d3b">ZswapOutput</text>
+            </g>
+            <g data-el="cell-intent-b">
+              <rect x="460" y="78" width="76" height="28" rx="7" fill="#e6f5ec" stroke="#2f7d4d" stroke-width="1.35"/>
+              <text x="498" y="96" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" font-weight="700" fill="#2f7d4d">Intent B</text>
+            </g>
+
+            <g data-el="term-intent-a">
+              <text x="181" y="158" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="12" fill="#2f57b8">r_A</text>
+            </g>
+            <g data-el="term-zin">
+              <text x="246" y="158" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="12" fill="#24292f">+</text>
+              <text x="287" y="158" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="12" fill="#5a45a8">r_in</text>
+            </g>
+            <g data-el="term-zout">
+              <text x="352" y="158" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="12" fill="#24292f">+</text>
+              <text x="393" y="158" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="12" fill="#8a6d3b">r_out</text>
+            </g>
+            <g data-el="term-intent-b">
+              <text x="458" y="158" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="12" fill="#24292f">+</text>
+              <text x="498" y="158" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="12" fill="#2f7d4d">r_B</text>
+            </g>
+
+            <text x="10" y="225" fill="#555">Each tick fills the next component cell and its matching randomness term.</text>
+          </g>
+        </svg>
+        <figcaption>
+          The transaction is an invisible grid. As the builder adds each component, the component row gets a new
+          cell and the <code>binding_randomness</code> row gets the matching <code>r</code> term in the same column.
+          The two Zswap cells are one <code>ZswapOffer</code>; the intents contribute one term each as whole
+          intents.
+        </figcaption>
+      </figure>
+      <p id="binding-anatomy-segment">
+        <em>Note</em>: the individual random numbers are <em>not necessarily</em>
+        private. In fact, if your transaction only has a single component, the <em>r</em> value is inherently public
+        (which is fine since a single component can't be split up anyways). In fact, in some cases like Offer Files
+        where transactions can be made by combining many offer files together, it's not uncommon that many subsets of
+        a transaction have their binding randomness sum known. That just means that any user that wants a bundle of
+        components to be atomically included in a transaction, they just need to never publish the individual
+        <em>r</em> values (and only the <em>binding_randomness</em>, which is the sum of all the <em>r</em>)
+      </p>
+      <figure id="binding-sum-figure">
+        <svg class="cmp-static" viewBox="0 0 560 196" role="img" aria-label="If the transaction has four components with randomness r one, r two, r three, and r four, knowing r two and r three lets those two components be peeled into another transaction. The remaining transaction keeps binding_randomness minus r two minus r three, and the peeled transaction uses r two plus r three. Unknown terms stay bound together.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10">
+            <text x="10" y="18" font-size="11" font-weight="700" fill="#1d1d1f">Known randomness can peel out a subset</text>
+
+            <rect x="10" y="40" width="238" height="108" rx="9" fill="#f6f8fa" stroke="#c9ced6"/>
+            <text x="24" y="60" font-weight="700" fill="#24292f">assembled transaction</text>
+            <rect x="24" y="74" width="46" height="28" rx="6" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="47" y="92" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#2f57b8">r<tspan font-size="7" dy="2">1</tspan></text>
+            <rect x="82" y="74" width="46" height="28" rx="6" fill="#fbeded" stroke="#b23b3b" stroke-width="1.6"/>
+            <text x="105" y="92" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#b23b3b">r<tspan font-size="7" dy="2">2</tspan></text>
+            <rect x="140" y="74" width="46" height="28" rx="6" fill="#e8f7f8" stroke="#24747a" stroke-width="1.6"/>
+            <text x="163" y="92" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#24747a">r<tspan font-size="7" dy="2">3</tspan></text>
+            <rect x="198" y="74" width="36" height="28" rx="6" fill="#efeafb" stroke="#5a45a8"/>
+            <text x="216" y="92" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#5a45a8">r<tspan font-size="7" dy="2">4</tspan></text>
+            <text x="24" y="123" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#24292f">binding_randomness = r<tspan font-size="7" dy="2">1</tspan><tspan dy="-2">+r</tspan><tspan font-size="7" dy="2">2</tspan><tspan dy="-2">+r</tspan><tspan font-size="7" dy="2">3</tspan><tspan dy="-2">+r</tspan><tspan font-size="7" dy="2">4</tspan></text>
+            <text x="24" y="140" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#8a6d3b">r<tspan font-size="7" dy="2">2</tspan><tspan dy="-2"> + r</tspan><tspan font-size="7" dy="2">3</tspan><tspan dy="-2"> known</tspan></text>
+
+            <path d="M252 92 C292 92 288 58 326 58" fill="none" stroke="#9aa0a8" stroke-width="1.4" marker-end="url(#split-arrow)" data-contrast="exempt"/>
+            <path d="M252 108 C292 108 288 146 326 146" fill="none" stroke="#9aa0a8" stroke-width="1.4" marker-end="url(#split-arrow)" data-contrast="exempt"/>
+            <defs>
+              <marker id="split-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#9aa0a8"/>
+              </marker>
+            </defs>
+
+            <rect x="330" y="32" width="216" height="58" rx="9" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="344" y="52" font-weight="700" fill="#2f7d4d">remaining transaction</text>
+            <rect x="344" y="61" width="42" height="20" rx="5" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="365" y="75" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" fill="#2f57b8">r<tspan font-size="6.5" dy="2">1</tspan></text>
+            <text x="394" y="75" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#2f7d4d">+</text>
+            <rect x="404" y="61" width="42" height="20" rx="5" fill="#efeafb" stroke="#5a45a8"/>
+            <text x="425" y="75" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" fill="#5a45a8">r<tspan font-size="6.5" dy="2">4</tspan></text>
+
+            <rect x="330" y="120" width="216" height="58" rx="9" fill="#fff8e8" stroke="#8a6d3b"/>
+            <text x="344" y="140" font-weight="700" fill="#8a6d3b">peeled subset</text>
+            <rect x="344" y="149" width="42" height="20" rx="5" fill="#fbeded" stroke="#b23b3b"/>
+            <text x="365" y="163" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" fill="#b23b3b">r<tspan font-size="6.5" dy="2">2</tspan></text>
+            <text x="394" y="163" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#8a6d3b">+</text>
+            <rect x="404" y="149" width="42" height="20" rx="5" fill="#e8f7f8" stroke="#24747a"/>
+            <text x="425" y="163" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9.5" fill="#24747a">r<tspan font-size="6.5" dy="2">3</tspan></text>
+          </g>
+        </svg>
+        <figcaption>
+          Knowing a subset of individual <code>r</code> values lets that subset be isolated algebraically. The
+          peeled transaction uses the subset sum; the remaining transaction uses the original
+          <code>binding_randomness</code> minus that subset. Unknown terms stay bound together because their
+          individual openings are still unavailable.
+        </figcaption>
+      </figure>
+      <p id="binding-property-intro">
+        These commitments earn their keep through a property called being additively <em>homomorphic</em>: add a
+        commitment to <code>r_a</code> and a commitment to <code>r_b</code>, and you get a commitment to
+        <code>r_a + r_b</code>. That is why independently-built pieces can merge without re-signing: the points add,
+        and the transaction-level <code>binding_randomness</code> adds with them.
+      </p>
+    </section>
+
+    <section>
+      <h2 id="binding-crypto-heading">Relation to cryptography</h2>
+      <p id="binding-crypto-body">
+        Although <em>r</em> <a href="#binding-intent-heading">isn't always private</a>, it is sometimes private and
+        therefore it's useful to think of it as a private key with the following notation:
+      </p>
+      <ol>
+        <li><code>r</code> is the private key.</li>
+        <li><code>r&middot;G</code> is the public key.</li>
+      </ol>
+      <details id="binding-crypto-aside" class="aside">
+        <summary>Technical aside - what is <em>G</em> in <code>r&middot;G</code>?</summary>
+        <p>
+          At the time of writing, although plans exist to use lattice-based cryptography in the future, Midnight
+          uses elliptic-curve cryptography. In elliptic-curve cryptography, <code>r</code> is a random scalar, and
+          <code>G</code> is a known "generator" for the curve.
+        </p>
+        <p>
+          Midnight specifically uses BLS12-381 as its curve. <code>r</code> and <code>G</code> here use Jubjub,
+          which is a separate elliptic curve designed to work efficiently inside zero-knowledge circuits built over
+          the scalar field of BLS12-381. Jubjub does not form a cycle of curves with BLS12-381: Jubjub is defined
+          over the BLS12-381 scalar field, but the BLS12-381 base field is not Jubjub's scalar field.
+        </p>
+        <p>That is to say:</p>
+        <ul>
+          <li><code>r</code> is in the scalar field of the Jubjub subgroup.</li>
+          <li><code>G</code> is the Jubjub generator.</li>
+        </ul>
+        <p>Jubjub conveniently provides roughly 256-bit-sized scalars and points.</p>
+      </details>
+      <p id="binding-crypto-signing">
+        In cryptography, when you sign a message, you usually reveal the message publicly (i.e. "here is a message,
+        and here is a signature to prove that the message comes from me"). That means that Intents cannot sign
+        <code>r</code> directly. Instead, they sign <code>r&middot;G</code>, which is sufficient to ensure that
+        nobody can change the <code>binding_randomness</code> field without signatures/proofs no longer matching.
+      </p>
+      <details id="binding-crypto-signing-aside" class="aside">
+        <summary>Technical aside - why does signing <code>r&middot;G</code> instead of just <code>r</code> work?</summary>
+        <p>There are two key ideas that make this work:</p>
+        <ol>
+          <li>
+            Hiding: given the elliptic curve hardness assumption, even though <code>G</code> is a public known
+            generator, finding <code>r</code> given <code>r&middot;G</code> is "hard" (this is called the
+            <em>Elliptic Curve Discrete Logarithm Problem (ECDLP)</em>).
+          </li>
+          <li>
+            Checkability: if you multiply the whole of <code>binding_randomness</code> by <code>G</code> (that is
+            to say, <code>G*(r<sub>1</sub> + r<sub>2</sub> + ... + r<sub>n</sub>)</code>), thanks to the
+            homomorphic property of the group, this is equal to <code>r<sub>1</sub>&middot;G</code> +
+            <code>r<sub>2</sub>&middot;G</code> + ... + <code>r<sub>n</sub>&middot;G</code> (i.e. the sum of
+            the <code>r&middot;G</code> for each individual message).
+          </li>
+        </ol>
+      </details>
+      <p id="binding-crypto-zswap">
+        For Zswap, it's a bit more nuanced: circuits actually do accept <code>r</code> as an input directly instead
+        of just <code>r&middot;G</code>. This doesn't reveal anything new (since circuits in Midnight support private
+        inputs), and it's used to prove that <code>r&middot;G</code> was computed correctly inside the proof.
+      </p>
+      <p id="binding-proof-flow">
+        Critically, in order to validate the correctness of signatures/proofs, the <code>r&middot;G</code> terms are
+        tracked separately from the <code>binding_randomness</code> in each relevant component. Notably, the flow
+        looks something like this:
+      </p>
+      <figure id="binding-proof-flow-figure">
+        <svg class="cmp-static" viewBox="0 0 560 360" role="img" aria-label="Binding proof flow as a grid. Component columns are two intents, a Zswap input, a Zswap output, and a Zswap transient. Rows are initialize random r, prove(), seal(), and broadcast. Zswap components become r times G during prove(); intents become r times G during seal(); broadcast carries all component r times G terms plus the separate binding randomness sum.">
+          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10" fill="#24292f">
+            <text x="16" y="22" font-size="12" font-weight="700">Binding terms are tracked beside the aggregate</text>
+
+            <rect x="14" y="38" width="532" height="314" rx="10" fill="#fbfbfe" stroke="#d8d4e6"/>
+            <text x="28" y="59" font-weight="700">Transaction</text>
+
+            <path d="M126 82 L126 78 L282 78 L282 82" fill="none" stroke="#3b6fd4" stroke-width="1.3"/>
+            <text x="204" y="72" text-anchor="middle" font-size="8.5" font-weight="700" fill="#2f57b8">Unshielded Intent</text>
+            <path d="M298 82 L298 78 L532 78 L532 82" fill="none" stroke="#5a45a8" stroke-width="1.3"/>
+            <text x="415" y="72" text-anchor="middle" font-size="8.5" font-weight="700" fill="#5a45a8">Zswap</text>
+
+            <line x1="118" y1="86" x2="118" y2="317" stroke="#e1ddec"/>
+            <line x1="204" y1="86" x2="204" y2="317" stroke="#e1ddec"/>
+            <line x1="290" y1="86" x2="290" y2="317" stroke="#e1ddec"/>
+            <line x1="376" y1="86" x2="376" y2="317" stroke="#e1ddec"/>
+            <line x1="462" y1="86" x2="462" y2="317" stroke="#e1ddec"/>
+            <line x1="24" y1="122" x2="536" y2="122" stroke="#e1ddec"/>
+            <line x1="24" y1="182" x2="536" y2="182" stroke="#e1ddec"/>
+            <line x1="24" y1="242" x2="536" y2="242" stroke="#e1ddec"/>
+            <line x1="24" y1="302" x2="536" y2="302" stroke="#e1ddec"/>
+
+            <text x="28" y="104" font-weight="700">component</text>
+            <rect x="126" y="88" width="70" height="26" rx="6" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="161" y="105" text-anchor="middle" fill="#2f57b8" font-weight="700">Intent</text>
+            <rect x="212" y="88" width="70" height="26" rx="6" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="247" y="105" text-anchor="middle" fill="#2f57b8" font-weight="700">Intent</text>
+            <rect x="298" y="88" width="70" height="26" rx="6" fill="#f3effb" stroke="#9a82d8"/>
+            <text x="333" y="101" text-anchor="middle" fill="#5a45a8" font-size="8.5" font-weight="700">Zswap</text>
+            <text x="333" y="111" text-anchor="middle" fill="#5a45a8" font-size="8.5" font-weight="700">Input</text>
+            <rect x="384" y="88" width="70" height="26" rx="6" fill="#e6f6ec" stroke="#5bb87a"/>
+            <text x="419" y="101" text-anchor="middle" fill="#2f7d4d" font-size="8.5" font-weight="700">Zswap</text>
+            <text x="419" y="111" text-anchor="middle" fill="#2f7d4d" font-size="8.5" font-weight="700">Output</text>
+            <rect x="470" y="88" width="60" height="26" rx="6" fill="#fff8e8" stroke="#d4a72c"/>
+            <text x="500" y="101" text-anchor="middle" fill="#8a6d3b" font-size="8.2" font-weight="700">Zswap</text>
+            <text x="500" y="111" text-anchor="middle" fill="#8a6d3b" font-size="8.2" font-weight="700">Transient</text>
+
+            <text x="28" y="143" font-weight="700">1. initialize</text>
+            <text x="28" y="157" font-size="9" fill="#6a737d">random <tspan font-family="'Red Hat Mono', ui-monospace, monospace">r</tspan></text>
+            <rect x="132" y="135" width="58" height="24" rx="6" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="161" y="151" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#2f57b8">r<tspan baseline-shift="sub" font-size="7">1</tspan></text>
+            <rect x="218" y="135" width="58" height="24" rx="6" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="247" y="151" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#2f57b8">r<tspan baseline-shift="sub" font-size="7">2</tspan></text>
+            <rect x="304" y="135" width="58" height="24" rx="6" fill="#f3effb" stroke="#9a82d8"/>
+            <text x="333" y="151" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">3</tspan></text>
+            <rect x="390" y="135" width="58" height="24" rx="6" fill="#e6f6ec" stroke="#5bb87a"/>
+            <text x="419" y="151" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#2f7d4d">r<tspan baseline-shift="sub" font-size="7">4</tspan></text>
+            <rect x="468" y="135" width="64" height="24" rx="6" fill="#fff8e8" stroke="#d4a72c"/>
+            <text x="500" y="151" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#8a6d3b">r<tspan baseline-shift="sub" font-size="7">5</tspan>,r<tspan baseline-shift="sub" font-size="7">6</tspan></text>
+
+            <text x="28" y="203" font-weight="700">2. <tspan font-family="'Red Hat Mono', ui-monospace, monospace">prove()</tspan></text>
+            <text x="28" y="217" font-size="9" fill="#6a737d">Zswap proofs</text>
+            <rect x="132" y="195" width="58" height="24" rx="6" fill="#f6f8fa" stroke="#c9ced6"/>
+            <text x="161" y="211" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#57606a">r<tspan baseline-shift="sub" font-size="7">1</tspan></text>
+            <rect x="218" y="195" width="58" height="24" rx="6" fill="#f6f8fa" stroke="#c9ced6"/>
+            <text x="247" y="211" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#57606a">r<tspan baseline-shift="sub" font-size="7">2</tspan></text>
+            <rect x="304" y="195" width="58" height="24" rx="6" fill="#f3effb" stroke="#9a82d8"/>
+            <text x="333" y="211" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#5a45a8">r<tspan baseline-shift="sub" font-size="7">3</tspan>&middot;G</text>
+            <rect x="390" y="195" width="58" height="24" rx="6" fill="#e6f6ec" stroke="#5bb87a"/>
+            <text x="419" y="211" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#2f7d4d">r<tspan baseline-shift="sub" font-size="7">4</tspan>&middot;G</text>
+            <rect x="468" y="195" width="64" height="24" rx="6" fill="#fff8e8" stroke="#d4a72c"/>
+            <text x="500" y="211" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#8a6d3b">r<tspan baseline-shift="sub" font-size="7">5</tspan>&middot;G,r<tspan baseline-shift="sub" font-size="7">6</tspan>&middot;G</text>
+
+            <text x="28" y="263" font-weight="700">3. <tspan font-family="'Red Hat Mono', ui-monospace, monospace">seal()</tspan></text>
+            <text x="28" y="277" font-size="9" fill="#6a737d">intent bindings</text>
+            <rect x="132" y="255" width="58" height="24" rx="6" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="161" y="271" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#2f57b8">r<tspan baseline-shift="sub" font-size="7">1</tspan>&middot;G</text>
+            <rect x="218" y="255" width="58" height="24" rx="6" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="247" y="271" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#2f57b8">r<tspan baseline-shift="sub" font-size="7">2</tspan>&middot;G</text>
+            <rect x="304" y="255" width="58" height="24" rx="6" fill="#f6f8fa" stroke="#c9ced6"/>
+            <text x="333" y="271" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#57606a">r<tspan baseline-shift="sub" font-size="7">3</tspan>&middot;G</text>
+            <rect x="390" y="255" width="58" height="24" rx="6" fill="#f6f8fa" stroke="#c9ced6"/>
+            <text x="419" y="271" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#57606a">r<tspan baseline-shift="sub" font-size="7">4</tspan>&middot;G</text>
+            <rect x="468" y="255" width="64" height="24" rx="6" fill="#f6f8fa" stroke="#c9ced6"/>
+            <text x="500" y="271" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#57606a">r<tspan baseline-shift="sub" font-size="7">5</tspan>&middot;G,r<tspan baseline-shift="sub" font-size="7">6</tspan>&middot;G</text>
+
+            <text x="28" y="324" font-weight="700" fill="#2f7d4d">4. broadcast</text>
+            <rect x="132" y="311" width="400" height="26" rx="6" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="332" y="328" text-anchor="middle" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#2f7d4d">binding_randomness = r<tspan baseline-shift="sub" font-size="7">1</tspan> + r<tspan baseline-shift="sub" font-size="7">2</tspan> + r<tspan baseline-shift="sub" font-size="7">3</tspan> + r<tspan baseline-shift="sub" font-size="7">4</tspan> + r<tspan baseline-shift="sub" font-size="7">5</tspan> + r<tspan baseline-shift="sub" font-size="7">6</tspan></text>
+          </g>
+        </svg>
+        <figcaption>
+          Each component keeps the commitment term needed to check its own signature or proof, while the transaction
+          separately carries the aggregate <code>binding_randomness</code>.
+        </figcaption>
+      </figure>
+      <p id="binding-value-commitment-intro">
+        Notably, the only part of the proof that uses <code>r</code> is called the <em>Value Commitment</em>.
+      </p>
+      <figure id="binding-value-commitment-figure">
         <svg class="cmp-static" viewBox="0 0 520 120" role="img" aria-label="A value commitment is one elliptic-curve point made of two pieces added together. The first piece is value times hash of type and segment - the amount, placed on a base keyed by the coin's type and segment. The second piece is GENERATOR times r - a random blind that hides the amount. You cannot read the amount off the point because the blind buries it.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10">
             <text x="10" y="16" font-size="11" font-weight="700" fill="#1d1d1f">A value commitment, in two pieces</text>
@@ -6925,135 +7269,223 @@ struct StandardTransaction {
         </svg>
         <figcaption>
           A <strong>value commitment</strong> is one curve point made of two added pieces:
-          <code>value &middot; hash(type, seg)</code>, which places the amount on a base fixed by the coin's type
-          and segment, plus <code>GENERATOR &middot; r</code>, a random blind <code>r</code> that hides it. The point
-          reveals nothing on its own, yet its structure is rigid enough to check against other commitments.
+          <code>value &middot; hash(type, seg)</code>, which places the amount on a base fixed by the coin's
+          type and segment, plus <code>GENERATOR &middot; r</code>, a random blind <code>r</code> that hides it.
+          The point reveals nothing on its own, yet its structure is rigid enough to check against other
+          commitments.
         </figcaption>
       </figure>
-      <p id="binding-anatomy-segment">
-        That base - <code>hash(type, seg)</code> - is the quiet workhorse. Because it folds in both the token type
-        and the segment, two commitments can only cancel if they share <em>both</em>. Different types never net
-        against each other, so you can't conjure value by trading one token for another; and neither do different
-        segments, which is exactly why <a href="#segments-balance-heading">balancing is per-segment</a> rather than
-        one global pool. The independence of the segments is built into the cryptography, not bolted on as a rule.
-      </p>
-    </section>
+      <figure id="binding-value-fields-figure">
+        <pre><code class="language-rust">struct ZswapInput {
+  value_commitment: Pedersen, // @note-spend: input-side value commitment
+  // ...
+}
 
-    <section>
-      <h2 id="binding-property-heading">The binding property</h2>
-      <p id="binding-property-intro">
-        These commitments earn their keep through a property called being additively <em>homomorphic</em>: add two
-        value commitments and you get a valid commitment to the sum of their values - you can add the hidden numbers
-        without ever reading them. That single fact is what lets the chain confirm a shielded offer balances at all:
-        add up the committed inputs, subtract the outputs, and check the result cancels to zero, without seeing one
-        amount. It is also why <a href="#merge-heading">merging</a> proves nothing new. Midnight then leans on the same
-        trick one level higher - across the whole transaction.
-      </p>
-      <p id="binding-property-body">
-        Every value commitment in a transaction - on both rails - sums into a single point, and the transaction
-        reveals exactly one number to open it: <code>binding_randomness</code>, the sum of every part's blind
-        <code>r</code>. If that one number opens the summed point to the declared balances, the transaction is
-        bound. Only the sum is ever published; no individual <code>r</code> can be pulled back out of it.
-      </p>
-      <figure id="binding-sum-figure">
-        <svg class="cmp-static" viewBox="0 0 520 150" role="img" aria-label="Many commitments collapse into one opener. On the left, the Zswap value commitments, plus intent A's binding GENERATOR times rA, plus intent B's binding GENERATOR times rB, all sum into a single point on the right. That point is opened by exactly one published number, binding_randomness, which is the sum of every part's blind r. Because only the total is published, no single r is recoverable, so no part can be pulled out and re-balanced in another transaction.">
-          <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10">
-            <text x="10" y="16" font-size="11" font-weight="700" fill="#1d1d1f">Many commitments, one opener</text>
+struct ZswapOutput {
+  value_commitment: Pedersen, // @note-create: output-side value commitment
+  // ...
+}
 
-            <rect x="10" y="30" width="176" height="18" rx="6" fill="#efeafb" stroke="#9a82d8"/><text x="20" y="43" font-size="9" fill="#5a45a8">Zswap value commitments</text>
-            <rect x="10" y="52" width="176" height="18" rx="6" fill="#f3effb" stroke="#b9a9e6"/><text x="20" y="65" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#5a45a8">intent A: GENERATOR&middot;rA</text>
-            <rect x="10" y="74" width="176" height="18" rx="6" fill="#f3effb" stroke="#b9a9e6"/><text x="20" y="87" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#5a45a8">intent B: GENERATOR&middot;rB</text>
-
-            <text x="194" y="64" font-size="18" fill="#9aa0a8">&#8853;</text>
-
-            <rect x="222" y="40" width="288" height="48" rx="8" fill="#e6f5ec" stroke="#5bb87a"/>
-            <text x="236" y="60" font-weight="700" fill="#2f7d4d">one summed point</text>
-            <text x="236" y="78" font-size="9" fill="#2f7d4d">opened by one number: binding_randomness</text>
-
-            <text x="10" y="118" fill="#555">binding_randomness is the sum of every part's blind r - only that total is published.</text>
-            <text x="10" y="136" fill="#555">No single r is recoverable, so no part can be re-balanced in another transaction.</text>
-          </g>
-        </svg>
+struct ZswapTransient {
+  value_commitment_input: Pedersen, // @note-spend: the input half
+  value_commitment_output: Pedersen, // @note-create: the output half
+  // ...
+}</code></pre>
         <figcaption>
-          Every value commitment and every intent binding in a transaction <strong>adds</strong> into one point,
-          opened by a single published number, <code>binding_randomness</code> - the sum of every part's blind.
-          Because only that total is revealed, no individual <code>r</code> can be recovered, so no part can be
-          isolated and re-balanced inside a different transaction.
+          The Zswap rail carries value commitments on inputs and outputs. A <code>ZswapTransient</code> contains both
+          sides because it fuses an output and an input for the same coin into one structure.
         </figcaption>
       </figure>
-      <p id="binding-property-payoff">
-        That single published total is the whole game. Since no one can recover an individual blind from it, no one
-        can lift a part out of a finished transaction and re-balance it inside a different one - a transaction can
-        only be taken apart by whoever assembled it. That is what <em>binding</em> means here: not that the values
-        are correct (the <a href="#segments-balance-heading">per-segment check</a> handles that), but that the
-        pieces are welded into the exact transaction they were assembled in. The same additive structure pays off
-        again later: it is what lets the <a href="#solution-heading">L2 fold every swap into a single proof</a>,
-        rather than re-deriving each balance from scratch.
+      <p id="binding-value-commitment-segment">
+        The <em>Value Commitment</em> serves an additional goal. Because <code>hash(type, seg)</code> folds in both
+        the token type and the segment, two commitments can only cancel if they share <em>both</em>. Different types
+        never net against each other, so you can't conjure value by trading one token for another; and neither do
+        different segments, which is exactly why <a href="#segments-balance-heading">balancing is per-segment</a>
+        rather than one global pool. The independence of the segments is built into the cryptography, not bolted on
+        as a rule.
       </p>
     </section>
 
     <section>
       <h2 id="binding-intent-heading">How an intent joins the sum</h2>
       <p id="binding-intent-intro">
-        An unshielded intent has none of this machinery. It carries spends, outputs, contract calls, and fees - but
-        no Zswap value commitment, because nothing about it is hidden. So how does it take part in the
-        transaction-wide sum that binds everything together?
+        The two rails contribute to the same transaction-level sum, but their per-piece randomness lives in
+        different places.
       </p>
       <p id="binding-intent-body">
-        It contributes a <em>value-free</em> binding: the same Pedersen point with the value term simply dropped,
-        leaving only the blind, <code>GENERATOR &middot; r</code>. There is no amount to commit to - the inputs and
-        outputs already state it in the clear - so the intent brings randomness, and nothing else, into the sum.
+        For an unshielded <code>Intent</code>, the random number belongs to the intent as a whole. The intent's
+        <code>binding_commitment</code> is value-free: just the generator times <code>r</code>. The unshielded
+        spends and outputs inside the intent are public and balance-checked by other rules; they do not each add
+        their own Pedersen value term.
       </p>
       <figure id="binding-valuefree-figure">
-        <svg class="cmp-static" viewBox="0 0 520 134" role="img" aria-label="Two commitment forms compared. A Zswap value commitment hides an amount, so it carries a value term: hash of type and segment, times value, plus GENERATOR times r. An unshielded binding commitment drops the value term and keeps only the blinding - just GENERATOR times r - because the amount is already public in the inputs and outputs.">
+        <svg class="cmp-static" viewBox="0 0 560 152" role="img" aria-label="The lifecycle of binding randomness. Create: Intent gets one scalar r and Zswap coins get coin randomness. Assemble: transaction recomputes binding_randomness as the sum. Prove: Zswap preimages are erased and binding_randomness is copied unchanged. Seal: Intent scalar is replaced with a proof of knowledge and binding_randomness is copied unchanged. Broadcast: only the aggregate remains public.">
           <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10">
-            <text x="10" y="16" font-size="11" font-weight="700" fill="#1d1d1f">An unshielded binding carries no value</text>
+            <text x="10" y="18" font-size="11" font-weight="700" fill="#1d1d1f">The sum is computed once, then copied through</text>
+            <rect x="10" y="40" width="92" height="54" rx="8" fill="#eaf0fc" stroke="#3b6fd4"/>
+            <text x="56" y="61" text-anchor="middle" font-weight="700" fill="#2f57b8">create</text>
+            <text x="56" y="78" text-anchor="middle" font-size="9" fill="#2f57b8">r values exist</text>
 
-            <text x="10" y="44" font-weight="700" fill="#5a45a8">Zswap value commitment &middot; hides the amount</text>
-            <rect x="10" y="52" width="500" height="22" rx="6" fill="#f3effb" stroke="#b9a9e6"/>
-            <text x="22" y="67" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#5a45a8">hash(type, seg) &middot; value &nbsp;+&nbsp; GENERATOR &middot; r</text>
+            <rect x="122" y="40" width="106" height="54" rx="8" fill="#e6f5ec" stroke="#5bb87a"/>
+            <text x="175" y="61" text-anchor="middle" font-weight="700" fill="#2f7d4d">assemble</text>
+            <text x="175" y="78" text-anchor="middle" font-size="9" fill="#2f7d4d">compute sum</text>
 
-            <text x="10" y="100" font-weight="700" fill="#24292f">unshielded binding_commitment &middot; amount already public</text>
-            <rect x="10" y="108" width="500" height="22" rx="6" fill="#eef0f3" stroke="#c9ced6"/>
-            <text x="22" y="123" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#24292f">GENERATOR &middot; r</text>
+            <rect x="248" y="40" width="92" height="54" rx="8" fill="#efeafb" stroke="#5a45a8"/>
+            <text x="294" y="61" text-anchor="middle" font-weight="700" fill="#5a45a8">prove</text>
+            <text x="294" y="78" text-anchor="middle" font-size="9" fill="#5a45a8">erase zswap r</text>
+
+            <rect x="360" y="40" width="92" height="54" rx="8" fill="#fff4d6" stroke="#8a6d3b"/>
+            <text x="406" y="61" text-anchor="middle" font-weight="700" fill="#8a6d3b">seal</text>
+            <text x="406" y="78" text-anchor="middle" font-size="9" fill="#8a6d3b">erase intent r</text>
+
+            <rect x="472" y="40" width="78" height="54" rx="8" fill="#f6f8fa" stroke="#c9ced6"/>
+            <text x="511" y="61" text-anchor="middle" font-weight="700" fill="#24292f">broadcast</text>
+            <text x="511" y="78" text-anchor="middle" font-size="9" fill="#555">total only</text>
+
+            <text x="16" y="124" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="10" fill="#24292f">binding_randomness: computed at assemble, unchanged through prove, seal, and broadcast</text>
           </g>
         </svg>
         <figcaption>
-          A Zswap <strong>value commitment</strong> carries a value term to hide an amount -
-          <code>hash(type, seg) &middot; value</code> plus a blind <code>GENERATOR &middot; r</code>. The unshielded
-          <code>binding_commitment</code> drops the value term and keeps only the blind, because the amount is
-          already public in the inputs and outputs. It brings randomness into the sum, nothing else.
+          <code>binding_randomness</code> is computed during transaction assembly. Proving and sealing do not update
+          it; they copy it through unchanged while erasing the individual openings from different rails.
         </figcaption>
       </figure>
       <p id="binding-intent-koe">
-        One safeguard makes that honest. An intent's binding has no proof-bearing circuit behind it the way a
-        shielded coin does, so each one carries a small <em>proof of knowledge</em> that it really is a pure
-        <code>GENERATOR &middot; r</code> with no hidden value term. Without it, a malicious intent could fold a
-        forged amount into the shared sum and quietly unbalance the shielded side.
+        For Zswap, the random numbers live in the input and output proof preimages. Assembly reads those preimages
+        and folds their randomness into the same transaction-level sum. Zswap proving then replaces the preimages
+        with proofs, so that per-coin randomness can no longer be read back from the offer.
       </p>
       <p id="binding-intent-additive">
-        With that in place, the payoff is the one the whole unshielded rail rests on: because the points add, two
-        intents built and signed by strangers merge into one transaction by simply summing their blinds - nothing
-        re-proven, nothing re-signed. The binding is what makes that merge both safe and non-interactive.
+        For intents, sealing does the corresponding erasure: the plaintext scalar becomes a proof of knowledge of
+        the pure-generator commitment, bound to the intent contents and segment. So the rule of thumb is: before
+        prove and seal, known <code>r</code> values are composable handles; after prove and seal, the transaction
+        keeps only their total.
       </p>
       <details id="binding-lifecycle-aside" class="aside">
-        <summary>Technical aside - when the binding is actually computed, and why it's built bottom-up (most readers can skip this)</summary>
+        <summary>Untrusted draft - older AI-generated Pedersen appendix</summary>
         <p>
-          You might expect the binding to be computed at the end, once the whole transaction is assembled. It's the
-          opposite: the binding is built bottom-up and <em>sealed last</em>. It begins life as a plain secret scalar
-          <code>r</code> while the intent is still being balanced and edited, and only at signing does it harden into
-          the sealed <code>GENERATOR &middot; r</code>-plus-proof form - after which any edit to the intent
-          invalidates it. The working pattern is <em>prove early, modify cheaply, seal last</em>.
+          This is the previous AI-generated draft, kept here for reference rather than deleted. Treat it as
+          unverified background; the working model for this post is the lifecycle described above.
         </p>
-        <p>
-          Two constraints force that order. First, the binding point is an <em>input</em> to other proofs - a
-          contract call carried in the same intent proves against it - so it has to exist <em>before</em> those
-          proofs are made, not after. Second, only the author knows the secret <code>r</code>, so only the author
-          can seal it. That second point is the load-bearing one: the party assembling many intents into one
-          transaction never learns any single <code>r</code>, so it can't forge a fresh binding for a different
-          recombination of the pieces. Each author seals their own half; the bundler can only add the sealed halves
-          together.
-        </p>
+
+        <section>
+          <h3 id="draft-binding-property-heading">Draft: the binding property</h3>
+          <p id="draft-binding-property-intro">
+            These commitments earn their keep through a property called being additively <em>homomorphic</em>: add
+            two value commitments and you get a valid commitment to the sum of their values - you can add the hidden
+            numbers without ever reading them. That single fact is what lets the chain confirm a shielded offer
+            balances at all: add up the committed inputs, subtract the outputs, and check the result cancels to zero,
+            without seeing one amount. It is also why <a href="#merge-heading">merging</a> proves nothing new.
+            Midnight then leans on the same trick one level higher - across the whole transaction.
+          </p>
+          <p id="draft-binding-property-body">
+            Every value commitment in a transaction - on both rails - sums into a single point, and the transaction
+            reveals exactly one number to open it: <code>binding_randomness</code>, the sum of every part's blind
+            <code>r</code>. If that one number opens the summed point to the declared balances, the transaction is
+            bound. Only the sum is ever published; no individual <code>r</code> can be pulled back out of it.
+          </p>
+          <figure id="draft-binding-sum-figure">
+            <svg class="cmp-static" viewBox="0 0 520 150" role="img" aria-label="Many commitments collapse into one opener. On the left, the Zswap value commitments, plus intent A's binding GENERATOR times rA, plus intent B's binding GENERATOR times rB, all sum into a single point on the right. That point is opened by exactly one published number, binding_randomness, which is the sum of every part's blind r. Because only the total is published, no single r is recoverable, so no part can be pulled out and re-balanced in another transaction.">
+              <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10">
+                <text x="10" y="16" font-size="11" font-weight="700" fill="#1d1d1f">Many commitments, one opener</text>
+
+                <rect x="10" y="30" width="176" height="18" rx="6" fill="#efeafb" stroke="#9a82d8"/><text x="20" y="43" font-size="9" fill="#5a45a8">Zswap value commitments</text>
+                <rect x="10" y="52" width="176" height="18" rx="6" fill="#f3effb" stroke="#b9a9e6"/><text x="20" y="65" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#5a45a8">intent A: GENERATOR&middot;rA</text>
+                <rect x="10" y="74" width="176" height="18" rx="6" fill="#f3effb" stroke="#b9a9e6"/><text x="20" y="87" font-family="'Red Hat Mono', ui-monospace, monospace" font-size="9" fill="#5a45a8">intent B: GENERATOR&middot;rB</text>
+
+                <text x="194" y="64" font-size="18" fill="#9aa0a8">&#8853;</text>
+
+                <rect x="222" y="40" width="288" height="48" rx="8" fill="#e6f5ec" stroke="#5bb87a"/>
+                <text x="236" y="60" font-weight="700" fill="#2f7d4d">one summed point</text>
+                <text x="236" y="78" font-size="9" fill="#2f7d4d">opened by one number: binding_randomness</text>
+
+                <text x="10" y="118" fill="#555">binding_randomness is the sum of every part's blind r - only that total is published.</text>
+                <text x="10" y="136" fill="#555">No single r is recoverable, so no part can be re-balanced in another transaction.</text>
+              </g>
+            </svg>
+            <figcaption>
+              Every value commitment and every intent binding in a transaction <strong>adds</strong> into one point,
+              opened by a single published number, <code>binding_randomness</code> - the sum of every part's blind.
+              Because only that total is revealed, no individual <code>r</code> can be recovered, so no part can be
+              isolated and re-balanced inside a different transaction.
+            </figcaption>
+          </figure>
+          <p id="draft-binding-property-payoff">
+            That single published total is the whole game. Since no one can recover an individual blind from it, no
+            one can lift a part out of a finished transaction and re-balance it inside a different one - a
+            transaction can only be taken apart by whoever assembled it. That is what <em>binding</em> means here:
+            not that the values are correct (the <a href="#segments-balance-heading">per-segment check</a> handles
+            that), but that the pieces are welded into the exact transaction they were assembled in. The same
+            additive structure pays off again later: it is what lets the <a href="#solution-heading">L2 fold every
+            swap into a single proof</a>, rather than re-deriving each balance from scratch.
+          </p>
+        </section>
+
+        <section>
+          <h3 id="draft-binding-intent-heading">Draft: how an intent joins the sum</h3>
+          <p id="draft-binding-intent-intro">
+            An unshielded intent has none of this machinery. It carries spends, outputs, contract calls, and fees -
+            but no Zswap value commitment, because nothing about it is hidden. So how does it take part in the
+            transaction-wide sum that binds everything together?
+          </p>
+          <p id="draft-binding-intent-body">
+            It contributes a <em>value-free</em> binding: the same Pedersen point with the value term simply dropped,
+            leaving only the blind, <code>GENERATOR &middot; r</code>. There is no amount to commit to - the inputs
+            and outputs already state it in the clear - so the intent brings randomness, and nothing else, into the
+            sum.
+          </p>
+          <figure id="draft-binding-valuefree-figure">
+            <svg class="cmp-static" viewBox="0 0 520 134" role="img" aria-label="Two commitment forms compared. A Zswap value commitment hides an amount, so it carries a value term: hash of type and segment, times value, plus GENERATOR times r. An unshielded binding commitment drops the value term and keeps only the blinding - just GENERATOR times r - because the amount is already public in the inputs and outputs.">
+              <g font-family="'Red Hat Text', system-ui, sans-serif" font-size="10">
+                <text x="10" y="16" font-size="11" font-weight="700" fill="#1d1d1f">An unshielded binding carries no value</text>
+
+                <text x="10" y="44" font-weight="700" fill="#5a45a8">Zswap value commitment &middot; hides the amount</text>
+                <rect x="10" y="52" width="500" height="22" rx="6" fill="#f3effb" stroke="#b9a9e6"/>
+                <text x="22" y="67" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#5a45a8">hash(type, seg) &middot; value &nbsp;+&nbsp; GENERATOR &middot; r</text>
+
+                <text x="10" y="100" font-weight="700" fill="#24292f">unshielded binding_commitment &middot; amount already public</text>
+                <rect x="10" y="108" width="500" height="22" rx="6" fill="#eef0f3" stroke="#c9ced6"/>
+                <text x="22" y="123" font-family="'Red Hat Mono', ui-monospace, monospace" fill="#24292f">GENERATOR &middot; r</text>
+              </g>
+            </svg>
+            <figcaption>
+              A Zswap <strong>value commitment</strong> carries a value term to hide an amount -
+              <code>hash(type, seg) &middot; value</code> plus a blind <code>GENERATOR &middot; r</code>. The
+              unshielded <code>binding_commitment</code> drops the value term and keeps only the blind, because the
+              amount is already public in the inputs and outputs. It brings randomness into the sum, nothing else.
+            </figcaption>
+          </figure>
+          <p id="draft-binding-intent-koe">
+            One safeguard makes that honest. An intent's binding has no proof-bearing circuit behind it the way a
+            shielded coin does, so each one carries a small <em>proof of knowledge</em> that it really is a pure
+            <code>GENERATOR &middot; r</code> with no hidden value term. Without it, a malicious intent could fold a
+            forged amount into the shared sum and quietly unbalance the shielded side.
+          </p>
+          <p id="draft-binding-intent-additive">
+            With that in place, the payoff is the one the whole unshielded rail rests on: because the points add,
+            two intents built and signed by strangers merge into one transaction by simply summing their blinds -
+            nothing re-proven, nothing re-signed. The binding is what makes that merge both safe and
+            non-interactive.
+          </p>
+          <div id="draft-binding-lifecycle-aside" class="aside">
+            <p>
+              You might expect the binding to be computed at the end, once the whole transaction is assembled. It's
+              the opposite: the binding is built bottom-up and <em>sealed last</em>. It begins life as a plain secret
+              scalar <code>r</code> while the intent is still being balanced and edited, and only at signing does it
+              harden into the sealed <code>GENERATOR &middot; r</code>-plus-proof form - after which any edit to the
+              intent invalidates it. The working pattern is <em>prove early, modify cheaply, seal last</em>.
+            </p>
+            <p>
+              Two constraints force that order. First, the binding point is an <em>input</em> to other proofs - a
+              contract call carried in the same intent proves against it - so it has to exist <em>before</em> those
+              proofs are made, not after. Second, only the author knows the secret <code>r</code>, so only the author
+              can seal it. That second point is the load-bearing one: the party assembling many intents into one
+              transaction never learns any single <code>r</code>, so it can't forge a fresh binding for a different
+              recombination of the pieces. Each author seals their own half; the bundler can only add the sealed
+              halves together.
+            </p>
+          </div>
+        </section>
       </details>
     </section>
 
